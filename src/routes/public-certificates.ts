@@ -49,3 +49,5 @@ const verifyRoute: PluginRoute<CertificateVerifyInput> = {
 export const certificateRoutesPublic = {
 	"certificate:verify": verifyRoute,
 } as const;
+
+export type { VerificationResult } from "../engine/certificates.js";
