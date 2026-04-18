@@ -12,6 +12,8 @@ import CohortDetailPage from "./admin/CohortDetailPage.js";
 import CohortsPage from "./admin/CohortsPage.js";
 import DashboardPage from "./admin/DashboardPage.js";
 import InstructorsPage from "./admin/InstructorsPage.js";
+import QuizEditPage from "./admin/QuizEditPage.js";
+import QuizListPage from "./admin/QuizListPage.js";
 import SettingsPage from "./admin/SettingsPage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
 
@@ -20,6 +22,8 @@ export const pages: Record<string, ComponentType> = {
 	"/cohorts": CohortsPage,
 	"/cohorts/:cohortId": CohortDetailPage,
 	"/instructors": InstructorsPage,
+	"/quizzes": QuizListPage,
+	"/quizzes/:quizId": QuizEditPage,
 	"/settings": SettingsPage,
 	"/setup": SetupWizardPage,
 };
