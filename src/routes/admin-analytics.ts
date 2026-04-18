@@ -84,6 +84,14 @@ const engagementRoute: PluginRoute<DateRangeInput> = {
 	},
 };
 
+export type {
+	CourseComparison,
+	DateRange,
+	EngagementMetrics,
+	PaginatedResult,
+	SiteAnalytics,
+} from "../engine/analytics.js";
+
 export const adminAnalyticsRoutes = {
 	"admin:analytics-overview": overviewRoute,
 	"admin:courses-comparison": comparisonRoute,

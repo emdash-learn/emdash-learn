@@ -240,3 +240,10 @@ export const quizRoutes = {
 	"quiz:list": listRoute,
 	"quiz:delete": deleteRoute,
 } as const;
+
+export type {
+	QuestionForStudent,
+	QuestionFeedback,
+	StartAttemptResult,
+	SubmitAttemptResult,
+} from "../engine/quizzes.js";

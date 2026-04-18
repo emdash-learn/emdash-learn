@@ -240,6 +240,15 @@ const progressExportRoute: PluginRoute<CourseIdInput> = {
 	},
 };
 
+export type {
+	ActivityItem,
+	CourseOverview,
+	DashboardStats,
+	CourseSummary,
+	QuizStats,
+	StudentProgress,
+} from "../engine/analytics.js";
+
 export const instructorAnalyticsRoutes = {
 	"instructor:dashboard-stats": dashboardStatsRoute,
 	"instructor:dashboard-courses": dashboardCoursesRoute,

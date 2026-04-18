@@ -21,7 +21,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import { BOOTSTRAP_VERSION, PLUGIN_ID } from "../constants.js";
+import { BOOTSTRAP_VERSION } from "../constants.js";
 import {
 	CoreSchemaClientError,
 	createCoreSchemaClient,
@@ -32,6 +32,7 @@ import {
 	type WizardStep,
 } from "../setup/steps.js";
 import type { BootstrapState } from "../types/storage.js";
+import { LmsApiError, createApiClient } from "./api-client.js";
 
 interface StepRowState {
 	probe: StepProbe;
@@ -44,31 +45,6 @@ const initialRow: StepRowState = {
 	probe: { status: "pending", summary: "Loading…" },
 	applying: false,
 };
-
-const pluginRoute = (name: string): string =>
-	`/_emdash/api/plugins/${PLUGIN_ID}/${name}`;
-
-async function callPluginRoute<T>(name: string, body: unknown): Promise<T> {
-	const res = await fetch(pluginRoute(name), {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Accept: "application/json" },
-		credentials: "same-origin",
-		body: JSON.stringify(body ?? {}),
-	});
-	const text = await res.text();
-	const parsed: unknown = text.length > 0 ? JSON.parse(text) : null;
-	if (!res.ok) {
-		const msg =
-			parsed &&
-			typeof parsed === "object" &&
-			"error" in parsed &&
-			typeof (parsed as { error: unknown }).error === "string"
-				? (parsed as { error: string }).error
-				: `Request failed (${res.status})`;
-		throw new Error(msg);
-	}
-	return parsed as T;
-}
 
 const statusPalette: Record<StepProbe["status"], { label: string; color: string }> = {
 	pending: { label: "…", color: "#64748b" },
@@ -86,12 +62,14 @@ function formatError(err: unknown): string {
 				: String(err.status);
 		return `${err.message} — ${detail}`;
 	}
+	if (err instanceof LmsApiError) return err.message;
 	if (err instanceof Error) return err.message;
 	return String(err);
 }
 
 export function SetupWizardPage(): ReactElement {
 	const schema = useMemo(() => createCoreSchemaClient(), []);
+	const api = useMemo(() => createApiClient(), []);
 	const [rows, setRows] = useState<Record<string, StepRowState>>(() => {
 		const out: Record<string, StepRowState> = {};
 		for (const step of WIZARD_STEPS) out[step.id] = initialRow;
@@ -134,16 +112,13 @@ export function SetupWizardPage(): ReactElement {
 
 	const refreshBootstrap = useCallback(async () => {
 		try {
-			const res = await callPluginRoute<{
-				state: BootstrapState;
-				targetVersion: number;
-			}>("setup:state", {});
+			const res = await api.setup.state();
 			setBootstrap(res.state);
 			setTargetVersion(res.targetVersion);
 		} catch (err) {
 			setGlobalError(formatError(err));
 		}
-	}, []);
+	}, [api]);
 
 	useEffect(() => {
 		void refreshBootstrap();
@@ -210,18 +185,24 @@ export function SetupWizardPage(): ReactElement {
 		}
 		try {
 			if (!failed) completed.push("finalize");
-			await callPluginRoute<{ state: BootstrapState }>("setup:mark", {
-				completedSteps: completed,
-				lastError: failed
-					? { stepId: failed.stepId, message: failed.message, at: new Date().toISOString() }
-					: undefined,
-			});
+			const markInput: {
+				completedSteps: string[];
+				lastError?: { stepId: string; message: string; at: string };
+			} = { completedSteps: completed };
+			if (failed) {
+				markInput.lastError = {
+					stepId: failed.stepId,
+					message: failed.message,
+					at: new Date().toISOString(),
+				};
+			}
+			await api.setup.mark(markInput);
 			await refreshBootstrap();
 		} catch (err) {
 			setGlobalError(formatError(err));
 		}
 		setRunningAll(false);
-	}, [refreshBootstrap, rows, runStep]);
+	}, [api, refreshBootstrap, rows, runStep]);
 
 	const allSteps = WIZARD_STEPS;
 	const pendingCount = allSteps.filter(
