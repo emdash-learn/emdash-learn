@@ -36,6 +36,7 @@ import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
 import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
 import { cohortRoutes } from "./routes/instructor-cohorts.js";
 import { instructorAssignmentRoutes } from "./routes/instructor-assignments.js";
+import { catalogRoutes } from "./routes/public-catalog.js";
 import { certificateRoutesPublic } from "./routes/public-certificates.js";
 import { quizRoutes } from "./routes/quizzes.js";
 import { certificateRoutesStudent } from "./routes/student-certificates.js";
@@ -219,6 +220,9 @@ export function createPlugin() {
 			// Wave 4 routes — analytics backends (D33 defers admin UI to v2).
 			...(instructorAnalyticsRoutes as Record<string, PluginRoute<unknown>>),
 			...(adminAnalyticsRoutes as Record<string, PluginRoute<unknown>>),
+
+			// Wave 5 routes — public catalog (§6.2, D22).
+			...(catalogRoutes as Record<string, PluginRoute<unknown>>),
 		},
 	});
 }
