@@ -1,0 +1,23 @@
+---
+/**
+ * Site-side renderer for the `lmsQuiz` Portable Text block (T16).
+ *
+ * Emits a hydratable placeholder div; the consuming theme mounts an
+ * interactive quiz taker here against the plugin's `quiz:start` /
+ * `quiz:submit` routes (see prd-plugin.md §21 Phase 3).
+ */
+import type { Props as $ } from "astro-portabletext/types";
+
+interface QuizNode {
+	_type: "lmsQuiz";
+	_key?: string;
+	quizId: string;
+}
+
+export type Props = $<QuizNode>;
+
+const { node } = Astro.props;
+---
+<div class="lms-quiz-block" data-quiz-id={node.quizId}>
+	<p>Quiz: {node.quizId}</p>
+</div>

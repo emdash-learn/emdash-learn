@@ -34,8 +34,8 @@
 			"default": "./dist/admin.mjs"
 		},
 		"./astro": {
-			"types": "./dist/astro/index.d.mts",
-			"default": "./dist/astro/index.mjs"
+			"types": "./src/astro/index.ts",
+			"default": "./src/astro/index.ts"
 		}
 	},
 	"files": [
@@ -58,6 +58,7 @@
 		"format:check": "prettier --check ."
 	},
 	"peerDependencies": {
+		"@emdash-cms/blocks": ">=0.5.0",
 		"astro": "^6.0.0",
 		"emdash": ">=0.5.0",
 		"react": "^19.0.0",

@@ -3,6 +3,11 @@
  * tell emdash how to render custom Portable Text block types on the public
  * site.
  *
- * Wave 0 (T00) ships no block types — the quiz block lands in T16.
+ * T16 ships the `lmsQuiz` block renderer (see `./QuizBlock.astro`). Future
+ * block types register here.
  */
-export const blockComponents: Record<string, unknown> = {};
+import QuizBlock from "./QuizBlock.astro";
+
+export const blockComponents: Record<string, unknown> = {
+	lmsQuiz: QuizBlock,
+};
