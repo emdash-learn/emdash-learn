@@ -5,7 +5,6 @@ export default defineConfig({
 		"src/index.ts",
 		"src/sandbox-entry.ts",
 		"src/admin.tsx",
-		"src/astro/index.ts",
 	],
 	format: "esm",
 	dts: true,

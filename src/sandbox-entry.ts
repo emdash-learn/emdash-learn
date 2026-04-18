@@ -15,6 +15,7 @@
  *     session against `/_emdash/api/schema/*` (D2), not via plugin routes.
  */
 
+import { elements } from "@emdash-cms/blocks";
 import { definePlugin } from "emdash";
 import type { PluginContext, PluginRoute } from "emdash";
 import { z } from "astro/zod";
@@ -120,6 +121,17 @@ export function createPlugin() {
 		admin: {
 			entry: "@emdash/lms-core/admin",
 			pages: [{ path: "/setup", label: "Setup", icon: "wand" }],
+			portableTextBlocks: [
+				{
+					type: "lmsQuiz",
+					label: "Quiz",
+					icon: "list-checks",
+					description: "Insert a quiz the student must pass to complete the lesson",
+					fields: [
+						elements.textInput("quizId", "Quiz ID", { placeholder: "quiz_…" }),
+					],
+				},
+			],
 		},
 
 		hooks: {
