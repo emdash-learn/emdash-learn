@@ -47,6 +47,10 @@ export const LEARN_ERRORS = {
 	NOT_INSTRUCTOR: "LEARN_NOT_INSTRUCTOR",
 	SETUP_FAILED: "LEARN_SETUP_FAILED",
 	SCHEMA_CONFLICT: "LEARN_SCHEMA_CONFLICT",
+	/** No authenticated session on a route that requires one. */
+	UNAUTHENTICATED: "LEARN_UNAUTHENTICATED",
+	/** Authenticated user lacks the required role or resource ownership. */
+	FORBIDDEN: "LEARN_FORBIDDEN",
 } as const;
 
 export type LearnErrorCode = (typeof LEARN_ERRORS)[keyof typeof LEARN_ERRORS];
