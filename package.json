@@ -1,0 +1,89 @@
+{
+	"name": "@emdash/lms-core",
+	"version": "0.0.0",
+	"description": "Emdash Learn — open-source LMS plugin for emdash (enrollments, progress, quizzes, certificates, cohorts).",
+	"type": "module",
+	"license": "MIT",
+	"author": "Emdash Learn contributors",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/emdash-cms/lms-core.git"
+	},
+	"keywords": [
+		"emdash",
+		"cms",
+		"plugin",
+		"lms",
+		"learning",
+		"courses",
+		"quizzes"
+	],
+	"main": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		},
+		"./sandbox": {
+			"types": "./dist/sandbox-entry.d.mts",
+			"default": "./dist/sandbox-entry.mjs"
+		},
+		"./admin": {
+			"types": "./dist/admin.d.mts",
+			"default": "./dist/admin.mjs"
+		},
+		"./astro": {
+			"types": "./dist/astro/index.d.mts",
+			"default": "./dist/astro/index.mjs"
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "tsdown",
+		"dev": "tsdown --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "pnpm run test:unit && pnpm run test:integration",
+		"test:unit": "vitest run --dir tests/unit --passWithNoTests",
+		"test:integration": "vitest run --dir tests/integration --passWithNoTests",
+		"test:e2e": "playwright test",
+		"test:watch": "vitest --passWithNoTests",
+		"lint": "oxlint --type-aware",
+		"lint:quick": "oxlint -f json",
+		"lint:fix": "oxlint --type-aware --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
+	},
+	"peerDependencies": {
+		"astro": "^6.0.0",
+		"emdash": ">=0.5.0",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.58.0",
+		"@types/node": "^24.10.0",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"astro": "^6.0.1",
+		"emdash": ">=0.5.0",
+		"oxlint": "^1.49.0",
+		"oxlint-tsgolint": "^0.21.1",
+		"prettier": "^3.8.1",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"tsdown": "^0.20.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.18"
+	},
+	"engines": {
+		"node": ">=20"
+	},
+	"packageManager": "pnpm@10.28.0",
+	"pnpm": {
+		"onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+	}
+}

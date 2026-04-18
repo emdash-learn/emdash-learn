@@ -1,0 +1,26 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "unicorn", "import", "promise", "react", "react-hooks"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn",
+		"perf": "warn",
+		"style": "off",
+		"pedantic": "off",
+		"restriction": "off"
+	},
+	"env": {
+		"browser": true,
+		"node": true,
+		"es2024": true
+	},
+	"settings": {
+		"react": {
+			"version": "19.2"
+		}
+	},
+	"rules": {
+		"react/react-in-jsx-scope": "off"
+	},
+	"ignorePatterns": ["dist", "node_modules", ".astro", "demos/*/dist", "playwright-report", "test-results"]
+}

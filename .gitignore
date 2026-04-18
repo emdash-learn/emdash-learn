@@ -1,0 +1,34 @@
+# build output
+dist/
+.astro/
+demos/*/dist/
+demos/*/.astro/
+
+# dependencies
+node_modules/
+
+# test artifacts
+playwright-report/
+test-results/
+coverage/
+.vitest/
+
+# databases
+*.db
+*.db-journal
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# local env
+.env
+.env.local
+*.log
+
+# private planning docs (kept local)
+PRD.md
+VIABILITY.md
+prd-plugin.md
+emdash-learn-viability.md
