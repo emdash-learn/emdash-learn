@@ -34,7 +34,7 @@
  * All writes go through the engine — routes never touch `ctx.storage` directly.
  */
 
-import type { ContentItem, PluginContext, StorageCollection } from "emdash";
+import type { PluginContext, StorageCollection } from "emdash";
 import { ulid } from "emdash";
 
 import { LEARN_ERRORS } from "../constants.js";
@@ -103,10 +103,7 @@ function enrollmentsStore(ctx: PluginContext): StorageCollection<Enrollment> {
  * `null` to `LEARN_SETUP_INCOMPLETE` since both shapes mean "we cannot
  * authoritatively confirm the course exists."
  */
-async function getCourse(
-	ctx: PluginContext,
-	courseId: string,
-): Promise<ContentItem | null> {
+async function getCourse(ctx: PluginContext, courseId: string) {
 	if (!ctx.content) return null;
 	return ctx.content.get("courses", courseId);
 }
@@ -121,10 +118,12 @@ async function getCourse(
  *     (if set) is an exclusive upper bound. Missing bounds mean "no bound."
  *   - All comparisons use `Date.now()` so `fakeNow()` works in tests.
  */
-function checkEnrollmentWindow(course: ContentItem): Result<true> | null {
+function checkEnrollmentWindow(course: { data: unknown }): Result<never> | null {
 	const data = course.data as Record<string, unknown>;
 	const enrollmentOpen = data.enrollment_open;
-	if (enrollmentOpen === false) {
+	// emdash stores booleans as 0/1 in SQLite, so accept both shapes. Absent
+	// field defaults to "open" (the fixture's defaultValue), not closed.
+	if (enrollmentOpen === false || enrollmentOpen === 0) {
 		return err(LEARN_ERRORS.ENROLLMENT_CLOSED, "Enrollment is closed for this course");
 	}
 
