@@ -1,0 +1,161 @@
+---
+import { callLmsRoute } from "../lib/lms-api.ts";
+
+interface MyLearningItem {
+	courseId: string;
+	courseTitle: string;
+	coverImage?: string;
+	enrolledAt: string;
+	percentComplete: number;
+	lastActivityAt?: string;
+	nextLesson?: { id: string; title: string };
+	completedAt?: string;
+}
+
+interface CertificateItem {
+	id: string;
+	userId: string;
+	courseId: string;
+	issuedAt: string;
+	verificationCode: string;
+	revokedAt?: string;
+}
+
+interface CatalogCourse {
+	id: string;
+	slug?: string;
+	title: string;
+}
+
+const cookie = Astro.request.headers.get("cookie");
+const origin = Astro.url.origin;
+
+const [learningResult, certsResult, catalogResult] = await Promise.all([
+	callLmsRoute<{ items: MyLearningItem[] }>(
+		"my-learning",
+		{ status: "all", limit: 50 },
+		{ cookie, origin },
+	),
+	callLmsRoute<{ items: CertificateItem[] }>(
+		"certificates:mine",
+		{ limit: 50 },
+		{ cookie, origin },
+	),
+	callLmsRoute<{ items: CatalogCourse[] }>(
+		"catalog",
+		{ limit: 100 },
+		{ cookie, origin },
+	),
+]);
+
+const slugByCourseId = new Map<string, string>();
+const titleByCourseId = new Map<string, string>();
+if (catalogResult.ok) {
+	for (const c of catalogResult.data?.items ?? []) {
+		if (c.slug) slugByCourseId.set(c.id, c.slug);
+		titleByCourseId.set(c.id, c.title);
+	}
+}
+
+const isAuthed =
+	learningResult.ok || learningResult.error?.code !== "LEARN_UNAUTHENTICATED";
+
+const items: MyLearningItem[] = learningResult.ok
+	? (learningResult.data?.items ?? [])
+	: [];
+const certs: CertificateItem[] = certsResult.ok
+	? (certsResult.data?.items ?? [])
+	: [];
+
+function courseHref(item: MyLearningItem): string {
+	const slug = slugByCourseId.get(item.courseId);
+	return `/courses/${slug ?? item.courseId}`;
+}
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>My learning — Emdash Learn demo</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+			a { color: #1a4fff; }
+			.item { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1rem 1.25rem; margin-block-end: 0.75rem; }
+			.meta { color: #666; font-size: 0.9rem; }
+			.bar { background: #eee; border-radius: 999px; height: 6px; width: 100%; overflow: hidden; margin-block: 0.25rem; }
+			.bar > span { display: block; height: 100%; background: #1a4fff; }
+			.cert { background: #dfe; color: #153; border-radius: 6px; padding: 0.6rem 0.9rem; margin-block: 0.25rem; }
+			.error { color: #a33; }
+		</style>
+	</head>
+	<body>
+		<nav><a href="/">← Home</a></nav>
+		<h1>My learning</h1>
+
+		{!isAuthed && (
+			<p>
+				<a href="/_emdash/api/auth/dev-bypass?asUser=alice@student.local&redirect=/my-learning">
+					Sign in as Alice
+				</a>
+				{" · "}
+				<a href="/_emdash/api/auth/dev-bypass?asUser=lin@student.local&redirect=/my-learning">
+					Sign in as Lin
+				</a>
+			</p>
+		)}
+
+		{isAuthed && items.length === 0 && (
+			<p data-testid="my-learning-empty">
+				No enrollments yet. Browse the <a href="/catalog">catalog</a>.
+			</p>
+		)}
+
+		{isAuthed && items.length > 0 && (
+			<section>
+				<h2>Courses</h2>
+				<ul style="list-style: none; padding: 0;">
+					{items.map((item) => (
+						<li class="item" data-course-id={item.courseId} data-testid="my-course">
+							<h3 style="margin: 0;">
+								<a href={courseHref(item)}>{item.courseTitle}</a>
+							</h3>
+							<p class="meta">
+								Enrolled {new Date(item.enrolledAt).toLocaleDateString()}
+								{item.completedAt && <> · completed {new Date(item.completedAt).toLocaleDateString()}</>}
+							</p>
+							<div class="bar"><span style={`width: ${Math.round(item.percentComplete)}%`}></span></div>
+							<p class="meta">
+								{Math.round(item.percentComplete)}% complete
+								{item.nextLesson && (
+									<> · next: <strong>{item.nextLesson.title}</strong></>
+								)}
+							</p>
+						</li>
+					))}
+				</ul>
+			</section>
+		)}
+
+		{isAuthed && certs.length > 0 && (
+			<section>
+				<h2>Certificates</h2>
+				<ul style="list-style: none; padding: 0;">
+					{certs.map((cert) => (
+						<li class="cert" data-testid="my-cert">
+							<strong>🏆 Certificate</strong>
+							{titleByCourseId.get(cert.courseId) && (
+								<> — {titleByCourseId.get(cert.courseId)}</>
+							)}
+							{" · issued "}{new Date(cert.issuedAt).toLocaleDateString()}
+							{" · "}
+							<a href={`/certificates/${cert.verificationCode}`}>
+								Verify: {cert.verificationCode}
+							</a>
+						</li>
+					))}
+				</ul>
+			</section>
+		)}
+	</body>
+</html>

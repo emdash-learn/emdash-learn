@@ -5,3 +5,7 @@ dist
 playwright-report
 test-results
 pnpm-lock.yaml
+.claude
+demos/simple/emdash-env.d.ts
+# Astro single-file components need prettier-plugin-astro (not installed).
+demos/simple/src/pages/**/*.astro

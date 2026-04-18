@@ -27,6 +27,10 @@ export function lmsCorePlugin(): PluginDescriptor {
 		adminEntry: "@emdash/lms-core/admin",
 		componentsEntry: "@emdash/lms-core/astro",
 		allowedHosts: [],
+		// Engine reads course/lesson content (curriculum, catalog, lesson),
+		// resolves users by id for certs + cohorts, and (optionally) sends
+		// welcome/completion emails via ctx.email.
+		capabilities: ["read:content", "read:users", "email:send"],
 		adminPages: [{ path: "/setup", label: "Setup", icon: "wand" }],
 	};
 }

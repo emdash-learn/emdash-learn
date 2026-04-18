@@ -1,23 +1,45 @@
 ---
-// Placeholder landing page for the demo site.
-// Real catalog / lesson / my-learning pages arrive in T26.
+const title = "Emdash Learn — demo";
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Emdash Learn — demo</title>
+		<title>{title}</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+			a { color: #1a4fff; }
+			ul { padding-inline-start: 1.25rem; }
+			.muted { color: #666; font-size: 0.9rem; }
+		</style>
 	</head>
-	<body style="font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem;">
-		<h1>Emdash Learn demo</h1>
+	<body>
+		<h1>{title}</h1>
 		<p>
-			This Astro demo is wired to the <code>@emdash/lms-core</code> plugin under
-			development at <code>../..</code>.
+			Minimal Astro site wired to the <code>@emdash/lms-core</code> plugin.
+			Use the links below to walk a student journey end to end.
 		</p>
-		<p>
-			Visit <a href="/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin">/_emdash/admin</a>
-			via the dev-bypass route to reach the admin and see the plugin's sidebar entry.
+		<ul>
+			<li><a href="/catalog">Public course catalog</a></li>
+			<li><a href="/my-learning">My learning (requires session)</a></li>
+			<li>
+				<a href="/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin">Dev-bypass → admin</a>
+			</li>
+			<li>
+				<a href="/_emdash/api/auth/dev-bypass?asUser=alice@student.local&redirect=/my-learning">
+					Sign in as Alice (student)
+				</a>
+			</li>
+			<li>
+				<a href="/_emdash/api/auth/dev-bypass?asUser=lin@student.local&redirect=/my-learning">
+					Sign in as Lin (student, has certificate)
+				</a>
+			</li>
+		</ul>
+		<p class="muted">
+			Seed with <code>pnpm --filter ./demos/simple seed</code>. See
+			<code>prd-plugin.md</code> §25 for the fixture spec.
 		</p>
 	</body>
 </html>

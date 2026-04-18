@@ -132,6 +132,8 @@ function matchesFilters(
 
 const catalogRoute: PluginRoute<CatalogInput> = {
 	input: catalogInput,
+	// §6.2: catalog is open — theme/demo pages render it without a session.
+	public: true,
 	handler: async (ctx) => {
 		const content = ctx.content;
 		if (!content) {

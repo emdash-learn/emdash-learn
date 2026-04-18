@@ -1,0 +1,238 @@
+---
+// [lessonSlug] param is interpreted as the lesson's content id — the demo's
+// course page links generate IDs from the curriculum response and VisibleLesson
+// doesn't expose a slug field. ID-based URLs are good enough for the demo.
+
+import { callLmsRoute, escapeHtml } from "../../../../lib/lms-api.ts";
+
+interface VisibleLesson {
+	id: string;
+	title: string;
+	order: number;
+	summary?: string;
+	isPreview: boolean;
+	requiresPrevious: boolean;
+	dripOffsetDays: number;
+	unlocksAt: string;
+	unlocked: boolean;
+	completed: boolean;
+	percentComplete: number;
+	videoUrl?: string;
+	durationSeconds?: number;
+}
+
+interface LessonDoc {
+	id: string;
+	slug?: string;
+	data: Record<string, unknown>;
+}
+
+interface CatalogCourse {
+	id: string;
+	slug?: string;
+	title: string;
+}
+
+type PortableBlock = { _type: string; quizId?: string; [key: string]: unknown };
+
+const { slug, lessonSlug } = Astro.params;
+const lessonId = lessonSlug ?? "";
+const cookie = Astro.request.headers.get("cookie");
+const origin = Astro.url.origin;
+
+// Look up the course and the ordered curriculum so we can render prev/next nav.
+const catalog = await callLmsRoute<{ items: CatalogCourse[] }>(
+	"catalog",
+	{ limit: 100 },
+	{ cookie, origin },
+);
+const course = catalog.ok
+	? (catalog.data?.items ?? []).find((c) => c.slug === slug)
+	: undefined;
+if (!course) return new Response("Course not found", { status: 404 });
+
+const curriculumResult = await callLmsRoute<{ items: VisibleLesson[] }>(
+	"curriculum",
+	{ courseId: course.id },
+	{ cookie, origin },
+);
+const curriculum: VisibleLesson[] = curriculumResult.ok
+	? (curriculumResult.data?.items ?? [])
+	: [];
+
+const lessonResult = await callLmsRoute<{ lesson: LessonDoc }>(
+	"lesson",
+	{ lessonId },
+	{ cookie, origin },
+);
+
+if (!lessonResult.ok) {
+	const status =
+		lessonResult.error?.status && lessonResult.error.status >= 400 && lessonResult.error.status < 600
+			? lessonResult.error.status
+			: 500;
+	return new Response(
+		`Couldn't load lesson: ${lessonResult.error?.message ?? "unknown error"}`,
+		{ status },
+	);
+}
+
+const lesson = lessonResult.data?.lesson;
+const data = (lesson?.data ?? {}) as Record<string, unknown>;
+const videoUrl = typeof data["video_url"] === "string" ? (data["video_url"] as string) : undefined;
+const summary = typeof data["summary"] === "string" ? (data["summary"] as string) : undefined;
+const body = Array.isArray(data["body"]) ? (data["body"] as PortableBlock[]) : [];
+const quizBlock = body.find((b) => b && b._type === "lmsQuiz" && typeof b.quizId === "string");
+
+const idx = curriculum.findIndex((l) => l.id === lessonId);
+const prev = idx > 0 ? curriculum[idx - 1] : undefined;
+const next = idx >= 0 && idx < curriculum.length - 1 ? curriculum[idx + 1] : undefined;
+
+const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string) : "Lesson";
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{lessonTitle} — {course.title}</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+			a { color: #1a4fff; }
+			.video { margin-block: 1rem; }
+			.video video { width: 100%; max-height: 420px; border-radius: 6px; background: #000; }
+			button.complete { background: #1a4fff; color: white; border: 0; padding: 0.5rem 1rem; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+			button.complete[disabled] { opacity: 0.5; cursor: not-allowed; }
+			button.complete.done { background: #163; }
+			.nav { display: flex; justify-content: space-between; margin-block: 1.5rem; }
+			.meta { color: #666; font-size: 0.9rem; }
+			.banner { border-radius: 6px; padding: 0.75rem 1rem; margin-block: 1rem; background: #dfe; color: #153; }
+			.error { color: #a33; }
+		</style>
+	</head>
+	<body>
+		<nav><a href={`/courses/${course.slug}`}>← {course.title}</a></nav>
+		<h1>{lessonTitle}</h1>
+		{summary && <p class="meta">{summary}</p>}
+
+		{videoUrl && (
+			<div class="video">
+				<video
+					controls
+					preload="metadata"
+					src={videoUrl}
+					data-lesson-id={lessonId}
+					data-testid="lesson-video"
+				></video>
+			</div>
+		)}
+
+		{body.length > 0 && !quizBlock && (
+			<div class="lesson-body">
+				{body
+					.filter((b) => b && b._type === "block" && Array.isArray((b as any).children))
+					.map((b: any) => (
+						<p set:html={escapeHtml(
+							(b.children as any[])
+								.filter((c) => typeof c?.text === "string")
+								.map((c) => c.text)
+								.join(""),
+						)}></p>
+					))}
+			</div>
+		)}
+
+		{quizBlock && (
+			<div class="banner" data-testid="quiz-block">
+				<p style="margin: 0;">
+					This lesson has a terminal quiz. You must pass it to complete the lesson.
+				</p>
+				<p style="margin: 0.5rem 0 0;">
+					<a href={`/quizzes/${quizBlock.quizId}?lessonId=${lessonId}&back=${encodeURIComponent(Astro.url.pathname)}`}>
+						Start quiz →
+					</a>
+				</p>
+			</div>
+		)}
+
+		{!quizBlock && (
+			<button
+				class="complete"
+				data-testid="complete-btn"
+				data-lesson-id={lessonId}
+			>
+				Mark complete
+			</button>
+		)}
+
+		<div class="nav">
+			<div>
+				{prev && (
+					<a href={`/courses/${course.slug}/lessons/${prev.id}`}>← {prev.title}</a>
+				)}
+			</div>
+			<div>
+				{next && (
+					<a href={`/courses/${course.slug}/lessons/${next.id}`}>{next.title} →</a>
+				)}
+			</div>
+		</div>
+
+		<script is:inline>
+			const video = document.querySelector("[data-testid='lesson-video']");
+			if (video) {
+				const lessonId = video.getAttribute("data-lesson-id");
+				let last = 0;
+				video.addEventListener("timeupdate", async () => {
+					if (!video.duration) return;
+					const pct = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+					const pos = Math.floor(video.currentTime);
+					if (pos - last < 15) return;
+					last = pos;
+					try {
+						await fetch("/_emdash/api/plugins/lms-core/progress:tick", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-EmDash-Request": "1",
+							},
+							credentials: "same-origin",
+							body: JSON.stringify({ lessonId, positionSeconds: pos, percentComplete: pct }),
+						});
+					} catch {
+						// Ticks are best-effort; ignore transient failures.
+					}
+				});
+			}
+
+			const btn = document.querySelector("[data-testid='complete-btn']");
+			if (btn) {
+				btn.addEventListener("click", async () => {
+					btn.setAttribute("disabled", "true");
+					btn.textContent = "Saving…";
+					try {
+						const res = await fetch("/_emdash/api/plugins/lms-core/progress:complete", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-EmDash-Request": "1",
+							},
+							credentials: "same-origin",
+							body: JSON.stringify({ lessonId: btn.getAttribute("data-lesson-id") }),
+						});
+						if (!res.ok) {
+							const text = await res.text();
+							throw new Error(text || `Complete failed (${res.status})`);
+						}
+						btn.classList.add("done");
+						btn.textContent = "Completed ✓";
+					} catch (err) {
+						btn.removeAttribute("disabled");
+						btn.textContent = "Mark complete";
+						alert("Mark complete failed: " + (err && err.message ? err.message : err));
+					}
+				});
+			}
+		</script>
+	</body>
+</html>

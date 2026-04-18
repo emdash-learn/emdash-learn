@@ -82,6 +82,11 @@ export function createPlugin() {
 		id: PLUGIN_ID,
 		version: PLUGIN_VERSION,
 
+		// Must mirror the descriptor's capabilities (src/index.ts). Engine
+		// reads course/lesson content, resolves users for certs + cohorts, and
+		// optionally ships welcome/completion emails via ctx.email.
+		capabilities: ["read:content", "read:users", "email:send"],
+
 		storage: {
 			enrollments: {
 				indexes: ["userId", "courseId", "enrolledAt"],

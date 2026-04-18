@@ -1,0 +1,230 @@
+---
+import { callLmsRoute, escapeHtml } from "../../lib/lms-api.ts";
+
+interface CatalogCourse {
+	id: string;
+	slug?: string;
+	title: string;
+	subtitle?: string;
+	description?: string;
+	difficulty?: string;
+	estimatedHours?: number;
+	priceCents?: number;
+	currency?: string;
+	enrollmentOpen?: boolean;
+}
+
+interface VisibleLesson {
+	id: string;
+	title: string;
+	order: number;
+	summary?: string;
+	isPreview: boolean;
+	requiresPrevious: boolean;
+	dripOffsetDays: number;
+	unlocksAt: string;
+	unlocked: boolean;
+	completed: boolean;
+	percentComplete: number;
+}
+
+const { slug } = Astro.params;
+const cookie = Astro.request.headers.get("cookie");
+const origin = Astro.url.origin;
+
+// Look up the course in the public catalog. Draft/unpublished courses
+// intentionally 404 on the public site.
+const catalog = await callLmsRoute<{ items: CatalogCourse[] }>(
+	"catalog",
+	{ limit: 100 },
+	{ cookie, origin },
+);
+const course = catalog.ok
+	? (catalog.data?.items ?? []).find((c) => c.slug === slug)
+	: undefined;
+
+if (!course) {
+	return new Response("Course not found", { status: 404 });
+}
+
+// Curriculum returns for signed-in callers (preview lessons only if not
+// enrolled, full list if enrolled). We use a separate `my-learning` call
+// to determine enrollment — curriculum alone can't tell the two apart.
+interface MyLearningItem {
+	courseId: string;
+}
+const [curriculumResult, myLearning] = await Promise.all([
+	callLmsRoute<{ items: VisibleLesson[] }>(
+		"curriculum",
+		{ courseId: course.id },
+		{ cookie, origin },
+	),
+	callLmsRoute<{ items: MyLearningItem[] }>(
+		"my-learning",
+		{ status: "all", limit: 100 },
+		{ cookie, origin },
+	),
+]);
+
+// 401 from either route = not signed in. Other errors propagate to the UI.
+const isAuthed =
+	curriculumResult.ok ||
+	(curriculumResult.error?.status !== 401 && curriculumResult.error?.status !== undefined);
+const isEnrolled =
+	myLearning.ok && (myLearning.data?.items ?? []).some((i) => i.courseId === course.id);
+const lessons: VisibleLesson[] = curriculumResult.ok
+	? (curriculumResult.data?.items ?? [])
+	: [];
+
+function priceLabel(c: CatalogCourse): string {
+	if (!c.priceCents || c.priceCents === 0) return "Free";
+	return `${(c.priceCents / 100).toFixed(2)} ${c.currency ?? "USD"}`;
+}
+
+function formatUnlocksAt(iso: string): string {
+	return new Date(iso).toLocaleString();
+}
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{course.title} — Emdash Learn demo</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+			a { color: #1a4fff; }
+			.meta { color: #666; font-size: 0.9rem; }
+			.badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; background: #eef; color: #224; font-size: 0.75rem; margin-inline-end: 0.25rem; }
+			.badge.free { background: #dfe; color: #153; }
+			.badge.preview { background: #ffd; color: #553; }
+			.badge.locked { background: #fee; color: #733; }
+			.badge.done { background: #cfc; color: #143; }
+			ol.lessons { padding-inline-start: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+			button.enroll { background: #1a4fff; color: white; border: 0; padding: 0.6rem 1.1rem; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+			button.enroll[disabled] { opacity: 0.5; cursor: not-allowed; }
+			.banner { border-radius: 6px; padding: 0.75rem 1rem; margin-block: 1rem; }
+			.banner.info { background: #eef; color: #224; }
+			.banner.warn { background: #fee; color: #733; }
+			.banner.ok { background: #dfe; color: #153; }
+		</style>
+	</head>
+	<body>
+		<nav><a href="/catalog">← Catalog</a></nav>
+		<h1>{course.title}</h1>
+		{course.subtitle && <p style="font-size: 1.1rem; color: #333;">{course.subtitle}</p>}
+
+		<p class="meta">
+			<span class={`badge ${(course.priceCents ?? 0) === 0 ? "free" : "paid"}`}>
+				{priceLabel(course)}
+			</span>
+			{course.difficulty && <span class="badge">{course.difficulty}</span>}
+			{typeof course.estimatedHours === "number" && (
+				<span class="badge">{course.estimatedHours}h</span>
+			)}
+		</p>
+
+		{course.description && (
+			<p set:html={escapeHtml(course.description)}></p>
+		)}
+
+		{!isAuthed && (
+			<div class="banner info">
+				<p>
+					<a href={`/_emdash/api/auth/dev-bypass?asUser=alice@student.local&redirect=/courses/${course.slug}`}>
+						Sign in
+					</a>
+					{" "}to see the lesson list and enroll.
+				</p>
+			</div>
+		)}
+
+		{isAuthed && !isEnrolled && (
+			<div class="banner warn">
+				<p>
+					You're signed in but not enrolled in this course.
+				</p>
+				<button class="enroll" data-testid="enroll-btn" data-course-id={course.id}>
+					Enroll
+				</button>
+			</div>
+		)}
+
+		{isAuthed && isEnrolled && (
+			<div class="banner ok" data-testid="enrolled-banner">
+				You're enrolled. Pick a lesson to keep going.
+			</div>
+		)}
+
+		{lessons.length > 0 ? (
+			<>
+				<h2>Curriculum</h2>
+				<ol class="lessons">
+					{lessons.map((lesson) => (
+						<li data-lesson-id={lesson.id}>
+							{lesson.unlocked ? (
+								<a
+									href={`/courses/${course.slug}/lessons/${lesson.id}`}
+									data-testid="lesson-link"
+								>
+									{lesson.title}
+								</a>
+							) : (
+								<span>{lesson.title}</span>
+							)}
+							{" "}
+							{lesson.isPreview && <span class="badge preview">Free preview</span>}
+							{!lesson.unlocked && (
+								<span class="badge locked">
+									Unlocks {formatUnlocksAt(lesson.unlocksAt)}
+								</span>
+							)}
+							{lesson.completed && <span class="badge done">Completed</span>}
+							{lesson.requiresPrevious && !lesson.completed && (
+								<span class="badge">Requires previous</span>
+							)}
+							{lesson.summary && <p class="meta">{lesson.summary}</p>}
+						</li>
+					))}
+				</ol>
+			</>
+		) : (
+			isAuthed && isEnrolled && (
+				<p>No lessons published yet.</p>
+			)
+		)}
+
+		<script is:inline>
+			const btn = document.querySelector("[data-testid='enroll-btn']");
+			if (btn) {
+				btn.addEventListener("click", async () => {
+					btn.setAttribute("disabled", "true");
+					btn.textContent = "Enrolling…";
+					try {
+						const res = await fetch("/_emdash/api/plugins/lms-core/enroll", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-EmDash-Request": "1",
+							},
+							credentials: "same-origin",
+							body: JSON.stringify({
+								courseId: btn.getAttribute("data-course-id"),
+								source: "free",
+							}),
+						});
+						if (!res.ok) {
+							const text = await res.text();
+							throw new Error(text || `Enroll failed (${res.status})`);
+						}
+						window.location.reload();
+					} catch (err) {
+						btn.removeAttribute("disabled");
+						btn.textContent = "Enroll";
+						alert("Enroll failed: " + (err && err.message ? err.message : err));
+					}
+				});
+			}
+		</script>
+	</body>
+</html>

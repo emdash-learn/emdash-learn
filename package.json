@@ -88,6 +88,9 @@
 	},
 	"packageManager": "pnpm@10.28.0",
 	"pnpm": {
+		"overrides": {
+			"emdash": "link:../emdash/packages/core"
+		},
 		"onlyBuiltDependencies": [
 			"better-sqlite3",
 			"esbuild"

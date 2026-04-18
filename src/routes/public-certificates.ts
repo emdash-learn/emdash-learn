@@ -36,6 +36,8 @@ function unwrap<T>(result: Result<T>): T {
 
 const verifyRoute: PluginRoute<CertificateVerifyInput> = {
 	input: certificateVerifyInput,
+	// §6.2: cert verification is open (rate-limited in-handler via KV).
+	public: true,
 	handler: async (ctx) => {
 		const requestMeta = (ctx as { requestMeta?: { ip?: string | null } }).requestMeta;
 		const ip = requestMeta?.ip ?? "unknown";

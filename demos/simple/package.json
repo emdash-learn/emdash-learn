@@ -8,7 +8,7 @@
 		"build": "astro build",
 		"preview": "astro preview",
 		"start": "node ./dist/server/entry.mjs",
-		"seed": "emdash seed",
+		"seed": "tsx ./scripts/seed-lms.ts",
 		"typecheck": "astro check"
 	},
 	"dependencies": {
@@ -22,6 +22,8 @@
 		"react-dom": "^19.2.0"
 	},
 	"devDependencies": {
-		"@types/node": "^24.10.0"
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^24.10.0",
+		"tsx": "^4.20.1"
 	}
 }

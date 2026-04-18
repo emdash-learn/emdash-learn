@@ -1,0 +1,93 @@
+---
+import { callLmsRoute, escapeHtml } from "../lib/lms-api.ts";
+
+interface CatalogCourse {
+	id: string;
+	slug?: string;
+	title: string;
+	subtitle?: string;
+	description?: string;
+	difficulty?: string;
+	estimatedHours?: number;
+	priceCents?: number;
+	currency?: string;
+	enrollmentOpen?: boolean;
+}
+
+const cookie = Astro.request.headers.get("cookie");
+const origin = Astro.url.origin;
+const result = await callLmsRoute<{ items: CatalogCourse[] }>(
+	"catalog",
+	{ limit: 50 },
+	{ cookie, origin },
+);
+
+const items: CatalogCourse[] = result.ok ? (result.data?.items ?? []) : [];
+
+function priceLabel(course: CatalogCourse): string {
+	if (!course.priceCents || course.priceCents === 0) return "Free";
+	const currency = course.currency ?? "USD";
+	const amount = (course.priceCents / 100).toFixed(2);
+	return `${amount} ${currency}`;
+}
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Course catalog — Emdash Learn demo</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+			a { color: #1a4fff; }
+			.courses { list-style: none; padding: 0; display: grid; gap: 1rem; }
+			.course { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1rem 1.25rem; }
+			.meta { color: #666; font-size: 0.85rem; margin-block-start: 0.25rem; }
+			.badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; background: #eef; color: #224; font-size: 0.75rem; margin-inline-end: 0.25rem; }
+			.badge.free { background: #dfe; color: #153; }
+			.empty { color: #666; }
+			.error { color: #a33; }
+		</style>
+	</head>
+	<body>
+		<nav><a href="/">← Home</a></nav>
+		<h1>Course catalog</h1>
+		{!result.ok && (
+			<p class="error" data-testid="catalog-error">
+				Couldn't load catalog: {result.error?.message}
+			</p>
+		)}
+		{result.ok && items.length === 0 && (
+			<p class="empty">No published courses yet. Run the seed script.</p>
+		)}
+		{result.ok && items.length > 0 && (
+			<ul class="courses">
+				{items.map((course) => (
+					<li class="course" data-course-id={course.id}>
+						<h2 style="margin: 0;">
+							<a href={`/courses/${course.slug ?? course.id}`}>
+								{course.title}
+							</a>
+						</h2>
+						{course.subtitle && <p style="margin: 0.25rem 0;">{course.subtitle}</p>}
+						<div class="meta">
+							<span class={`badge ${(course.priceCents ?? 0) === 0 ? "free" : "paid"}`}>
+								{priceLabel(course)}
+							</span>
+							{course.difficulty && <span class="badge">{course.difficulty}</span>}
+							{typeof course.estimatedHours === "number" && (
+								<span class="badge">{course.estimatedHours}h</span>
+							)}
+							{course.enrollmentOpen === false && (
+								<span class="badge" style="background: #fee; color: #633;">Closed</span>
+							)}
+						</div>
+						{course.description && (
+							<p class="meta" set:html={escapeHtml(course.description)}></p>
+						)}
+					</li>
+				))}
+			</ul>
+		)}
+	</body>
+</html>
