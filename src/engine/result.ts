@@ -1,13 +1,7 @@
 /**
- * Result<T> — discriminated-union error channel used throughout the engine
- * (§17.5 / D35). Signature pinned in §22 so parallel T02/T03/T04 branches
- * cannot diverge on the shared surface.
- *
- * **T03 shim.** T02 owns this file and is landing the canonical implementation
- * on `t02-event-bus` in parallel. This shim exists so `t03-authz-types`
- * typechecks and tests on its own — the §22-pinned public surface is the same
- * either way. When the branches merge, T02's version wins and this file is
- * discarded.
+ * Result<T> pattern (§17.5). Every engine function returns this shape so
+ * expected failures (not-enrolled, quiz-timeout, etc.) never travel as thrown
+ * exceptions — routes unwrap at the boundary.
  */
 
 export interface ResultError {
