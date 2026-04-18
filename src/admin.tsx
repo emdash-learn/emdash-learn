@@ -8,9 +8,11 @@
 
 import type { ComponentType } from "react";
 
+import CoursePage from "./admin/CoursePage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
 
 export const pages: Record<string, ComponentType> = {
+	"/courses/:courseId": CoursePage,
 	"/setup": SetupWizardPage,
 };
 
