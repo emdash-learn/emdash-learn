@@ -61,6 +61,13 @@ import type {
 	SiteAnalytics,
 } from "../routes/admin-analytics.js";
 import type {
+	SettingsGetResponse,
+	SettingsUpdateInput,
+	SettingsUpdateResponse,
+	TestEmailInput,
+	TestEmailResponse,
+} from "../routes/admin-settings.js";
+import type {
 	BootstrapState,
 	Certificate,
 	Cohort,
@@ -70,6 +77,7 @@ import type {
 	Progress,
 	Quiz,
 } from "../types/storage.js";
+import type { SettingsShape } from "../constants.js";
 
 // ---------------------------------------------------------------------------
 // Error class
@@ -281,10 +289,16 @@ export type {
 	Progress,
 	Quiz,
 	QuizStats,
+	SettingsGetResponse,
+	SettingsShape,
+	SettingsUpdateInput,
+	SettingsUpdateResponse,
 	SiteAnalytics,
 	StartAttemptResult,
 	StudentProgress,
 	SubmitAttemptResult,
+	TestEmailInput,
+	TestEmailResponse,
 	VerificationResult,
 	VisibleLesson,
 };
@@ -506,6 +520,14 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 				),
 			engagementMetrics: (input: DateRangeInput) =>
 				request<EngagementMetrics>("admin:engagement-metrics", input),
+		},
+
+		settings: {
+			get: () => request<SettingsGetResponse>("admin:settings:get"),
+			update: (input: SettingsUpdateInput) =>
+				request<SettingsUpdateResponse>("admin:settings:update", input),
+			testEmail: (input?: TestEmailInput) =>
+				request<TestEmailResponse>("admin:test-email", input ?? {}),
 		},
 
 		catalog: (input?: CatalogInput) =>

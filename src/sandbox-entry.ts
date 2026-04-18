@@ -33,6 +33,7 @@ import { contentBeforeDelete } from "./hooks/content.js";
 import { cronDispatch } from "./hooks/cron.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
 import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
+import { adminSettingsRoutes } from "./routes/admin-settings.js";
 import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
 import { cohortRoutes } from "./routes/instructor-cohorts.js";
 import { instructorAssignmentRoutes } from "./routes/instructor-assignments.js";
@@ -223,6 +224,9 @@ export function createPlugin() {
 
 			// Wave 5 routes — public catalog (§6.2, D22).
 			...(catalogRoutes as Record<string, PluginRoute<unknown>>),
+
+			// Wave 6 routes — admin settings (T24 / §16.8).
+			...(adminSettingsRoutes as Record<string, PluginRoute<unknown>>),
 		},
 	});
 }
