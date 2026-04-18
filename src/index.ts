@@ -1,18 +1,23 @@
+/**
+ * Emdash Learn plugin descriptor — runs in Vite at build time.
+ *
+ * Must stay side-effect-free. Runtime logic lives in `./sandbox-entry.ts`;
+ * React admin UI in `./admin.tsx`; site-side block rendering in
+ * `./astro/index.ts`.
+ *
+ * T01 scope: register the Setup admin page and wire admin + components
+ * entries. The authoritative storage shape + composite indexes are declared
+ * in `sandbox-entry.ts` (definePlugin) — the descriptor's `storage` only
+ * supports flat `string[]` indexes (see emdash `StorageCollectionDeclaration`)
+ * so composites are intentionally repeated there, not here.
+ */
+
 import type { PluginDescriptor } from "emdash";
 
-export const PLUGIN_ID = "lms-core";
-export const PLUGIN_VERSION = "0.0.0";
+import { PLUGIN_ID, PLUGIN_VERSION } from "./constants.js";
 
-/**
- * Emdash Learn plugin descriptor.
- *
- * Runs in Vite at build time — must be side-effect free. Runtime logic lives in
- * `./sandbox-entry.ts`; React admin UI in `./admin.tsx`; site-side block
- * rendering in `./astro/index.ts`.
- *
- * Scope at Wave 0 (T00): registers a single "Setup" admin page so the sidebar
- * entry shows up. The wizard body and all other pages land in T01+.
- */
+export { PLUGIN_ID, PLUGIN_VERSION } from "./constants.js";
+
 export function lmsCorePlugin(): PluginDescriptor {
 	return {
 		id: PLUGIN_ID,
@@ -21,14 +26,8 @@ export function lmsCorePlugin(): PluginDescriptor {
 		entrypoint: "@emdash/lms-core/sandbox",
 		adminEntry: "@emdash/lms-core/admin",
 		componentsEntry: "@emdash/lms-core/astro",
-		adminPages: [
-			{
-				path: "/setup",
-				label: "Setup",
-				icon: "wrench",
-			},
-		],
-		storage: {},
+		allowedHosts: [],
+		adminPages: [{ path: "/setup", label: "Setup", icon: "wand" }],
 	};
 }
 
