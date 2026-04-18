@@ -1,0 +1,203 @@
+/**
+ * Integration tests for `engine/quizzes.ts` (T08).
+ *
+ * Covers CRUD, startAttempt/submitAttempt lifecycle, the hard time-limit
+ * rejection, and the terminal-quiz-passed → lesson:completed rule.
+ */
+
+import { afterEach, describe, expect, it } from "vitest";
+import { handleContentPublish } from "emdash";
+
+import * as eventBus from "../../../src/engine/event-bus.js";
+import * as quizzes from "../../../src/engine/quizzes.js";
+import type { LessonCompleted } from "../../../src/types/engine.js";
+import {
+	seedCourse,
+	seedEnrollment,
+	seedLesson,
+	seedQuiz,
+	seedStudent,
+} from "../../utils/seed.js";
+import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
+
+type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
+
+const contexts: TestCtx[] = [];
+
+async function newCtx(): Promise<TestCtx> {
+	const ctx = await createTestPluginCtx();
+	contexts.push(ctx);
+	return ctx;
+}
+
+afterEach(async () => {
+	const pending = contexts.splice(0, contexts.length);
+	await Promise.all(pending.map((ctx) => ctx.teardown()));
+	eventBus.__resetHandlersForTests();
+});
+
+const mcqCorrect = {
+	id: "q1",
+	type: "mcq" as const,
+	prompt: "Primary color?",
+	points: 1,
+	options: [
+		{ id: "red", text: "Red", correct: true },
+		{ id: "green", text: "Green", correct: false },
+	],
+};
+
+describe("engine/quizzes.create / update / list / remove", () => {
+	it("creates a quiz and stores it", async () => {
+		const { ctx } = await newCtx();
+		const created = await quizzes.create(ctx, {
+			title: "Test",
+			passingScore: 70,
+			questions: [mcqCorrect],
+		});
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+		expect(created.data.data.title).toBe("Test");
+	});
+
+	it("update merges the patch and bumps updatedAt", async () => {
+		const { ctx } = await newCtx();
+		const created = await quizzes.create(ctx, {
+			title: "A",
+			passingScore: 70,
+			questions: [mcqCorrect],
+		});
+		if (!created.ok) throw new Error("setup failed");
+
+		const patched = await quizzes.update(ctx, created.data.id, { title: "B" });
+		expect(patched.ok).toBe(true);
+		if (!patched.ok) return;
+		expect(patched.data.data.title).toBe("B");
+		expect(patched.data.data.passingScore).toBe(70);
+	});
+
+	it("list returns the quiz", async () => {
+		const { ctx } = await newCtx();
+		await quizzes.create(ctx, {
+			title: "A",
+			passingScore: 70,
+			questions: [mcqCorrect],
+		});
+		const page = await quizzes.list(ctx);
+		expect(page.ok && page.data.items.length).toBe(1);
+	});
+
+	it("remove is idempotent on missing quiz", async () => {
+		const { ctx } = await newCtx();
+		const gone = await quizzes.remove(ctx, "quiz_missing");
+		expect(gone.ok).toBe(true);
+	});
+});
+
+describe("engine/quizzes.startAttempt + submitAttempt", () => {
+	it("starts an attempt and returns sanitized questions (no `correct` flag)", async () => {
+		const { ctx } = await newCtx();
+		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		const opts = started.data.questions[0]?.options ?? [];
+		expect(opts.every((o) => !("correct" in o))).toBe(true);
+	});
+
+	it("submits an attempt, grades it, and persists score + passed", async () => {
+		const { ctx } = await newCtx();
+		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		if (!started.ok) throw new Error("setup failed");
+
+		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: "red" },
+		]);
+
+		expect(submitted.ok).toBe(true);
+		if (!submitted.ok) return;
+		expect(submitted.data.score).toBe(100);
+		expect(submitted.data.passed).toBe(true);
+	});
+
+	it("rejects a duplicate submit with LEARN_QUIZ_NOT_STARTED", async () => {
+		const { ctx } = await newCtx();
+		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		if (!started.ok) throw new Error("setup failed");
+		await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: "red" },
+		]);
+		const again = await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: "red" },
+		]);
+		expect(again.ok).toBe(false);
+		if (again.ok) return;
+		expect(again.error.code).toBe("LEARN_QUIZ_NOT_STARTED");
+	});
+
+	it("hard-timeout policy: submit past the limit returns LEARN_QUIZ_TIMEOUT and persists passed=false", async () => {
+		const { ctx } = await newCtx();
+		const quiz = await seedQuiz(ctx, {
+			timeLimit: 1, // 1 second
+			timeLimitPolicy: "hard",
+			questions: [mcqCorrect],
+		});
+		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		if (!started.ok) throw new Error("setup failed");
+
+		// Backdate the attempt by rewriting startedAt well beyond the limit.
+		const attempts = ctx.storage["quiz_attempts"];
+		if (!attempts) throw new Error("quiz_attempts missing");
+		const row = (await attempts.get(started.data.attemptId)) as {
+			startedAt: string;
+			[k: string]: unknown;
+		} | null;
+		if (!row) throw new Error("attempt row missing");
+		await attempts.put(started.data.attemptId, {
+			...row,
+			startedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+		});
+
+		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: "red" },
+		]);
+		expect(submitted.ok).toBe(false);
+		if (submitted.ok) return;
+		expect(submitted.error.code).toBe("LEARN_QUIZ_TIMEOUT");
+
+		const after = (await attempts.get(started.data.attemptId)) as {
+			passed?: boolean;
+			overtime?: boolean;
+		};
+		expect(after.passed).toBe(false);
+		expect(after.overtime).toBe(true);
+	});
+
+	it("terminal-quiz-passed emits lesson:completed when attempt is bound to a lesson", async () => {
+		const { ctx } = await newCtx();
+		const student = await seedStudent(ctx, { email: "tq@test.local" });
+		const course = await seedCourse(ctx, { title: "TQ" });
+		await handleContentPublish(getTestDb(ctx), "courses", course.id);
+		const lesson = await seedLesson(ctx, { courseId: course.id, order: 0 });
+		await handleContentPublish(getTestDb(ctx), "lessons", lesson.id);
+		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
+		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+
+		const received: LessonCompleted["data"][] = [];
+		eventBus.on<LessonCompleted>("lesson:completed", "test-handler", async (event) => {
+			received.push(event.data);
+		});
+
+		const started = await quizzes.startAttempt(ctx, student.id, quiz.id, lesson.id);
+		if (!started.ok) throw new Error("setup failed");
+		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: "red" },
+		]);
+
+		expect(submitted.ok && submitted.data.passed).toBe(true);
+		expect(received).toHaveLength(1);
+		expect(received[0]?.lessonId).toBe(lesson.id);
+	});
+});
