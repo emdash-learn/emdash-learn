@@ -35,41 +35,27 @@ function deterministicIdFactory(): MakeId {
 
 describe("parseQuizIdFromPath", () => {
 	it("extracts the quizId segment from the canonical admin path", () => {
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/qz_abc"),
-		).toBe("qz_abc");
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/qz_abc")).toBe("qz_abc");
 	});
 
 	it("returns 'new' for the create sentinel", () => {
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/new"),
-		).toBe("new");
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/new")).toBe("new");
 	});
 
 	it("decodes percent-encoded ids", () => {
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/qz%20a"),
-		).toBe("qz a");
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/qz%20a")).toBe("qz a");
 	});
 
 	it("returns null when the prefix does not match", () => {
 		expect(parseQuizIdFromPath("/_emdash/admin/dashboard")).toBeNull();
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/other/quizzes/qz_a"),
-		).toBeNull();
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/other/quizzes/qz_a")).toBeNull();
 		// The list page path has no id segment.
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes"),
-		).toBeNull();
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes")).toBeNull();
 	});
 
 	it("returns null when the id segment is empty or malformed", () => {
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/"),
-		).toBeNull();
-		expect(
-			parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/%ZZ"),
-		).toBeNull();
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/")).toBeNull();
+		expect(parseQuizIdFromPath("/_emdash/admin/plugins/lms-core/quizzes/%ZZ")).toBeNull();
 	});
 });
 
@@ -156,9 +142,7 @@ describe("quizToDraft", () => {
 			passingScore: 70,
 			timeLimitPolicy: "hard",
 			randomize: false,
-			questions: [
-				{ id: "q1", type: "short_text", prompt: "Who?", points: 1 },
-			],
+			questions: [{ id: "q1", type: "short_text", prompt: "Who?", points: 1 }],
 			createdAt: "2026-04-01T00:00:00Z",
 			updatedAt: "2026-04-01T00:00:00Z",
 		};
@@ -219,9 +203,7 @@ describe("deleteQuestion", () => {
 	});
 
 	it("is a no-op for an out-of-range index", () => {
-		const base: DraftQuestion[] = [
-			{ id: "a", type: "short_text", prompt: "a", points: 1 },
-		];
+		const base: DraftQuestion[] = [{ id: "a", type: "short_text", prompt: "a", points: 1 }];
 		expect(deleteQuestion(base, 7)).toEqual(base);
 	});
 });
@@ -234,19 +216,11 @@ describe("moveQuestion", () => {
 	];
 
 	it("swaps with the previous item when moving up", () => {
-		expect(moveQuestion(base, 1, "up").map((q) => q.id)).toEqual([
-			"b",
-			"a",
-			"c",
-		]);
+		expect(moveQuestion(base, 1, "up").map((q) => q.id)).toEqual(["b", "a", "c"]);
 	});
 
 	it("swaps with the next item when moving down", () => {
-		expect(moveQuestion(base, 1, "down").map((q) => q.id)).toEqual([
-			"a",
-			"c",
-			"b",
-		]);
+		expect(moveQuestion(base, 1, "down").map((q) => q.id)).toEqual(["a", "c", "b"]);
 	});
 
 	it("is a no-op at the boundaries", () => {
@@ -342,9 +316,7 @@ describe("validateDraft", () => {
 		const draft = blankOkDraft();
 		draft.timeLimit = 1.5;
 		expect(validateDraft(draft).errors).toEqual(
-			expect.arrayContaining([
-				"Time limit must be a positive whole number of minutes.",
-			]),
+			expect.arrayContaining(["Time limit must be a positive whole number of minutes."]),
 		);
 	});
 
@@ -363,9 +335,7 @@ describe("validateDraft", () => {
 			},
 		];
 		expect(validateDraft(draft).errors).toEqual(
-			expect.arrayContaining([
-				"Question 1: select True or False as the answer.",
-			]),
+			expect.arrayContaining(["Question 1: select True or False as the answer."]),
 		);
 	});
 });
@@ -404,9 +374,7 @@ describe("draftToCreateInput", () => {
 			timeLimit: 10,
 			timeLimitPolicy: "soft",
 			randomize: true,
-			questions: [
-				{ id: "q1", type: "short_text", prompt: "?", points: 1 },
-			],
+			questions: [{ id: "q1", type: "short_text", prompt: "?", points: 1 }],
 		};
 		const input = draftToCreateInput(draft);
 		expect(input.description).toBe("A description");

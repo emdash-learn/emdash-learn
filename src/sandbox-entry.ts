@@ -93,13 +93,7 @@ export function createPlugin() {
 				uniqueIndexes: [["userId", "courseId"]],
 			},
 			progress: {
-				indexes: [
-					"userId",
-					"courseId",
-					"lessonId",
-					["userId", "courseId"],
-					"completedAt",
-				],
+				indexes: ["userId", "courseId", "lessonId", ["userId", "courseId"], "completedAt"],
 			},
 			quizzes: {
 				indexes: ["updatedAt"],
@@ -134,9 +128,7 @@ export function createPlugin() {
 					label: "Quiz",
 					icon: "list-checks",
 					description: "Insert a quiz the student must pass to complete the lesson",
-					fields: [
-						elements.textInput("quizId", "Quiz ID", { placeholder: "quiz_…" }),
-					],
+					fields: [elements.textInput("quizId", "Quiz ID", { placeholder: "quiz_…" })],
 				},
 			],
 		},

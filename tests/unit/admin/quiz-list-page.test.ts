@@ -7,11 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-	formatCount,
-	formatShortDate,
-	quizEditHref,
-} from "../../../src/admin/QuizListPage.js";
+import { formatCount, formatShortDate, quizEditHref } from "../../../src/admin/QuizListPage.js";
 
 describe("formatCount", () => {
 	it("formats integers with thousands separators", () => {
@@ -40,9 +36,7 @@ describe("formatShortDate", () => {
 
 describe("quizEditHref", () => {
 	it("percent-encodes the quiz id", () => {
-		expect(quizEditHref("q1")).toBe(
-			"/_emdash/admin/plugins/lms-core/quizzes/q1",
-		);
+		expect(quizEditHref("q1")).toBe("/_emdash/admin/plugins/lms-core/quizzes/q1");
 		expect(quizEditHref("q with space")).toBe(
 			"/_emdash/admin/plugins/lms-core/quizzes/q%20with%20space",
 		);

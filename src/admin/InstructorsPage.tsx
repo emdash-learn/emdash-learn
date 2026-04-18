@@ -28,11 +28,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import {
-	LmsApiError,
-	createApiClient,
-	type InstructorListItem,
-} from "./api-client.js";
+import { LmsApiError, createApiClient, type InstructorListItem } from "./api-client.js";
 import type { InstructorRole } from "../types/storage.js";
 
 type Api = ReturnType<typeof createApiClient>;
@@ -117,9 +113,7 @@ export function groupByUser(items: InstructorListItem[]): InstructorGroup[] {
 	}
 	const groups = Array.from(byUser.values());
 	for (const g of groups) {
-		g.assignments.sort((a, b) =>
-			courseLabel(a).localeCompare(courseLabel(b), "en"),
-		);
+		g.assignments.sort((a, b) => courseLabel(a).localeCompare(courseLabel(b), "en"));
 	}
 	groups.sort((a, b) => a.label.localeCompare(b.label, "en"));
 	return groups;
@@ -163,17 +157,11 @@ export function InstructorsPage(): ReactElement {
 			<header style={headerStyle}>
 				<div style={headerRowStyle}>
 					<h1 style={pageTitleStyle}>Instructors</h1>
-					<button
-						type="button"
-						onClick={() => setShowAssign(true)}
-						style={primaryButtonStyle}
-					>
+					<button type="button" onClick={() => setShowAssign(true)} style={primaryButtonStyle}>
 						+ Assign instructor
 					</button>
 				</div>
-				<p style={subtitleStyle}>
-					Manage who teaches each course. Admin-only.
-				</p>
+				<p style={subtitleStyle}>Manage who teaches each course. Admin-only.</p>
 			</header>
 
 			{state.kind === "loading" ? (
@@ -193,11 +181,7 @@ export function InstructorsPage(): ReactElement {
 			)}
 
 			{showAssign ? (
-				<AssignModal
-					onCancel={() => setShowAssign(false)}
-					onAssigned={onAssigned}
-					api={api}
-				/>
+				<AssignModal onCancel={() => setShowAssign(false)} onAssigned={onAssigned} api={api} />
 			) : null}
 		</section>
 	);
@@ -309,12 +293,7 @@ interface AssignmentsDetailProps {
 	onRemoved: () => void;
 }
 
-function AssignmentsDetail({
-	id,
-	group,
-	api,
-	onRemoved,
-}: AssignmentsDetailProps): ReactElement {
+function AssignmentsDetail({ id, group, api, onRemoved }: AssignmentsDetailProps): ReactElement {
 	return (
 		<div id={id} style={detailBoxStyle}>
 			<table style={detailTableStyle}>
@@ -346,11 +325,7 @@ interface AssignmentRowProps {
 	onRemoved: () => void;
 }
 
-function AssignmentRow({
-	assignment,
-	api,
-	onRemoved,
-}: AssignmentRowProps): ReactElement {
+function AssignmentRow({ assignment, api, onRemoved }: AssignmentRowProps): ReactElement {
 	const [removing, setRemoving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -397,11 +372,7 @@ interface AssignModalProps {
 	api: Api;
 }
 
-function AssignModal({
-	onCancel,
-	onAssigned,
-	api,
-}: AssignModalProps): ReactElement {
+function AssignModal({ onCancel, onAssigned, api }: AssignModalProps): ReactElement {
 	const [userId, setUserId] = useState("");
 	const [courseId, setCourseId] = useState("");
 	const [role, setRole] = useState<InstructorRole>("lead");
@@ -447,9 +418,7 @@ function AssignModal({
 						placeholder="user_…"
 						style={inputStyle}
 					/>
-					<span style={hintStyle}>
-						From the dashboard or student page URL.
-					</span>
+					<span style={hintStyle}>From the dashboard or student page URL.</span>
 				</label>
 
 				<label style={fieldLabelStyle}>
@@ -462,9 +431,7 @@ function AssignModal({
 						placeholder="course_…"
 						style={inputStyle}
 					/>
-					<span style={hintStyle}>
-						The course detail page shows the ID at the top.
-					</span>
+					<span style={hintStyle}>The course detail page shows the ID at the top.</span>
 				</label>
 
 				<label style={fieldLabelStyle}>
@@ -510,18 +477,10 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
-			<div style={{ marginBlockEnd: "0.5rem" }}>
-				Couldn't load instructors: {message}
-			</div>
+			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load instructors: {message}</div>
 			<button type="button" onClick={onRetry} style={secondaryButtonStyle}>
 				Retry
 			</button>

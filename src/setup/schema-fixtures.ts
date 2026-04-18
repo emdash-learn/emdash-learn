@@ -10,11 +10,7 @@
  *     `commentsModeration`. We set them via a follow-up `PUT` in step 2/4.
  */
 
-import type {
-	CreateCollectionInput,
-	CreateFieldInput,
-	UpdateCollectionInput,
-} from "emdash";
+import type { CreateCollectionInput, CreateFieldInput, UpdateCollectionInput } from "emdash";
 
 import { COURSES_COLLECTION_SLUG, LESSONS_COLLECTION_SLUG } from "../constants.js";
 

@@ -34,11 +34,7 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
-import {
-	type AuthContext,
-	Role,
-	requireRole,
-} from "../authz.js";
+import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as progress from "../engine/progress.js";
 import type { Result, ResultError } from "../engine/result.js";

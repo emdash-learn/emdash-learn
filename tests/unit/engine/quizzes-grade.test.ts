@@ -62,18 +62,36 @@ const NOW = new Date("2026-04-17T12:05:00.000Z");
 describe("grade() — scoring math", () => {
 	test("score is rounded to nearest integer percent of points awarded", () => {
 		const q: QuizQuestion[] = [
-			{ id: "q1", type: "mcq", prompt: "1?", points: 1, options: [
-				{ id: "a", text: "yes", correct: true },
-				{ id: "b", text: "no", correct: false },
-			] },
-			{ id: "q2", type: "mcq", prompt: "2?", points: 2, options: [
-				{ id: "a", text: "yes", correct: true },
-				{ id: "b", text: "no", correct: false },
-			] },
-			{ id: "q3", type: "mcq", prompt: "3?", points: 1, options: [
-				{ id: "a", text: "yes", correct: true },
-				{ id: "b", text: "no", correct: false },
-			] },
+			{
+				id: "q1",
+				type: "mcq",
+				prompt: "1?",
+				points: 1,
+				options: [
+					{ id: "a", text: "yes", correct: true },
+					{ id: "b", text: "no", correct: false },
+				],
+			},
+			{
+				id: "q2",
+				type: "mcq",
+				prompt: "2?",
+				points: 2,
+				options: [
+					{ id: "a", text: "yes", correct: true },
+					{ id: "b", text: "no", correct: false },
+				],
+			},
+			{
+				id: "q3",
+				type: "mcq",
+				prompt: "3?",
+				points: 1,
+				options: [
+					{ id: "a", text: "yes", correct: true },
+					{ id: "b", text: "no", correct: false },
+				],
+			},
 		];
 		// 3 of 4 points = 75%
 		const result = grade(
@@ -91,9 +109,13 @@ describe("grade() — scoring math", () => {
 
 	test("zero-point questions: score collapses to 0 and only `passingScore<=0` counts as a pass", () => {
 		const q: QuizQuestion[] = [
-			{ id: "q1", type: "mcq", prompt: "1?", points: 0, options: [
-				{ id: "a", text: "x", correct: true },
-			] },
+			{
+				id: "q1",
+				type: "mcq",
+				prompt: "1?",
+				points: 0,
+				options: [{ id: "a", text: "x", correct: true }],
+			},
 		];
 		const failing = grade(
 			attempt({}, [{ questionId: "q1", answer: "a" }]),
@@ -114,14 +136,26 @@ describe("grade() — scoring math", () => {
 
 	test("unanswered questions count as wrong with 0 points awarded", () => {
 		const q: QuizQuestion[] = [
-			{ id: "q1", type: "mcq", prompt: "1?", points: 1, options: [
-				{ id: "a", text: "x", correct: true },
-				{ id: "b", text: "y", correct: false },
-			] },
-			{ id: "q2", type: "mcq", prompt: "2?", points: 1, options: [
-				{ id: "a", text: "x", correct: true },
-				{ id: "b", text: "y", correct: false },
-			] },
+			{
+				id: "q1",
+				type: "mcq",
+				prompt: "1?",
+				points: 1,
+				options: [
+					{ id: "a", text: "x", correct: true },
+					{ id: "b", text: "y", correct: false },
+				],
+			},
+			{
+				id: "q2",
+				type: "mcq",
+				prompt: "2?",
+				points: 1,
+				options: [
+					{ id: "a", text: "x", correct: true },
+					{ id: "b", text: "y", correct: false },
+				],
+			},
 		];
 		const result = grade(
 			attempt({}, [{ questionId: "q1", answer: "a" }]),
@@ -136,10 +170,17 @@ describe("grade() — scoring math", () => {
 
 	test("feedback array carries one entry per question with explanation passthrough", () => {
 		const q: QuizQuestion[] = [
-			{ id: "q1", type: "mcq", prompt: "1?", points: 1, explanation: "Because.", options: [
-				{ id: "a", text: "yes", correct: true },
-				{ id: "b", text: "no", correct: false },
-			] },
+			{
+				id: "q1",
+				type: "mcq",
+				prompt: "1?",
+				points: 1,
+				explanation: "Because.",
+				options: [
+					{ id: "a", text: "yes", correct: true },
+					{ id: "b", text: "no", correct: false },
+				],
+			},
 		];
 		const result = grade(
 			attempt({}, [{ questionId: "q1", answer: "a" }]),
@@ -400,10 +441,7 @@ describe("grade() — time-limit policy: HARD", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T12:05:00.000Z";
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: 600, timeLimitPolicy: "hard" }, [baseQuestion]),
 			new Date(submittedAt),
 		);
@@ -415,10 +453,7 @@ describe("grade() — time-limit policy: HARD", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T12:15:00.000Z";
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: 600, timeLimitPolicy: "hard" }, [baseQuestion]),
 			new Date(submittedAt),
 		);
@@ -434,10 +469,7 @@ describe("grade() — time-limit policy: HARD", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T18:00:00.000Z"; // 6 hours later
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: undefined, timeLimitPolicy: "hard" }, [baseQuestion]),
 			new Date(submittedAt),
 		);
@@ -458,10 +490,7 @@ describe("grade() — time-limit policy: SOFT", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T12:09:59.000Z";
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: 600, timeLimitPolicy: "soft" }, [baseQuestion]),
 			new Date(submittedAt),
 		);
@@ -472,10 +501,7 @@ describe("grade() — time-limit policy: SOFT", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T12:11:00.000Z";
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: 600, timeLimitPolicy: "soft" }, [baseQuestion]),
 			new Date(submittedAt),
 		);
@@ -502,10 +528,7 @@ describe("grade() — time-limit policy: SOFT", () => {
 		const startedAt = "2026-04-17T12:00:00.000Z";
 		const submittedAt = "2026-04-17T12:10:00.000Z"; // exactly +600s
 		const result = grade(
-			attempt(
-				{ startedAt, submittedAt },
-				[{ questionId: "q1", answer: "a" }],
-			),
+			attempt({ startedAt, submittedAt }, [{ questionId: "q1", answer: "a" }]),
 			quiz({ timeLimit: 600, timeLimitPolicy: "soft" }, [baseQuestion]),
 			new Date(submittedAt),
 		);

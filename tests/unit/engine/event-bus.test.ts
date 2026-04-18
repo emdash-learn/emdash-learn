@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import {
-	__resetHandlersForTests,
-	emit,
-	on,
-} from "../../../src/engine/event-bus.js";
+import { __resetHandlersForTests, emit, on } from "../../../src/engine/event-bus.js";
 import type { EnrollmentCreated } from "../../../src/types/engine.js";
 import type { Enrollment } from "../../../src/types/storage.js";
 
@@ -26,8 +22,7 @@ function stubCtx() {
 		log,
 		ctx: {
 			kv: {
-				get: async <T,>(key: string): Promise<T | null> =>
-					(store.get(key) as T | undefined) ?? null,
+				get: async <T>(key: string): Promise<T | null> => (store.get(key) as T | undefined) ?? null,
 				set: async (key: string, value: unknown): Promise<void> => {
 					store.set(key, value);
 				},
@@ -155,9 +150,9 @@ describe("event-bus", () => {
 			throw new Error("db failure");
 		});
 
-		await expect(
-			emit(enrollmentEvent("e1", { critical: true }), ctx as never),
-		).rejects.toThrow("db failure");
+		await expect(emit(enrollmentEvent("e1", { critical: true }), ctx as never)).rejects.toThrow(
+			"db failure",
+		);
 	});
 
 	test("critical handler failures do not write the idempotency marker", async () => {
@@ -167,9 +162,9 @@ describe("event-bus", () => {
 			throw new Error("db failure");
 		});
 
-		await expect(
-			emit(enrollmentEvent("e1", { critical: true }), ctx as never),
-		).rejects.toThrow("db failure");
+		await expect(emit(enrollmentEvent("e1", { critical: true }), ctx as never)).rejects.toThrow(
+			"db failure",
+		);
 
 		expect(store.has("handled:write-enrollment-row:enroll:e1")).toBe(false);
 	});

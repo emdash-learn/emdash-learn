@@ -16,12 +16,7 @@ import {
 	type FixtureKey,
 } from "./schema-fixtures.js";
 
-export type StepStatus =
-	| "pending"
-	| "ok"
-	| "needs-apply"
-	| "conflict"
-	| "error";
+export type StepStatus = "pending" | "ok" | "needs-apply" | "conflict" | "error";
 
 export interface StepProbe {
 	status: StepStatus;
@@ -71,10 +66,7 @@ function diffFields(
  * present. v1 keeps the heuristic simple: any missing locked slug + any extra
  * slug counts as a suspected rename. Surface the list; never auto-repair.
  */
-function detectRenames(
-	fixture: CollectionFixture,
-	remote: RemoteCollectionWithFields,
-): string[] {
+function detectRenames(fixture: CollectionFixture, remote: RemoteCollectionWithFields): string[] {
 	const fixtureSlugs = fixtureFieldSlugs(fixture);
 	const { missingLocked } = diffFields(fixture, remote);
 	if (missingLocked.length === 0) return [];
@@ -180,8 +172,7 @@ function fieldsStep(key: FixtureKey): WizardStep {
 			const writes = missing.length;
 			return {
 				writes,
-				summary:
-					writes === 0 ? "No changes." : `Added ${writes} field${writes === 1 ? "" : "s"}.`,
+				summary: writes === 0 ? "No changes." : `Added ${writes} field${writes === 1 ? "" : "s"}.`,
 			};
 		},
 	};

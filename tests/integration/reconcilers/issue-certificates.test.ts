@@ -12,12 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { issueCertificatesReconciler } from "../../../src/reconcilers/issue-certificates.js";
 import type { Certificate, QuizAttempt } from "../../../src/types/storage.js";
-import {
-	seedCourse,
-	seedEnrollment,
-	seedQuiz,
-	seedStudent,
-} from "../../utils/seed.js";
+import { seedCourse, seedEnrollment, seedQuiz, seedStudent } from "../../utils/seed.js";
 import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
@@ -54,7 +49,11 @@ describe("reconcilers/issue-certificates backfill", () => {
 
 		const certsStore = (
 			ctx.storage as unknown as {
-				certificates: { query: (opts: { where: Record<string, unknown> }) => Promise<{ items: Array<{ data: Certificate }> }> };
+				certificates: {
+					query: (opts: {
+						where: Record<string, unknown>;
+					}) => Promise<{ items: Array<{ data: Certificate }> }>;
+				};
 			}
 		).certificates;
 		const page = await certsStore.query({ where: {} });
@@ -79,7 +78,9 @@ describe("reconcilers/issue-certificates backfill", () => {
 
 		const certsStore = (
 			ctx.storage as unknown as {
-				certificates: { query: (opts: { where: Record<string, unknown> }) => Promise<{ items: unknown[] }> };
+				certificates: {
+					query: (opts: { where: Record<string, unknown> }) => Promise<{ items: unknown[] }>;
+				};
 			}
 		).certificates;
 		const page = await certsStore.query({ where: {} });

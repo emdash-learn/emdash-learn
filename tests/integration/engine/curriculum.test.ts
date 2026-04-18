@@ -15,12 +15,7 @@ import { handleContentPublish } from "emdash";
 import * as curriculum from "../../../src/engine/curriculum.js";
 import * as progress from "../../../src/engine/progress.js";
 import { settingKey } from "../../../src/kv-keys.js";
-import {
-	seedCourse,
-	seedEnrollment,
-	seedLesson,
-	seedStudent,
-} from "../../utils/seed.js";
+import { seedCourse, seedEnrollment, seedLesson, seedStudent } from "../../utils/seed.js";
 import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;

@@ -4,11 +4,7 @@
  * (per §4.2). Never import this from `src/engine/*` or route handlers.
  */
 
-import type {
-	CreateCollectionInput,
-	CreateFieldInput,
-	UpdateCollectionInput,
-} from "emdash";
+import type { CreateCollectionInput, CreateFieldInput, UpdateCollectionInput } from "emdash";
 
 export interface RemoteField {
 	id: string;
@@ -124,9 +120,8 @@ export function createCoreSchemaClient(opts: ClientOptions = {}): {
 		}
 		// Emdash wraps success bodies in `{ data: T }` (see apiSuccess in core).
 		const envelope = parsed as { data?: unknown } | null;
-		const unwrapped = envelope && typeof envelope === "object" && "data" in envelope
-			? envelope.data
-			: parsed;
+		const unwrapped =
+			envelope && typeof envelope === "object" && "data" in envelope ? envelope.data : parsed;
 		return unwrapped as T;
 	}
 
@@ -150,11 +145,9 @@ export function createCoreSchemaClient(opts: ClientOptions = {}): {
 		},
 
 		async createCollection(input) {
-			const body = (await request<{ item: RemoteCollection }>(
-				"POST",
-				"/collections",
-				input,
-			)) as { item: RemoteCollection };
+			const body = (await request<{ item: RemoteCollection }>("POST", "/collections", input)) as {
+				item: RemoteCollection;
+			};
 			return body.item;
 		},
 

@@ -27,12 +27,7 @@ import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
 import { type AuthContext, Role, requireRole } from "../authz.js";
-import {
-	DEFAULT_SETTINGS,
-	LEARN_ERRORS,
-	SETTING_KEYS,
-	type SettingsShape,
-} from "../constants.js";
+import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS, type SettingsShape } from "../constants.js";
 import { send as sendEmail } from "../engine/email-queue.js";
 import { settingKey } from "../kv-keys.js";
 
@@ -48,11 +43,7 @@ import { settingKey } from "../kv-keys.js";
 const settingsPatchSchema = z
 	.object({
 		siteName: z.string().max(200).optional(),
-		supportEmail: z
-			.string()
-			.email()
-			.or(z.literal(""))
-			.optional(),
+		supportEmail: z.string().email().or(z.literal("")).optional(),
 		defaultPassingScore: z.number().int().min(0).max(100).optional(),
 		certificateExpiryDays: z.number().int().positive().nullable().optional(),
 		dripMode: z.enum(["immediate", "relative"]).optional(),
@@ -118,9 +109,7 @@ function toRouteError(code: string, message: string): PluginRouteError {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function readSettings(
-	ctx: AuthContext,
-): Promise<SettingsShape> {
+async function readSettings(ctx: AuthContext): Promise<SettingsShape> {
 	const pairs = await Promise.all(
 		SETTING_KEYS.map(async (name) => {
 			const stored = await ctx.kv.get(settingKey(name));
@@ -145,10 +134,7 @@ const getRoute: PluginRoute<unknown> = {
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
 
-		const [settings, queued] = await Promise.all([
-			readSettings(auth),
-			countQueuedEmails(auth),
-		]);
+		const [settings, queued] = await Promise.all([readSettings(auth), countQueuedEmails(auth)]);
 		const response: SettingsGetResponse = {
 			settings,
 			emailProvider: { configured: Boolean(auth.email), queued },
@@ -170,9 +156,7 @@ const updateRoute: PluginRoute<SettingsUpdateInput> = {
 		>;
 		await Promise.all(
 			entries.map(([key, value]) =>
-				value === undefined
-					? Promise.resolve()
-					: auth.kv.set(settingKey(key), value),
+				value === undefined ? Promise.resolve() : auth.kv.set(settingKey(key), value),
 			),
 		);
 

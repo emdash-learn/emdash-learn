@@ -31,11 +31,7 @@ export type LessonReleased = BaseEvent<
 	`rel:${string}`,
 	{ lessonId: string; scheduledAt: string }
 >;
-export type CoursePublished = BaseEvent<
-	"course:published",
-	`cp:${string}`,
-	{ courseId: string }
->;
+export type CoursePublished = BaseEvent<"course:published", `cp:${string}`, { courseId: string }>;
 
 export type EngineEvent =
 	| EnrollmentCreated

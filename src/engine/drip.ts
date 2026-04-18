@@ -43,11 +43,7 @@ function maxIso(a: string, b: string): string {
 	return ta >= tb ? a : b;
 }
 
-export function unlocksAt(
-	enrollment: DripEnrollment,
-	lesson: DripLesson,
-	mode: DripMode,
-): string {
+export function unlocksAt(enrollment: DripEnrollment, lesson: DripLesson, mode: DripMode): string {
 	const base =
 		mode === "relative" && lesson.dripOffsetDays && lesson.dripOffsetDays > 0
 			? addDaysIso(enrollment.enrolledAt, lesson.dripOffsetDays)

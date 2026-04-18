@@ -25,10 +25,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import type {
-	QuizCreateInput,
-	QuizUpdateInput,
-} from "../routes/quizzes.js";
+import type { QuizCreateInput, QuizUpdateInput } from "../routes/quizzes.js";
 import type { QuestionType, Quiz, QuizTimeLimitPolicy } from "../types/storage.js";
 import { LmsApiError, createApiClient } from "./api-client.js";
 
@@ -128,18 +125,12 @@ export function makeBlankQuestion(
 		case "mcq":
 			return {
 				...base,
-				options: [
-					makeBlankOption(false, makeId),
-					makeBlankOption(false, makeId),
-				],
+				options: [makeBlankOption(false, makeId), makeBlankOption(false, makeId)],
 			};
 		case "multi":
 			return {
 				...base,
-				options: [
-					makeBlankOption(false, makeId),
-					makeBlankOption(false, makeId),
-				],
+				options: [makeBlankOption(false, makeId), makeBlankOption(false, makeId)],
 			};
 		case "true_false":
 			return {
@@ -218,10 +209,7 @@ export function duplicateQuestion(
 	return next;
 }
 
-export function deleteQuestion(
-	questions: DraftQuestion[],
-	index: number,
-): DraftQuestion[] {
+export function deleteQuestion(questions: DraftQuestion[], index: number): DraftQuestion[] {
 	if (index < 0 || index >= questions.length) return questions;
 	return questions.filter((_, i) => i !== index);
 }
@@ -232,12 +220,7 @@ export function moveQuestion(
 	direction: "up" | "down",
 ): DraftQuestion[] {
 	const target = direction === "up" ? index - 1 : index + 1;
-	if (
-		index < 0 ||
-		index >= questions.length ||
-		target < 0 ||
-		target >= questions.length
-	) {
+	if (index < 0 || index >= questions.length || target < 0 || target >= questions.length) {
 		return questions;
 	}
 	const next = questions.slice();
@@ -265,15 +248,9 @@ export interface ValidationResult {
 export function validateDraft(draft: DraftQuiz): ValidationResult {
 	const errors: string[] = [];
 	if (draft.title.trim().length === 0) errors.push("Title is required.");
-	if (draft.title.length > 200)
-		errors.push("Title must be 200 characters or fewer.");
-	if (draft.description.length > 1000)
-		errors.push("Description must be 1000 characters or fewer.");
-	if (
-		!Number.isFinite(draft.passingScore) ||
-		draft.passingScore < 0 ||
-		draft.passingScore > 100
-	) {
+	if (draft.title.length > 200) errors.push("Title must be 200 characters or fewer.");
+	if (draft.description.length > 1000) errors.push("Description must be 1000 characters or fewer.");
+	if (!Number.isFinite(draft.passingScore) || draft.passingScore < 0 || draft.passingScore > 100) {
 		errors.push("Passing score must be between 0 and 100.");
 	}
 	if (draft.timeLimit !== undefined) {
@@ -296,23 +273,20 @@ export function validateDraft(draft: DraftQuiz): ValidationResult {
 			const opts = q.options ?? [];
 			if (opts.length < 2) errors.push(`${label}: add at least 2 options.`);
 			const correct = opts.filter((o) => o.correct).length;
-			if (correct !== 1)
-				errors.push(`${label}: pick exactly 1 correct option.`);
+			if (correct !== 1) errors.push(`${label}: pick exactly 1 correct option.`);
 			if (opts.some((o) => o.text.trim().length === 0))
 				errors.push(`${label}: every option needs text.`);
 		} else if (q.type === "multi") {
 			const opts = q.options ?? [];
 			if (opts.length < 2) errors.push(`${label}: add at least 2 options.`);
 			const correct = opts.filter((o) => o.correct).length;
-			if (correct < 1)
-				errors.push(`${label}: mark at least 1 correct option.`);
+			if (correct < 1) errors.push(`${label}: mark at least 1 correct option.`);
 			if (opts.some((o) => o.text.trim().length === 0))
 				errors.push(`${label}: every option needs text.`);
 		} else if (q.type === "true_false") {
 			const opts = q.options ?? [];
 			const correct = opts.filter((o) => o.correct).length;
-			if (correct !== 1)
-				errors.push(`${label}: select True or False as the answer.`);
+			if (correct !== 1) errors.push(`${label}: select True or False as the answer.`);
 		}
 	});
 	return { valid: errors.length === 0, errors };
@@ -357,10 +331,7 @@ export function draftToCreateInput(draft: DraftQuiz): QuizCreateInput {
 	};
 }
 
-export function draftToUpdateInput(
-	draft: DraftQuiz,
-	quizId: string,
-): QuizUpdateInput {
+export function draftToUpdateInput(draft: DraftQuiz, quizId: string): QuizUpdateInput {
 	return { quizId, ...draftToCreateInput(draft) };
 }
 
@@ -499,9 +470,7 @@ export function QuizEditPage(): ReactElement {
 		<section style={pageStyle}>
 			<BackLink />
 			<header style={headerRowStyle}>
-				<h1 style={pageTitleStyle}>
-					{isCreating ? "New quiz" : draft.title || "Untitled quiz"}
-				</h1>
+				<h1 style={pageTitleStyle}>{isCreating ? "New quiz" : draft.title || "Untitled quiz"}</h1>
 				<div style={actionRowStyle}>
 					{dirty ? <span style={dirtyTagStyle}>Unsaved changes</span> : null}
 					<button
@@ -567,9 +536,7 @@ function SettingsCard({
 					id="quiz-title"
 					type="text"
 					value={draft.title}
-					onChange={(e) =>
-						onChange((prev) => ({ ...prev, title: e.target.value }))
-					}
+					onChange={(e) => onChange((prev) => ({ ...prev, title: e.target.value }))}
 					style={inputStyle}
 					maxLength={200}
 				/>
@@ -582,9 +549,7 @@ function SettingsCard({
 				<textarea
 					id="quiz-description"
 					value={draft.description}
-					onChange={(e) =>
-						onChange((prev) => ({ ...prev, description: e.target.value }))
-					}
+					onChange={(e) => onChange((prev) => ({ ...prev, description: e.target.value }))}
 					style={textareaStyle}
 					rows={3}
 					maxLength={1000}
@@ -662,9 +627,7 @@ function SettingsCard({
 					id="quiz-randomize"
 					type="checkbox"
 					checked={draft.randomize}
-					onChange={(e) =>
-						onChange((prev) => ({ ...prev, randomize: e.target.checked }))
-					}
+					onChange={(e) => onChange((prev) => ({ ...prev, randomize: e.target.checked }))}
 				/>
 				<label htmlFor="quiz-randomize">Randomize question order</label>
 			</div>
@@ -740,36 +703,20 @@ function QuestionsCard({
 	);
 }
 
-function AddQuestionMenu({
-	onAdd,
-}: {
-	onAdd: (type: QuestionType) => void;
-}): ReactElement {
+function AddQuestionMenu({ onAdd }: { onAdd: (type: QuestionType) => void }): ReactElement {
 	return (
 		<div style={addMenuStyle}>
 			<span style={addMenuLabelStyle}>Add:</span>
 			<button type="button" onClick={() => onAdd("mcq")} style={chipButtonStyle}>
 				Multiple choice
 			</button>
-			<button
-				type="button"
-				onClick={() => onAdd("multi")}
-				style={chipButtonStyle}
-			>
+			<button type="button" onClick={() => onAdd("multi")} style={chipButtonStyle}>
 				Multi-select
 			</button>
-			<button
-				type="button"
-				onClick={() => onAdd("true_false")}
-				style={chipButtonStyle}
-			>
+			<button type="button" onClick={() => onAdd("true_false")} style={chipButtonStyle}>
 				True / false
 			</button>
-			<button
-				type="button"
-				onClick={() => onAdd("short_text")}
-				style={chipButtonStyle}
-			>
+			<button type="button" onClick={() => onAdd("short_text")} style={chipButtonStyle}>
 				Short text
 			</button>
 		</div>
@@ -851,19 +798,15 @@ function QuestionEditor(props: QuestionEditorProps): ReactElement {
 			</div>
 
 			{question.type === "mcq" ? (
-				<OptionsEditor
-					question={question}
-					mode="single"
-					onPatch={onPatch}
-				/>
+				<OptionsEditor question={question} mode="single" onPatch={onPatch} />
 			) : question.type === "multi" ? (
 				<OptionsEditor question={question} mode="multi" onPatch={onPatch} />
 			) : question.type === "true_false" ? (
 				<TrueFalseEditor question={question} onPatch={onPatch} />
 			) : (
 				<p style={shortTextHintStyle}>
-					Short-text answers are graded exact-match against the correct option
-					text saved on the question (set via the route payload; no UI yet).
+					Short-text answers are graded exact-match against the correct option text saved on the
+					question (set via the route payload; no UI yet).
 				</p>
 			)}
 
@@ -1038,13 +981,7 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
 			<div style={{ marginBlockEnd: "0.5rem" }}>{message}</div>

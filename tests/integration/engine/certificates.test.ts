@@ -65,10 +65,7 @@ describe("engine/certificates.verify", () => {
 		const issued = await certificates.issue(ctx, student.id, course.id);
 		if (!issued.ok) throw new Error("setup failed");
 
-		const result = await certificates.verify(
-			ctx,
-			issued.data.data.verificationCode,
-		);
+		const result = await certificates.verify(ctx, issued.data.data.verificationCode);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.valid).toBe(true);

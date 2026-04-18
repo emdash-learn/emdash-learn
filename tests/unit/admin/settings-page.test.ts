@@ -11,11 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-	buildPatch,
-	formatProviderBadge,
-	toFormState,
-} from "../../../src/admin/SettingsPage.js";
+import { buildPatch, formatProviderBadge, toFormState } from "../../../src/admin/SettingsPage.js";
 import type { SettingsFormState } from "../../../src/admin/SettingsPage.js";
 import type { SettingsShape } from "../../../src/constants.js";
 

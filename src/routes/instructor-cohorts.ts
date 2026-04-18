@@ -212,11 +212,7 @@ const importRoute: PluginRoute<CohortImportInput> = {
 		gate(ctx);
 		const emails = ctx.input.emails ?? (ctx.input.csv ? parseCsvEmails(ctx.input.csv) : []);
 		if (emails.length === 0) {
-			throw new PluginRouteError(
-				LEARN_ERRORS.FORBIDDEN,
-				"no emails were provided",
-				400,
-			);
+			throw new PluginRouteError(LEARN_ERRORS.FORBIDDEN, "no emails were provided", 400);
 		}
 		const result = unwrap(await cohorts.importFromEmails(ctx, ctx.input.cohortId, emails));
 		return {

@@ -33,9 +33,7 @@ import { err, ok, type Result } from "./result.js";
 function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T> {
 	const collection = (ctx.storage as Record<string, StorageCollection | undefined>)[name];
 	if (!collection) {
-		throw new Error(
-			`Plugin storage collection "${name}" is not declared in the descriptor.`,
-		);
+		throw new Error(`Plugin storage collection "${name}" is not declared in the descriptor.`);
 	}
 	return collection as StorageCollection<T>;
 }
@@ -153,18 +151,14 @@ export async function forUser(
 		const isPreview = lessonField<boolean | number>(item, "is_preview");
 		const isPreviewBool = isPreview === true || isPreview === 1;
 		const requiresPrevious = lessonField<boolean | number>(item, "requires_previous");
-		const requiresPreviousBool =
-			requiresPrevious === true || requiresPrevious === 1;
+		const requiresPreviousBool = requiresPrevious === true || requiresPrevious === 1;
 		const dripOffsetDays = lessonField<number>(item, "drip_offset_days") ?? 0;
 
-		const scheduledAt =
-			(item as { scheduledAt?: string | null }).scheduledAt ?? null;
+		const scheduledAt = (item as { scheduledAt?: string | null }).scheduledAt ?? null;
 		const lessonForDrip = { dripOffsetDays, scheduledAt };
 		const base = enrollment ?? { enrolledAt: now.toISOString() };
 		const unlockTime = unlocksAt(base, lessonForDrip, mode);
-		const dripUnlocked = enrollment
-			? isUnlocked(base, lessonForDrip, mode, now)
-			: isPreviewBool;
+		const dripUnlocked = enrollment ? isUnlocked(base, lessonForDrip, mode, now) : isPreviewBool;
 
 		// Preview lessons are always visible; non-preview require enrollment.
 		const visible = isPreviewBool || enrollment !== null;
@@ -172,8 +166,7 @@ export async function forUser(
 
 		const prog = progress.get(item.id);
 		const completed = Boolean(prog?.completedAt);
-		const unlocked =
-			dripUnlocked && (!requiresPreviousBool || previousCompleted);
+		const unlocked = dripUnlocked && (!requiresPreviousBool || previousCompleted);
 
 		const entry: VisibleLesson = {
 			id: item.id,
@@ -270,10 +263,7 @@ export interface MyLearningPage {
 	hasMore: boolean;
 }
 
-function enrollmentMatchesStatus(
-	row: Enrollment,
-	status: "active" | "completed" | "all",
-): boolean {
+function enrollmentMatchesStatus(row: Enrollment, status: "active" | "completed" | "all"): boolean {
 	if (row.revokedAt) return false;
 	if (status === "all") return true;
 	if (status === "completed") return Boolean(row.completedAt);
@@ -297,16 +287,13 @@ export async function myLearning(
 	for (const row of page.items) {
 		if (!enrollmentMatchesStatus(row.data, status)) continue;
 		const courseId = row.data.courseId;
-		const course = ctx.content
-			? await ctx.content.get("courses", courseId)
-			: null;
+		const course = ctx.content ? await ctx.content.get("courses", courseId) : null;
 		if (!course) continue;
 		const curriculum = await forUser(ctx, userId, courseId);
 		const lessons = curriculum.ok ? curriculum.data : [];
 		const total = lessons.length;
 		const completedCount = lessons.filter((l) => l.completed).length;
-		const percent =
-			total > 0 ? Math.round((completedCount / total) * 100) : 0;
+		const percent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
 		const progressMap = await getProgressMap(ctx, userId, courseId);
 		let lastActivityAt: string | undefined;
@@ -318,9 +305,7 @@ export async function myLearning(
 		const nextLessonEntry = lessons.find((l) => !l.completed);
 		const item: MyLearningItem = {
 			courseId,
-			courseTitle:
-				(course.data as Record<string, unknown>)["title"] as string ??
-				"Untitled",
+			courseTitle: ((course.data as Record<string, unknown>)["title"] as string) ?? "Untitled",
 			enrolledAt: row.data.enrolledAt,
 			percentComplete: percent,
 		};

@@ -17,12 +17,8 @@
 
 import type { PluginContext } from "emdash";
 
-import {
-	dripReleaseRemindersReconciler,
-} from "../reconcilers/drip-release-reminders.js";
-import {
-	flushEmailQueueReconciler,
-} from "../reconcilers/flush-email-queue.js";
+import { dripReleaseRemindersReconciler } from "../reconcilers/drip-release-reminders.js";
+import { flushEmailQueueReconciler } from "../reconcilers/flush-email-queue.js";
 import {
 	issueCertificatesReconciler,
 	type ReconcilerSummary,
@@ -43,10 +39,7 @@ const ROUTES: Record<string, Reconciler> = {
 	"flush-email-queue": flushEmailQueueReconciler,
 };
 
-export async function cronDispatch(
-	event: CronEvent,
-	ctx: PluginContext,
-): Promise<void> {
+export async function cronDispatch(event: CronEvent, ctx: PluginContext): Promise<void> {
 	const reconciler = ROUTES[event.name];
 	if (!reconciler) {
 		ctx.log.warn("unknown cron event", { name: event.name });

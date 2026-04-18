@@ -192,9 +192,7 @@ export async function listForUser(
  * the instructor roster is small (dozens, not thousands), so a single scan
  * beats paginating through courses client-side.
  */
-export async function listAll(
-	ctx: PluginContext,
-): Promise<CourseInstructor[]> {
+export async function listAll(ctx: PluginContext): Promise<CourseInstructor[]> {
 	const collection = instructorsCollection(ctx);
 	const result = await collection.query({});
 	return result.items.map((row) => row.data);

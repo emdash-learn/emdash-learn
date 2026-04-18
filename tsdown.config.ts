@@ -1,11 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-	entry: [
-		"src/index.ts",
-		"src/sandbox-entry.ts",
-		"src/admin.tsx",
-	],
+	entry: ["src/index.ts", "src/sandbox-entry.ts", "src/admin.tsx"],
 	format: "esm",
 	dts: true,
 	clean: true,

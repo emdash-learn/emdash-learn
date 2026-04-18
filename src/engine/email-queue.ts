@@ -56,10 +56,7 @@ async function enqueue(ctx: PluginContext, message: EmailMessage): Promise<void>
 	await ctx.kv.set(emailQueueKey(newQueueId()), message);
 }
 
-export async function send(
-	ctx: PluginContext,
-	message: EmailMessage,
-): Promise<Result<void>> {
+export async function send(ctx: PluginContext, message: EmailMessage): Promise<Result<void>> {
 	if (!ctx.email) {
 		await enqueue(ctx, message);
 		return ok(undefined);

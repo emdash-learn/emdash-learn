@@ -55,9 +55,7 @@ import { err, ok, type Result } from "./result.js";
 function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T> {
 	const collection = (ctx.storage as Record<string, StorageCollection | undefined>)[name];
 	if (!collection) {
-		throw new Error(
-			`Plugin storage collection "${name}" is not declared in the descriptor.`,
-		);
+		throw new Error(`Plugin storage collection "${name}" is not declared in the descriptor.`);
 	}
 	return collection as StorageCollection<T>;
 }

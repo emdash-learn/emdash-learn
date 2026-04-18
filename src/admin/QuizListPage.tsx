@@ -24,11 +24,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import {
-	LmsApiError,
-	createApiClient,
-	type QuizListResponse,
-} from "./api-client.js";
+import { LmsApiError, createApiClient, type QuizListResponse } from "./api-client.js";
 
 const PLUGIN_BASE = "/_emdash/admin/plugins/lms-core";
 const QUIZ_EDIT_BASE = `${PLUGIN_BASE}/quizzes`;
@@ -95,9 +91,7 @@ export function QuizListPage(): ReactElement {
 						+ New quiz
 					</a>
 				</div>
-				<p style={subtitleStyle}>
-					Author and manage server-graded quizzes used in your lessons.
-				</p>
+				<p style={subtitleStyle}>Author and manage server-graded quizzes used in your lessons.</p>
 			</header>
 
 			{state.kind === "loading" ? (
@@ -113,9 +107,7 @@ export function QuizListPage(): ReactElement {
 
 function QuizTable({ items }: { items: QuizRow[] }): ReactElement {
 	if (items.length === 0) {
-		return (
-			<EmptyState message="No quizzes yet. Create one to grade lesson knowledge checks." />
-		);
+		return <EmptyState message="No quizzes yet. Create one to grade lesson knowledge checks." />;
 	}
 	return (
 		<div style={tableWrapperStyle}>
@@ -155,18 +147,10 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
-			<div style={{ marginBlockEnd: "0.5rem" }}>
-				Couldn't load quizzes: {message}
-			</div>
+			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load quizzes: {message}</div>
 			<button type="button" onClick={onRetry} style={secondaryButtonStyle}>
 				Retry
 			</button>

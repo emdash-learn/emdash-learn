@@ -18,19 +18,15 @@ import {
 
 describe("parseCohortIdFromPath", () => {
 	it("extracts the cohortId from an admin-shell URL", () => {
-		expect(
-			parseCohortIdFromPath(
-				"/_emdash/admin/plugins/lms-core/cohorts/coh_abc123",
-			),
-		).toBe("coh_abc123");
+		expect(parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/cohorts/coh_abc123")).toBe(
+			"coh_abc123",
+		);
 	});
 
 	it("stops at the next path segment", () => {
-		expect(
-			parseCohortIdFromPath(
-				"/_emdash/admin/plugins/lms-core/cohorts/coh_abc123/edit",
-			),
-		).toBe("coh_abc123");
+		expect(parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/cohorts/coh_abc123/edit")).toBe(
+			"coh_abc123",
+		);
 	});
 
 	it("decodes percent-encoded ids", () => {
@@ -43,15 +39,11 @@ describe("parseCohortIdFromPath", () => {
 
 	it("returns null for unrelated paths", () => {
 		expect(parseCohortIdFromPath("/some/other/route")).toBeNull();
-		expect(
-			parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/courses/c1"),
-		).toBeNull();
+		expect(parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/courses/c1")).toBeNull();
 	});
 
 	it("returns null when the id segment is empty", () => {
-		expect(
-			parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/cohorts/"),
-		).toBeNull();
+		expect(parseCohortIdFromPath("/_emdash/admin/plugins/lms-core/cohorts/")).toBeNull();
 	});
 });
 
@@ -67,9 +59,7 @@ describe("formatShortDate", () => {
 
 describe("formatCapacityLine", () => {
 	it("includes seats and current members when capacity is set", () => {
-		expect(formatCapacityLine(34, 50)).toBe(
-			"50 seats · Current members: 34",
-		);
+		expect(formatCapacityLine(34, 50)).toBe("50 seats · Current members: 34");
 	});
 
 	it("omits the seats figure when capacity is unset", () => {
@@ -79,21 +69,22 @@ describe("formatCapacityLine", () => {
 
 describe("parseEmailList", () => {
 	it("splits on newlines and commas, trimming whitespace", () => {
-		expect(
-			parseEmailList("alice@example.com\nbob@example.com, carol@example.com"),
-		).toEqual(["alice@example.com", "bob@example.com", "carol@example.com"]);
-	});
-
-	it("drops empty tokens", () => {
-		expect(parseEmailList("\n\nalice@example.com\n\n")).toEqual([
+		expect(parseEmailList("alice@example.com\nbob@example.com, carol@example.com")).toEqual([
 			"alice@example.com",
+			"bob@example.com",
+			"carol@example.com",
 		]);
 	});
 
+	it("drops empty tokens", () => {
+		expect(parseEmailList("\n\nalice@example.com\n\n")).toEqual(["alice@example.com"]);
+	});
+
 	it("de-dupes case-insensitively, preserving the first-seen casing", () => {
-		expect(
-			parseEmailList("Alice@Example.com\nalice@example.com\nBOB@X.Z"),
-		).toEqual(["Alice@Example.com", "BOB@X.Z"]);
+		expect(parseEmailList("Alice@Example.com\nalice@example.com\nBOB@X.Z")).toEqual([
+			"Alice@Example.com",
+			"BOB@X.Z",
+		]);
 	});
 
 	it("returns an empty array for blank input", () => {

@@ -38,14 +38,13 @@ describe("hooks/cron dispatch", () => {
 			completedAt: new Date().toISOString(),
 		});
 
-		await cronDispatch(
-			{ name: "issue-certificates", scheduledAt: new Date().toISOString() },
-			ctx,
-		);
+		await cronDispatch({ name: "issue-certificates", scheduledAt: new Date().toISOString() }, ctx);
 
 		const certsStore = (
 			ctx.storage as unknown as {
-				certificates: { query: (opts: { where: Record<string, unknown> }) => Promise<{ items: unknown[] }> };
+				certificates: {
+					query: (opts: { where: Record<string, unknown> }) => Promise<{ items: unknown[] }>;
+				};
 			}
 		).certificates;
 		const page = await certsStore.query({ where: {} });
@@ -60,10 +59,7 @@ describe("hooks/cron dispatch", () => {
 			text: "yo",
 		});
 
-		await cronDispatch(
-			{ name: "flush-email-queue", scheduledAt: new Date().toISOString() },
-			ctx,
-		);
+		await cronDispatch({ name: "flush-email-queue", scheduledAt: new Date().toISOString() }, ctx);
 
 		expect(outbox).toHaveLength(1);
 	});
@@ -83,10 +79,7 @@ describe("hooks/cron dispatch", () => {
 	it("ignores unknown cron events", async () => {
 		const { ctx, outbox } = await newCtx();
 		await expect(
-			cronDispatch(
-				{ name: "unknown-event", scheduledAt: new Date().toISOString() },
-				ctx,
-			),
+			cronDispatch({ name: "unknown-event", scheduledAt: new Date().toISOString() }, ctx),
 		).resolves.toBeUndefined();
 		expect(outbox).toHaveLength(0);
 	});

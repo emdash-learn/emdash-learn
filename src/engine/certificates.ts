@@ -19,10 +19,7 @@
 import type { PluginContext, StorageCollection } from "emdash";
 import { ulid } from "emdash";
 
-import {
-	COURSES_COLLECTION_SLUG,
-	LEARN_ERRORS,
-} from "../constants.js";
+import { COURSES_COLLECTION_SLUG, LEARN_ERRORS } from "../constants.js";
 import { settingKey } from "../kv-keys.js";
 import type { Certificate } from "../types/storage.js";
 import { err, ok, type Result } from "./result.js";
@@ -87,9 +84,9 @@ export async function issue(
 	const existing = await findExistingForCourse(ctx, userId, courseId);
 	if (existing) return ok(existing);
 
-	const expiryDays = (await ctx.kv.get<number | null>(
-		settingKey("certificateExpiryDays"),
-	)) as number | null;
+	const expiryDays = (await ctx.kv.get<number | null>(settingKey("certificateExpiryDays"))) as
+		| number
+		| null;
 
 	const id = `cert_${ulid()}`;
 	const now = new Date();
@@ -100,9 +97,7 @@ export async function issue(
 		verificationCode: generateVerificationCode(),
 	};
 	if (typeof expiryDays === "number" && expiryDays > 0) {
-		data.expiresAt = new Date(
-			now.getTime() + expiryDays * 24 * 60 * 60 * 1000,
-		).toISOString();
+		data.expiresAt = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 	}
 
 	await certsStore(ctx).put(id, data);
@@ -186,9 +181,7 @@ export async function verify(
 		}
 	}
 
-	const expired = cert.expiresAt
-		? Date.parse(cert.expiresAt) < Date.now()
-		: false;
+	const expired = cert.expiresAt ? Date.parse(cert.expiresAt) < Date.now() : false;
 	const valid = !cert.revokedAt && !expired;
 
 	const result: VerificationResult = { valid };

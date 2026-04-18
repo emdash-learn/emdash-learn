@@ -27,11 +27,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import {
-	LmsApiError,
-	createApiClient,
-	type StudentProgress,
-} from "./api-client.js";
+import { LmsApiError, createApiClient, type StudentProgress } from "./api-client.js";
 
 const PLUGIN_BASE = "/_emdash/admin/plugins/lms-core";
 const STUDENTS_PATH_PREFIX = `${PLUGIN_BASE}/students/`;
@@ -93,10 +89,7 @@ export function formatShortDate(isoTimestamp: string): string {
 	return `${day} ${month} ${year}`;
 }
 
-export function formatRelativeTime(
-	isoTimestamp: string,
-	now: number = Date.now(),
-): string {
+export function formatRelativeTime(isoTimestamp: string, now: number = Date.now()): string {
 	const then = Date.parse(isoTimestamp);
 	if (!Number.isFinite(then)) return isoTimestamp;
 	const diffMs = now - then;
@@ -122,12 +115,9 @@ function clampPercent(value: number): number {
 	return value;
 }
 
-export function courseStatus(
-	course: StudentCourse,
-): "completed" | "in-progress" | "not-started" {
+export function courseStatus(course: StudentCourse): "completed" | "in-progress" | "not-started" {
 	if (course.completedAt) return "completed";
-	if (course.lessonsCompleted > 0 || course.percentComplete > 0)
-		return "in-progress";
+	if (course.lessonsCompleted > 0 || course.percentComplete > 0) return "in-progress";
 	return "not-started";
 }
 
@@ -171,9 +161,7 @@ export function StudentProgressPage(): ReactElement {
 				<div style={headerRowStyle}>
 					<h1 style={pageTitleStyle}>
 						Student progress
-						{studentId ? (
-							<span style={studentIdStyle}> · {studentId}</span>
-						) : null}
+						{studentId ? <span style={studentIdStyle}> · {studentId}</span> : null}
 					</h1>
 				</div>
 				<p style={subtitleStyle}>
@@ -194,15 +182,11 @@ export function StudentProgressPage(): ReactElement {
 
 function CoursesList({ data }: { data: StudentProgress }): ReactElement {
 	if (data.courses.length === 0) {
-		return (
-			<EmptyState message="This student isn't enrolled in any of your courses." />
-		);
+		return <EmptyState message="This student isn't enrolled in any of your courses." />;
 	}
 	return (
 		<>
-			<p style={courseCountStyle}>
-				Enrolled in {formatCount(data.courses.length)} of your courses
-			</p>
+			<p style={courseCountStyle}>Enrolled in {formatCount(data.courses.length)} of your courses</p>
 			<ul style={courseListStyle}>
 				{data.courses.map((c) => (
 					<CourseCard key={c.courseId} course={c} />
@@ -255,8 +239,7 @@ function CourseCard({ course }: { course: StudentCourse }): ReactElement {
 				<div style={metricStyle}>
 					<dt style={metricLabelStyle}>Lessons</dt>
 					<dd style={metricValueStyle}>
-						{formatCount(course.lessonsCompleted)} /{" "}
-						{formatCount(course.lessonsTotal)} complete
+						{formatCount(course.lessonsCompleted)} / {formatCount(course.lessonsTotal)} complete
 					</dd>
 				</div>
 				<div style={metricStyle}>
@@ -270,11 +253,7 @@ function CourseCard({ course }: { course: StudentCourse }): ReactElement {
 	);
 }
 
-function StatusBadge({
-	status,
-}: {
-	status: ReturnType<typeof courseStatus>;
-}): ReactElement {
+function StatusBadge({ status }: { status: ReturnType<typeof courseStatus> }): ReactElement {
 	const palette = statusPalette[status];
 	return (
 		<span
@@ -297,18 +276,10 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
-			<div style={{ marginBlockEnd: "0.5rem" }}>
-				Couldn't load student progress: {message}
-			</div>
+			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load student progress: {message}</div>
 			<button type="button" onClick={onRetry} style={secondaryButtonStyle}>
 				Retry
 			</button>
@@ -359,8 +330,7 @@ const studentIdStyle: CSSProperties = {
 	color: "#64748b",
 	fontWeight: 400,
 	fontSize: "1rem",
-	fontFamily:
-		"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 };
 
 const subtitleStyle: CSSProperties = {

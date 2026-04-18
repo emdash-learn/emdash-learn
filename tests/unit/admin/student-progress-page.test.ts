@@ -23,52 +23,38 @@ type StudentCourse = StudentProgress["courses"][number];
 
 describe("parseStudentIdFromPath", () => {
 	it("extracts the userId from the canonical admin path", () => {
-		expect(
-			parseStudentIdFromPath(
-				"/_emdash/admin/plugins/lms-core/students/usr_abc123",
-			),
-		).toBe("usr_abc123");
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/usr_abc123")).toBe(
+			"usr_abc123",
+		);
 	});
 
 	it("ignores trailing segments and query strings after the id", () => {
 		// The admin shell passes the pathname only; anything after a slash is
 		// treated as a sub-route that we ignore for extraction purposes.
-		expect(
-			parseStudentIdFromPath(
-				"/_emdash/admin/plugins/lms-core/students/usr_abc/extra",
-			),
-		).toBe("usr_abc");
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/usr_abc/extra")).toBe(
+			"usr_abc",
+		);
 	});
 
 	it("decodes percent-encoded ids", () => {
 		expect(
-			parseStudentIdFromPath(
-				"/_emdash/admin/plugins/lms-core/students/usr%20with%20space",
-			),
+			parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/usr%20with%20space"),
 		).toBe("usr with space");
 	});
 
 	it("returns null when the prefix does not match", () => {
 		expect(parseStudentIdFromPath("/_emdash/admin/dashboard")).toBeNull();
 		expect(parseStudentIdFromPath("/students/usr_abc")).toBeNull();
-		expect(
-			parseStudentIdFromPath("/_emdash/admin/plugins/other/students/usr_abc"),
-		).toBeNull();
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/other/students/usr_abc")).toBeNull();
 	});
 
 	it("returns null when the id segment is empty", () => {
-		expect(
-			parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/"),
-		).toBeNull();
-		expect(
-			parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students//foo"),
-		).toBeNull();
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/")).toBeNull();
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students//foo")).toBeNull();
 	});
 
 	it("returns null when the segment is an invalid percent-encoding", () => {
-		expect(
-			parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/%ZZ"),
-		).toBeNull();
+		expect(parseStudentIdFromPath("/_emdash/admin/plugins/lms-core/students/%ZZ")).toBeNull();
 	});
 });
 
@@ -138,9 +124,7 @@ describe("courseStatus", () => {
 	};
 
 	it("reports 'completed' when the enrollment has a completedAt timestamp", () => {
-		expect(
-			courseStatus({ ...base, completedAt: "2026-04-17T09:00:00Z" }),
-		).toBe("completed");
+		expect(courseStatus({ ...base, completedAt: "2026-04-17T09:00:00Z" })).toBe("completed");
 	});
 
 	it("reports 'in-progress' when any lesson is complete or percent > 0", () => {

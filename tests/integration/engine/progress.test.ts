@@ -176,11 +176,15 @@ describe("engine/progress.markLessonComplete + course completion", () => {
 
 		const lessonEvents: LessonCompleted["data"][] = [];
 		const courseEvents: CourseCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>("lesson:completed", "t-l", async (e) =>
-			void lessonEvents.push(e.data),
+		eventBus.on<LessonCompleted>(
+			"lesson:completed",
+			"t-l",
+			async (e) => void lessonEvents.push(e.data),
 		);
-		eventBus.on<CourseCompleted>("course:completed", "t-c", async (e) =>
-			void courseEvents.push(e.data),
+		eventBus.on<CourseCompleted>(
+			"course:completed",
+			"t-c",
+			async (e) => void courseEvents.push(e.data),
 		);
 
 		const first = await progress.markLessonComplete(ctx, student.id, lesson1);

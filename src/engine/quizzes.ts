@@ -127,17 +127,11 @@ function gradeOne(q: QuizQuestion, raw: unknown): boolean {
 	}
 }
 
-function isOvertime(
-	attempt: QuizAttempt,
-	quiz: Quiz,
-	now: Date,
-): boolean {
+function isOvertime(attempt: QuizAttempt, quiz: Quiz, now: Date): boolean {
 	if (!quiz.timeLimit || quiz.timeLimit <= 0) return false;
 	const startedMs = Date.parse(attempt.startedAt);
 	if (Number.isNaN(startedMs)) return false;
-	const referenceMs = attempt.submittedAt
-		? Date.parse(attempt.submittedAt)
-		: now.getTime();
+	const referenceMs = attempt.submittedAt ? Date.parse(attempt.submittedAt) : now.getTime();
 	if (Number.isNaN(referenceMs)) return false;
 	const elapsedSeconds = (referenceMs - startedMs) / 1000;
 	return elapsedSeconds > quiz.timeLimit;
@@ -173,8 +167,7 @@ export function grade(attempt: QuizAttempt, quiz: Quiz, now: Date): GradeResult 
 		feedback.push(entry);
 	}
 
-	const score =
-		totalPossible > 0 ? Math.round((totalAwarded / totalPossible) * 100) : 0;
+	const score = totalPossible > 0 ? Math.round((totalAwarded / totalPossible) * 100) : 0;
 	const passed = score >= quiz.passingScore;
 	const overtime = isOvertime(attempt, quiz, now);
 
@@ -200,20 +193,26 @@ export interface QuizRecord {
 	data: Quiz;
 }
 
-function validateQuizInput(input: { passingScore?: number; questions?: unknown }): Result<true> | null {
-	if (input.questions !== undefined && (!Array.isArray(input.questions) || input.questions.length === 0)) {
+function validateQuizInput(input: {
+	passingScore?: number;
+	questions?: unknown;
+}): Result<true> | null {
+	if (
+		input.questions !== undefined &&
+		(!Array.isArray(input.questions) || input.questions.length === 0)
+	) {
 		return err(LEARN_ERRORS.FORBIDDEN, "quiz must have at least one question");
 	}
-	if (typeof input.passingScore === "number" && (input.passingScore < 0 || input.passingScore > 100)) {
+	if (
+		typeof input.passingScore === "number" &&
+		(input.passingScore < 0 || input.passingScore > 100)
+	) {
 		return err(LEARN_ERRORS.FORBIDDEN, "passingScore must be between 0 and 100");
 	}
 	return null;
 }
 
-export async function create(
-	ctx: PluginContext,
-	input: QuizInput,
-): Promise<Result<QuizRecord>> {
+export async function create(ctx: PluginContext, input: QuizInput): Promise<Result<QuizRecord>> {
 	const invalid = validateQuizInput(input);
 	if (invalid) return invalid as Result<QuizRecord>;
 

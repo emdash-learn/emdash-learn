@@ -17,11 +17,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import {
-	DEFAULT_SETTINGS,
-	LEARN_ERRORS,
-	SETTING_KEYS,
-} from "../../../src/constants.js";
+import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS } from "../../../src/constants.js";
 import type { EmailMessage } from "../../../src/engine/email-queue.js";
 import { adminSettingsRoutes } from "../../../src/routes/admin-settings.js";
 
@@ -37,9 +33,7 @@ interface MakeCtxOpts {
 }
 
 function makeCtx(opts: MakeCtxOpts = {}) {
-	const store = new Map<string, unknown>(
-		Object.entries(opts.kv ?? {}),
-	);
+	const store = new Map<string, unknown>(Object.entries(opts.kv ?? {}));
 	const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 	const user =
 		opts.roleLevel === undefined
@@ -82,9 +76,7 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 			log,
 			user,
 			...(opts.email ? { email: opts.email } : {}),
-		} as unknown as Parameters<
-			(typeof adminSettingsRoutes)["admin:settings:get"]["handler"]
-		>[0];
+		} as unknown as Parameters<(typeof adminSettingsRoutes)["admin:settings:get"]["handler"]>[0];
 	}
 
 	return { store, log, user, buildRouteCtx };
@@ -223,26 +215,18 @@ describe("admin:settings:update", () => {
 
 	it("rejects unknown keys at the input boundary", () => {
 		const route = adminSettingsRoutes["admin:settings:update"];
-		expect(() =>
-			route.input!.parse({ settings: { bogus: "x" } }),
-		).toThrow();
+		expect(() => route.input!.parse({ settings: { bogus: "x" } })).toThrow();
 	});
 
 	it("rejects defaultPassingScore out of range", () => {
 		const route = adminSettingsRoutes["admin:settings:update"];
-		expect(() =>
-			route.input!.parse({ settings: { defaultPassingScore: 101 } }),
-		).toThrow();
-		expect(() =>
-			route.input!.parse({ settings: { defaultPassingScore: -1 } }),
-		).toThrow();
+		expect(() => route.input!.parse({ settings: { defaultPassingScore: 101 } })).toThrow();
+		expect(() => route.input!.parse({ settings: { defaultPassingScore: -1 } })).toThrow();
 	});
 
 	it("rejects a negative certificateExpiryDays", () => {
 		const route = adminSettingsRoutes["admin:settings:update"];
-		expect(() =>
-			route.input!.parse({ settings: { certificateExpiryDays: -5 } }),
-		).toThrow();
+		expect(() => route.input!.parse({ settings: { certificateExpiryDays: -5 } })).toThrow();
 	});
 
 	it("allows supportEmail to be cleared to empty string", async () => {
@@ -257,9 +241,9 @@ describe("admin:settings:update", () => {
 		const { buildRouteCtx } = makeCtx({ roleLevel: Role.EDITOR });
 		const route = adminSettingsRoutes["admin:settings:update"];
 		const input = route.input!.parse({ settings: {} });
-		await expect(
-			route.handler(buildRouteCtx(input)),
-		).rejects.toMatchObject({ code: LEARN_ERRORS.FORBIDDEN });
+		await expect(route.handler(buildRouteCtx(input))).rejects.toMatchObject({
+			code: LEARN_ERRORS.FORBIDDEN,
+		});
 	});
 });
 
@@ -282,9 +266,7 @@ describe("admin:test-email", () => {
 		expect(result.to).toBe("admin@example.com");
 		expect(send).toHaveBeenCalledTimes(1);
 		// Nothing landed in the queue.
-		expect([...store.keys()].filter((k) => k.startsWith("queue:email:"))).toHaveLength(
-			0,
-		);
+		expect([...store.keys()].filter((k) => k.startsWith("queue:email:"))).toHaveLength(0);
 	});
 
 	it("queues the message when no provider is configured and returns delivered=false", async () => {
@@ -298,9 +280,7 @@ describe("admin:test-email", () => {
 
 		expect(result.delivered).toBe(false);
 		expect(result.to).toBe("admin@example.com");
-		const queued = [...store.keys()].filter((k) =>
-			k.startsWith("queue:email:"),
-		);
+		const queued = [...store.keys()].filter((k) => k.startsWith("queue:email:"));
 		expect(queued).toHaveLength(1);
 	});
 
@@ -323,8 +303,8 @@ describe("admin:test-email", () => {
 		const { buildRouteCtx } = makeCtx({ roleLevel: Role.EDITOR });
 		const route = adminSettingsRoutes["admin:test-email"];
 		const input = route.input!.parse({});
-		await expect(
-			route.handler(buildRouteCtx(input)),
-		).rejects.toMatchObject({ code: LEARN_ERRORS.FORBIDDEN });
+		await expect(route.handler(buildRouteCtx(input))).rejects.toMatchObject({
+			code: LEARN_ERRORS.FORBIDDEN,
+		});
 	});
 });

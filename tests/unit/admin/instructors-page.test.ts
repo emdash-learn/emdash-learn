@@ -62,9 +62,7 @@ describe("userLabel", () => {
 	});
 
 	it("falls back to userId when neither is available", () => {
-		expect(userLabel(item({ userId: "u1", courseId: "c1", role: "lead" }))).toBe(
-			"u1",
-		);
+		expect(userLabel(item({ userId: "u1", courseId: "c1", role: "lead" }))).toBe("u1");
 	});
 });
 
@@ -83,9 +81,7 @@ describe("courseLabel", () => {
 	});
 
 	it("falls back to courseId when title is missing", () => {
-		expect(courseLabel(item({ userId: "u1", courseId: "c1", role: "lead" }))).toBe(
-			"c1",
-		);
+		expect(courseLabel(item({ userId: "u1", courseId: "c1", role: "lead" }))).toBe("c1");
 	});
 });
 
@@ -104,9 +100,7 @@ describe("formatAssignment", () => {
 	});
 
 	it("uses courseId when the title is missing", () => {
-		expect(formatAssignment(item({ userId: "u1", courseId: "c1", role: "co" }))).toBe(
-			"c1 (co)",
-		);
+		expect(formatAssignment(item({ userId: "u1", courseId: "c1", role: "co" }))).toBe("c1 (co)");
 	});
 });
 
@@ -158,10 +152,7 @@ describe("groupByUser", () => {
 
 		expect(groups.map((g) => g.label)).toEqual(["Ben Tanaka", "Maya Okafor"]);
 		const maya = groups.find((g) => g.userId === "u_maya");
-		expect(maya?.assignments.map((a) => a.courseTitle)).toEqual([
-			"React Fundamentals",
-			"SQL",
-		]);
+		expect(maya?.assignments.map((a) => a.courseTitle)).toEqual(["React Fundamentals", "SQL"]);
 	});
 
 	it("carries email through to the group when present", () => {

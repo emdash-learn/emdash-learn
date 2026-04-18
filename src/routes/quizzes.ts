@@ -177,9 +177,7 @@ const submitRoute: PluginRoute<QuizSubmitInput> = {
 		const owned = requireOwner(ctx, user.id, row as { userId: string });
 		if (!owned.ok) throw toRouteError(owned.error);
 
-		const result = unwrap(
-			await quizzes.submitAttempt(ctx, ctx.input.attemptId, ctx.input.answers),
-		);
+		const result = unwrap(await quizzes.submitAttempt(ctx, ctx.input.attemptId, ctx.input.answers));
 		return result;
 	},
 };

@@ -12,25 +12,11 @@
  * Kumo components and Lingui strings alongside the rest of the admin UI.
  */
 
-import {
-	Fragment,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-	type ReactElement,
-} from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { BOOTSTRAP_VERSION } from "../constants.js";
-import {
-	CoreSchemaClientError,
-	createCoreSchemaClient,
-} from "../setup/core-schema-client.js";
-import {
-	WIZARD_STEPS,
-	type StepProbe,
-	type WizardStep,
-} from "../setup/steps.js";
+import { CoreSchemaClientError, createCoreSchemaClient } from "../setup/core-schema-client.js";
+import { WIZARD_STEPS, type StepProbe, type WizardStep } from "../setup/steps.js";
 import type { BootstrapState } from "../types/storage.js";
 import { LmsApiError, createApiClient } from "./api-client.js";
 
@@ -205,13 +191,8 @@ export function SetupWizardPage(): ReactElement {
 	}, [api, refreshBootstrap, rows, runStep]);
 
 	const allSteps = WIZARD_STEPS;
-	const pendingCount = allSteps.filter(
-		(s) => rows[s.id]?.probe.status !== "ok",
-	).length;
-	const isComplete =
-		bootstrap !== null &&
-		bootstrap.version >= targetVersion &&
-		pendingCount === 0;
+	const pendingCount = allSteps.filter((s) => rows[s.id]?.probe.status !== "ok").length;
+	const isComplete = bootstrap !== null && bootstrap.version >= targetVersion && pendingCount === 0;
 
 	return (
 		<section style={pageStyle}>
@@ -355,11 +336,12 @@ function StatusBanner({
 			</Fragment>
 		);
 	}
-	const palette = tone === "success"
-		? { bg: "#ecfdf5", border: "#86efac", fg: "#166534" }
-		: tone === "warning"
-			? { bg: "#fefce8", border: "#fde68a", fg: "#854d0e" }
-			: { bg: "#f1f5f9", border: "#cbd5e1", fg: "#334155" };
+	const palette =
+		tone === "success"
+			? { bg: "#ecfdf5", border: "#86efac", fg: "#166534" }
+			: tone === "warning"
+				? { bg: "#fefce8", border: "#fde68a", fg: "#854d0e" }
+				: { bg: "#f1f5f9", border: "#cbd5e1", fg: "#334155" };
 	return (
 		<div
 			style={{

@@ -21,11 +21,7 @@ import {
 	type ReactElement,
 } from "react";
 
-import {
-	LmsApiError,
-	createApiClient,
-	type CohortListResponse,
-} from "./api-client.js";
+import { LmsApiError, createApiClient, type CohortListResponse } from "./api-client.js";
 
 const PLUGIN_BASE = "/_emdash/admin/plugins/lms-core";
 const COHORT_DETAIL_BASE = `${PLUGIN_BASE}/cohorts`;
@@ -108,11 +104,7 @@ export function CohortsPage(): ReactElement {
 			<header style={headerStyle}>
 				<div style={headerRowStyle}>
 					<h1 style={pageTitleStyle}>Cohorts</h1>
-					<button
-						type="button"
-						onClick={() => setShowCreate(true)}
-						style={primaryButtonStyle}
-					>
+					<button type="button" onClick={() => setShowCreate(true)} style={primaryButtonStyle}>
 						+ New cohort
 					</button>
 				</div>
@@ -132,11 +124,7 @@ export function CohortsPage(): ReactElement {
 			)}
 
 			{showCreate ? (
-				<CreateCohortModal
-					onCancel={() => setShowCreate(false)}
-					onCreated={onCreated}
-					api={api}
-				/>
+				<CreateCohortModal onCancel={() => setShowCreate(false)} onCreated={onCreated} api={api} />
 			) : null}
 		</section>
 	);
@@ -183,10 +171,7 @@ function CohortRow({ row }: { row: CohortRow }): ReactElement {
 				) : null}
 			</td>
 			<td style={tdActionStyle}>
-				<a
-					href={`${COHORT_DETAIL_BASE}/${encodeURIComponent(row.id)}`}
-					style={linkStyle}
-				>
+				<a href={`${COHORT_DETAIL_BASE}/${encodeURIComponent(row.id)}`} style={linkStyle}>
 					Open →
 				</a>
 			</td>
@@ -202,11 +187,7 @@ interface CreateCohortModalProps {
 	api: ReturnType<typeof createApiClient>;
 }
 
-function CreateCohortModal({
-	onCancel,
-	onCreated,
-	api,
-}: CreateCohortModalProps): ReactElement {
+function CreateCohortModal({ onCancel, onCreated, api }: CreateCohortModalProps): ReactElement {
 	const [slug, setSlug] = useState("");
 	const [title, setTitle] = useState("");
 	const [startAt, setStartAt] = useState("");
@@ -341,18 +322,10 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
-			<div style={{ marginBlockEnd: "0.5rem" }}>
-				Couldn't load cohorts: {message}
-			</div>
+			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load cohorts: {message}</div>
 			<button type="button" onClick={onRetry} style={secondaryButtonStyle}>
 				Retry
 			</button>
@@ -460,8 +433,7 @@ const tdStyle: CSSProperties = {
 
 const tdMonoStyle: CSSProperties = {
 	...tdStyle,
-	fontFamily:
-		"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 	fontSize: "0.875rem",
 	color: "#334155",
 };

@@ -28,21 +28,17 @@ describe("formatShortDate", () => {
 
 describe("formatDateRange", () => {
 	it("renders '<start> – <end>' when both are provided", () => {
-		expect(
-			formatDateRange("2026-05-01T00:00:00Z", "2026-07-31T00:00:00Z"),
-		).toBe("1 May 2026 – 31 Jul 2026");
+		expect(formatDateRange("2026-05-01T00:00:00Z", "2026-07-31T00:00:00Z")).toBe(
+			"1 May 2026 – 31 Jul 2026",
+		);
 	});
 
 	it("renders 'Starts <date>' when only start is known", () => {
-		expect(formatDateRange("2026-05-01T00:00:00Z", undefined)).toBe(
-			"Starts 1 May 2026",
-		);
+		expect(formatDateRange("2026-05-01T00:00:00Z", undefined)).toBe("Starts 1 May 2026");
 	});
 
 	it("renders 'Ends <date>' when only end is known", () => {
-		expect(formatDateRange(undefined, "2026-07-31T00:00:00Z")).toBe(
-			"Ends 31 Jul 2026",
-		);
+		expect(formatDateRange(undefined, "2026-07-31T00:00:00Z")).toBe("Ends 31 Jul 2026");
 	});
 
 	it("renders an em-dash when neither is set", () => {

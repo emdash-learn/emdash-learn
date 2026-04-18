@@ -121,7 +121,14 @@ describe("hooks/commentBeforeCreate", () => {
 		// seedEnrollment has no revokedAt input; patch the row directly through
 		// ctx.storage so we exercise the "revoked" branch of the gate.
 		const store = (
-			ctx.storage as Record<string, { get: (id: string) => Promise<unknown>; put: (id: string, data: unknown) => Promise<void> } | undefined>
+			ctx.storage as Record<
+				string,
+				| {
+						get: (id: string) => Promise<unknown>;
+						put: (id: string, data: unknown) => Promise<void>;
+				  }
+				| undefined
+			>
 		)["enrollments"];
 		if (!store) throw new Error("enrollments storage unexpectedly missing");
 		const existing = (await store.get(enr.id)) as Record<string, unknown> | null;

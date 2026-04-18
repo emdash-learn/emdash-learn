@@ -79,9 +79,7 @@ const UNAUTHENTICATED_MESSAGE = "Authentication required";
 function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T> {
 	const collection = (ctx.storage as Record<string, StorageCollection | undefined>)[name];
 	if (!collection) {
-		throw new Error(
-			`Plugin storage collection "${name}" is not declared in the descriptor.`,
-		);
+		throw new Error(`Plugin storage collection "${name}" is not declared in the descriptor.`);
 	}
 	return collection as StorageCollection<T>;
 }
@@ -127,10 +125,7 @@ export async function requireEnrolled(
 	const result = await collection.query({ where: { userId, courseId }, limit: 1 });
 	const row = result.items[0];
 	if (!row || row.data.revokedAt) {
-		return err(
-			LEARN_ERRORS.NOT_ENROLLED,
-			`User ${userId} is not enrolled in course ${courseId}`,
-		);
+		return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in course ${courseId}`);
 	}
 	return ok(row.data);
 }

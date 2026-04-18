@@ -208,22 +208,13 @@ export function CoursePage(): ReactElement {
 
 			{!courseId ? (
 				<ErrorBanner
-					message={
-						headerState.kind === "error"
-							? headerState.message
-							: "Missing course id."
-					}
+					message={headerState.kind === "error" ? headerState.message : "Missing course id."}
 					onRetry={() => void loadHeader()}
 				/>
 			) : (
 				<>
 					<TabNav active={activeTab} onChange={setActiveTab} />
-					<TabPanel
-						activeTab={activeTab}
-						api={api}
-						courseId={courseId}
-						headerState={headerState}
-					/>
+					<TabPanel activeTab={activeTab} api={api} courseId={courseId} headerState={headerState} />
 				</>
 			)}
 		</section>
@@ -314,9 +305,7 @@ function TabPanel({
 	headerState: HeaderState;
 }): ReactElement {
 	if (activeTab === "overview") {
-		return (
-			<OverviewTab api={api} courseId={courseId} headerState={headerState} />
-		);
+		return <OverviewTab api={api} courseId={courseId} headerState={headerState} />;
 	}
 	if (activeTab === "enrollments") {
 		return <EnrollmentsTab api={api} courseId={courseId} />;
@@ -494,13 +483,7 @@ function TimelineChart({ points }: { points: TimelinePoint[] }): ReactElement {
 					strokeLinecap="round"
 				/>
 				{coords.map((c) => (
-					<circle
-						key={c.point.date}
-						cx={c.x}
-						cy={c.y}
-						r={2.5}
-						fill="#2563eb"
-					>
+					<circle key={c.point.date} cx={c.x} cy={c.y} r={2.5} fill="#2563eb">
 						<title>{`${formatShortDate(c.point.date)}: ${formatCount(c.point.count)}`}</title>
 					</circle>
 				))}
@@ -517,8 +500,7 @@ function TimelineChart({ points }: { points: TimelinePoint[] }): ReactElement {
 				<div style={metaItemStyle}>
 					<dt style={metaLabelStyle}>Range</dt>
 					<dd style={metaValueStyle}>
-						{formatShortDate(points[0]!.date)} —{" "}
-						{formatShortDate(points[points.length - 1]!.date)}
+						{formatShortDate(points[0]!.date)} — {formatShortDate(points[points.length - 1]!.date)}
 					</dd>
 				</div>
 			</dl>
@@ -529,7 +511,9 @@ function TimelineChart({ points }: { points: TimelinePoint[] }): ReactElement {
 function FunnelChart({ funnel }: { funnel: CompletionFunnel }): ReactElement {
 	const started = funnel.started;
 	if (started === 0) {
-		return <EmptyState message="No enrollments yet — the funnel populates after the first student enrolls." />;
+		return (
+			<EmptyState message="No enrollments yet — the funnel populates after the first student enrolls." />
+		);
 	}
 	const rows: Array<{ label: string; value: number }> = [
 		{ label: "Started", value: funnel.started },
@@ -587,13 +571,7 @@ type EnrollmentsState =
  * progress — plus a CSV export button. Clicking a row deep-links to the
  * per-student page (§16.10a).
  */
-function EnrollmentsTab({
-	api,
-	courseId,
-}: {
-	api: Api;
-	courseId: string;
-}): ReactElement {
+function EnrollmentsTab({ api, courseId }: { api: Api; courseId: string }): ReactElement {
 	const [state, setState] = useState<EnrollmentsState>({ kind: "loading" });
 
 	const load = useCallback(async () => {
@@ -614,18 +592,14 @@ function EnrollmentsTab({
 	}, [load]);
 
 	const onExport = useCallback(async () => {
-		setState((prev) =>
-			prev.kind === "ready" ? { ...prev, exporting: true } : prev,
-		);
+		setState((prev) => (prev.kind === "ready" ? { ...prev, exporting: true } : prev));
 		try {
 			const res = await api.instructorAnalytics.enrollmentsExport({ courseId });
 			downloadCsv(res.csv, `enrollments-${courseId}.csv`);
 		} catch (err) {
 			if (typeof window !== "undefined") window.alert(formatError(err));
 		} finally {
-			setState((prev) =>
-				prev.kind === "ready" ? { ...prev, exporting: false } : prev,
-			);
+			setState((prev) => (prev.kind === "ready" ? { ...prev, exporting: false } : prev));
 		}
 	}, [api, courseId]);
 
@@ -650,9 +624,8 @@ function EnrollmentsTab({
 		<div style={tabBodyStyle}>
 			<div style={sectionHeaderStyle}>
 				<p style={mutedTextStyle}>
-					Showing {formatCount(matrix.students.length)} students. Advanced
-					filters and bulk actions are planned for v2; use CSV export below
-					for offline analysis.
+					Showing {formatCount(matrix.students.length)} students. Advanced filters and bulk actions
+					are planned for v2; use CSV export below for offline analysis.
 				</p>
 				<div style={sectionActionsStyle}>
 					<button
@@ -702,8 +675,7 @@ function EnrollmentsTab({
 			</div>
 			{matrix.nextCursor ? (
 				<p style={mutedTextStyle}>
-					More students available. Page-through in the Progress tab loads
-					additional records.
+					More students available. Page-through in the Progress tab loads additional records.
 				</p>
 			) : null}
 		</div>
@@ -721,10 +693,7 @@ function collectLessonIds(matrix: ProgressMatrix): string[] {
 	return ids;
 }
 
-function computeOverallPercent(
-	progress: Record<string, number>,
-	lessonIds: string[],
-): number {
+function computeOverallPercent(progress: Record<string, number>, lessonIds: string[]): number {
 	if (lessonIds.length === 0) return 0;
 	let sum = 0;
 	for (const id of lessonIds) {
@@ -769,13 +738,7 @@ type ProgressState =
 
 const INITIAL_SORT: Sort = { key: "name", dir: "asc" };
 
-function ProgressTab({
-	api,
-	courseId,
-}: {
-	api: Api;
-	courseId: string;
-}): ReactElement {
+function ProgressTab({ api, courseId }: { api: Api; courseId: string }): ReactElement {
 	const [state, setState] = useState<ProgressState>({ kind: "loading" });
 
 	const load = useCallback(async () => {
@@ -862,24 +825,17 @@ function ProgressTab({
 	const lessonIds = collectLessonIds(current);
 	const sortedStudents = sortStudents(current.students, lessonIds, state.sort);
 	const hasPrev = state.pageIndex > 0;
-	const hasNext =
-		state.pageIndex + 1 < state.pages.length || Boolean(current.nextCursor);
+	const hasNext = state.pageIndex + 1 < state.pages.length || Boolean(current.nextCursor);
 
 	return (
 		<div style={tabBodyStyle}>
 			<div style={sectionHeaderStyle}>
 				<p style={mutedTextStyle}>
-					Page {state.pageIndex + 1}. {formatCount(sortedStudents.length)}{" "}
-					students × {formatCount(lessonIds.length)} lessons. Click a cell to
-					open that student's progress.
+					Page {state.pageIndex + 1}. {formatCount(sortedStudents.length)} students ×{" "}
+					{formatCount(lessonIds.length)} lessons. Click a cell to open that student's progress.
 				</p>
 				<div style={sectionActionsStyle}>
-					<button
-						type="button"
-						onClick={gotoPrev}
-						disabled={!hasPrev}
-						style={secondaryButtonStyle}
-					>
+					<button type="button" onClick={gotoPrev} disabled={!hasPrev} style={secondaryButtonStyle}>
 						← Previous
 					</button>
 					<button
@@ -902,10 +858,7 @@ function ProgressTab({
 									onClick={() =>
 										setSort({
 											key: "name",
-											dir:
-												state.sort.key === "name" && state.sort.dir === "asc"
-													? "desc"
-													: "asc",
+											dir: state.sort.key === "name" && state.sort.dir === "asc" ? "desc" : "asc",
 										})
 									}
 									style={heatmapSortButtonStyle}
@@ -920,10 +873,7 @@ function ProgressTab({
 										setSort({
 											key: "overall",
 											dir:
-												state.sort.key === "overall" &&
-												state.sort.dir === "desc"
-													? "asc"
-													: "desc",
+												state.sort.key === "overall" && state.sort.dir === "desc" ? "asc" : "desc",
 										})
 									}
 									style={heatmapSortButtonStyle}
@@ -962,10 +912,7 @@ function ProgressTab({
 					</thead>
 					<tbody>
 						{sortedStudents.map((student) => {
-							const overall = computeOverallPercent(
-								student.lessonProgress,
-								lessonIds,
-							);
+							const overall = computeOverallPercent(student.lessonProgress, lessonIds);
 							return (
 								<tr key={student.userId}>
 									<th scope="row" style={heatmapStickyRowThStyle}>
@@ -976,9 +923,7 @@ function ProgressTab({
 											{student.name || student.userId}
 										</a>
 									</th>
-									<td style={heatmapOverallCellStyle(overall)}>
-										{formatPercent(overall)}
-									</td>
+									<td style={heatmapOverallCellStyle(overall)}>{formatPercent(overall)}</td>
 									{lessonIds.map((lid) => {
 										const pct = student.lessonProgress[lid];
 										const href = `${STUDENT_DETAIL_BASE}/${encodeURIComponent(student.userId)}`;
@@ -1091,13 +1036,7 @@ type QuizzesState =
 	| { kind: "error"; message: string }
 	| { kind: "ready"; items: QuizStats[] };
 
-function QuizzesTab({
-	api,
-	courseId,
-}: {
-	api: Api;
-	courseId: string;
-}): ReactElement {
+function QuizzesTab({ api, courseId }: { api: Api; courseId: string }): ReactElement {
 	const [state, setState] = useState<QuizzesState>({ kind: "loading" });
 
 	const load = useCallback(async () => {
@@ -1164,9 +1103,8 @@ function QuizzesTab({
 				</table>
 			</div>
 			<p style={mutedTextStyle}>
-				The "Attached to lesson" column from §16.3 will land once
-				`instructor:course-quiz-stats` returns a lessonId alongside the
-				quiz aggregates.
+				The "Attached to lesson" column from §16.3 will land once `instructor:course-quiz-stats`
+				returns a lessonId alongside the quiz aggregates.
 			</p>
 		</div>
 	);
@@ -1182,11 +1120,10 @@ function CohortsTab(): ReactElement {
 			<div style={stubCardStyle}>
 				<h2 style={sectionTitleStyle}>Cohorts</h2>
 				<p style={mutedTextStyle}>
-					Per-course cohort listing isn't available in v1 — cohorts attach to
-					enrollments rather than courses, and there's no{" "}
-					<code>instructor:course-cohorts</code> route yet. Manage cohorts from
-					the global cohort admin page; the detail view lists members and the
-					courses they were enrolled in.
+					Per-course cohort listing isn't available in v1 — cohorts attach to enrollments rather
+					than courses, and there's no <code>instructor:course-cohorts</code> route yet. Manage
+					cohorts from the global cohort admin page; the detail view lists members and the courses
+					they were enrolled in.
 				</p>
 				<div style={sectionActionsStyle}>
 					<a href={COHORTS_HREF} style={primaryLinkStyle}>
@@ -1208,9 +1145,9 @@ function DiscussionsTab({ courseId }: { courseId: string }): ReactElement {
 			<div style={stubCardStyle}>
 				<h2 style={sectionTitleStyle}>Discussions</h2>
 				<p style={mutedTextStyle}>
-					Lesson discussions reuse emdash's built-in comments UI, which isn't
-					embeddable from a plugin surface. Moderate comments from the core
-					admin comments view; filter by lesson slug to scope to this course.
+					Lesson discussions reuse emdash's built-in comments UI, which isn't embeddable from a
+					plugin surface. Moderate comments from the core admin comments view; filter by lesson slug
+					to scope to this course.
 				</p>
 				{/* TODO(T20): swap CORE_ADMIN_COMMENTS_HREF for the real comments URL
 				    once emdash exports it. Tracking the missing lesson-scoped filter
@@ -1242,11 +1179,10 @@ function SettingsTab({ courseId }: { courseId: string }): ReactElement {
 			<div style={stubCardStyle}>
 				<h2 style={sectionTitleStyle}>Course settings</h2>
 				<p style={mutedTextStyle}>
-					Per-course settings — <code>enrollment_open</code>,{" "}
-					<code>enrollment_opens_at</code>, <code>enrollment_closes_at</code>,
-					and the drip-mode override — live as schema fields on the{" "}
-					<code>courses</code> collection. Edit them in the emdash content
-					editor; changes apply instantly to the engine.
+					Per-course settings — <code>enrollment_open</code>, <code>enrollment_opens_at</code>,{" "}
+					<code>enrollment_closes_at</code>, and the drip-mode override — live as schema fields on
+					the <code>courses</code> collection. Edit them in the emdash content editor; changes apply
+					instantly to the engine.
 				</p>
 				<ul style={bulletListStyle}>
 					<li>
@@ -1254,13 +1190,12 @@ function SettingsTab({ courseId }: { courseId: string }): ReactElement {
 						<code>engine.enrollments.grant()</code> accepts new students.
 					</li>
 					<li>
-						<strong>Enrollment window:</strong> open/close dates gate enrollment
-						outside the window (returns <code>LEARN_ENROLLMENT_CLOSED</code>).
+						<strong>Enrollment window:</strong> open/close dates gate enrollment outside the window
+						(returns <code>LEARN_ENROLLMENT_CLOSED</code>).
 					</li>
 					<li>
-						<strong>Drip mode:</strong> per-course override of the plugin-wide
-						default; controls how <code>drip_offset_days</code> on lessons is
-						interpreted.
+						<strong>Drip mode:</strong> per-course override of the plugin-wide default; controls how{" "}
+						<code>drip_offset_days</code> on lessons is interpreted.
 					</li>
 				</ul>
 				<div style={sectionActionsStyle}>
@@ -1274,8 +1209,7 @@ function SettingsTab({ courseId }: { courseId: string }): ReactElement {
 				    authorization check. */}
 				<p style={stubDangerHintStyle}>
 					Archive-all-enrollments is planned for v2 (requires an{" "}
-					<code>instructor:enrollments-archive</code> route that doesn't ship
-					in v1).
+					<code>instructor:enrollments-archive</code> route that doesn't ship in v1).
 				</p>
 			</div>
 		</div>
@@ -1294,13 +1228,7 @@ function LoadingBanner({ label }: { label: string }): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
 			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load: {message}</div>

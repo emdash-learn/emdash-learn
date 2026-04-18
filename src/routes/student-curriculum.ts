@@ -110,8 +110,4 @@ export const curriculumRoutes = {
 	"my-learning": myLearningRoute,
 } as const;
 
-export type {
-	MyLearningItem,
-	MyLearningPage,
-	VisibleLesson,
-} from "../engine/curriculum.js";
+export type { MyLearningItem, MyLearningPage, VisibleLesson } from "../engine/curriculum.js";

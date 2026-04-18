@@ -11,13 +11,7 @@ import { handleContentPublish } from "emdash";
 import * as eventBus from "../../../src/engine/event-bus.js";
 import * as quizzes from "../../../src/engine/quizzes.js";
 import type { LessonCompleted } from "../../../src/types/engine.js";
-import {
-	seedCourse,
-	seedEnrollment,
-	seedLesson,
-	seedQuiz,
-	seedStudent,
-} from "../../utils/seed.js";
+import { seedCourse, seedEnrollment, seedLesson, seedQuiz, seedStudent } from "../../utils/seed.js";
 import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
@@ -126,9 +120,7 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
 		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
 		if (!started.ok) throw new Error("setup failed");
-		await quizzes.submitAttempt(ctx, started.data.attemptId, [
-			{ questionId: "q1", answer: "red" },
-		]);
+		await quizzes.submitAttempt(ctx, started.data.attemptId, [{ questionId: "q1", answer: "red" }]);
 		const again = await quizzes.submitAttempt(ctx, started.data.attemptId, [
 			{ questionId: "q1", answer: "red" },
 		]);

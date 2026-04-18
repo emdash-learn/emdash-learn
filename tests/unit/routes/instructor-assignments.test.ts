@@ -48,9 +48,7 @@ function makeCourseInstructorsStub(initial: Array<StoredRow<CourseInstructor>> =
 		async query(opts?: { where?: Partial<CourseInstructor>; limit?: number }) {
 			const where = opts?.where ?? {};
 			const filtered = rows.filter((r) =>
-				Object.entries(where).every(
-					([k, v]) => (r.data as Record<string, unknown>)[k] === v,
-				),
+				Object.entries(where).every(([k, v]) => (r.data as Record<string, unknown>)[k] === v),
 			);
 			return {
 				items: typeof opts?.limit === "number" ? filtered.slice(0, opts.limit) : filtered,
@@ -137,9 +135,7 @@ describe("instructor:list route", () => {
 		const result = (await route.handler(buildRouteCtx(input))) as InstructorListResponse;
 
 		expect(result.items).toHaveLength(3);
-		const maya = result.items.find(
-			(i) => i.userId === "u_maya" && i.courseId === "c_react",
-		);
+		const maya = result.items.find((i) => i.userId === "u_maya" && i.courseId === "c_react");
 		expect(maya).toEqual({
 			courseId: "c_react",
 			courseTitle: "React Fundamentals",
@@ -159,9 +155,7 @@ describe("instructor:list route", () => {
 		const route = instructorAssignmentRoutes["instructor:list"];
 		const input = route.input!.parse({});
 		const result = (await route.handler(buildRouteCtx(input))) as InstructorListResponse;
-		expect(result.items).toEqual([
-			{ courseId: "c_unknown", userId: "u_unknown", role: "ta" },
-		]);
+		expect(result.items).toEqual([{ courseId: "c_unknown", userId: "u_unknown", role: "ta" }]);
 	});
 
 	it("caches repeat users + courses across rows", async () => {

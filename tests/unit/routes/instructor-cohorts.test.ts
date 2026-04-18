@@ -226,21 +226,15 @@ describe("cohort:list route", () => {
 		)) as { id: string };
 
 		const addRoute = cohortRoutes["cohort:add-member"];
-		await addRoute.handler(
-			buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u1" })),
-		);
-		await addRoute.handler(
-			buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u2" })),
-		);
+		await addRoute.handler(buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u1" })));
+		await addRoute.handler(buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u2" })));
 
 		const listRoute = cohortRoutes["cohort:list"];
-		const result = (await listRoute.handler(
-			buildRouteCtx(listRoute.input!.parse({})),
-		)) as { items: Array<{ id: string; memberCount: number } & Cohort> };
+		const result = (await listRoute.handler(buildRouteCtx(listRoute.input!.parse({})))) as {
+			items: Array<{ id: string; memberCount: number } & Cohort>;
+		};
 		expect(result.items.map((c) => c.slug)).toEqual(["a", "b"]);
-		const counts = Object.fromEntries(
-			result.items.map((c) => [c.id, c.memberCount]),
-		);
+		const counts = Object.fromEntries(result.items.map((c) => [c.id, c.memberCount]));
 		expect(counts[a.id]).toBe(0);
 		expect(counts[b.id]).toBe(2);
 	});
@@ -263,9 +257,7 @@ describe("cohort:get route", () => {
 			buildRouteCtx(addRoute.input!.parse({ cohortId: created.id, userId: "u_a" })),
 		);
 		await addRoute.handler(
-			buildRouteCtx(
-				addRoute.input!.parse({ cohortId: created.id, userId: "u_b", role: "ta" }),
-			),
+			buildRouteCtx(addRoute.input!.parse({ cohortId: created.id, userId: "u_b", role: "ta" })),
 		);
 
 		const getRoute = cohortRoutes["cohort:get"];
@@ -313,9 +305,7 @@ describe("cohort:add-member route", () => {
 
 		const addRoute = cohortRoutes["cohort:add-member"];
 		const result = (await addRoute.handler(
-			buildRouteCtx(
-				addRoute.input!.parse({ cohortId: created.id, userId: "u_a", role: "ta" }),
-			),
+			buildRouteCtx(addRoute.input!.parse({ cohortId: created.id, userId: "u_a", role: "ta" })),
 		)) as { id: string; member: CohortMember };
 		expect(result.id).toMatch(/^cm_/);
 		expect(result.member.role).toBe("ta");
@@ -325,9 +315,7 @@ describe("cohort:add-member route", () => {
 		const { buildRouteCtx } = makeCtx();
 		const createRoute = cohortRoutes["cohort:create"];
 		const created = (await createRoute.handler(
-			buildRouteCtx(
-				createRoute.input!.parse({ slug: "cap-am", title: "Cap", capacity: 1 }),
-			),
+			buildRouteCtx(createRoute.input!.parse({ slug: "cap-am", title: "Cap", capacity: 1 })),
 		)) as { id: string };
 		const addRoute = cohortRoutes["cohort:add-member"];
 		await addRoute.handler(

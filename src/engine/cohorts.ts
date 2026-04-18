@@ -21,11 +21,7 @@ import type { PluginContext, StorageCollection } from "emdash";
 import { ulid } from "emdash";
 
 import { LEARN_ERRORS } from "../constants.js";
-import type {
-	Cohort,
-	CohortMember,
-	CohortMemberRole,
-} from "../types/storage.js";
+import type { Cohort, CohortMember, CohortMemberRole } from "../types/storage.js";
 import { err, ok, type Result } from "./result.js";
 
 const COHORTS = "cohorts";
@@ -121,9 +117,7 @@ export async function list(
  * Member count per cohort. Consumed by the admin cohort-list page (§16.6);
  * at v1 scale the member roster is small, so a full scan is acceptable.
  */
-export async function memberCountsByCohort(
-	ctx: PluginContext,
-): Promise<Record<string, number>> {
+export async function memberCountsByCohort(ctx: PluginContext): Promise<Record<string, number>> {
 	const res = await membersStore(ctx).query({});
 	const counts: Record<string, number> = {};
 	for (const m of res.items) {

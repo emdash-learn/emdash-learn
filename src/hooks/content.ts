@@ -24,17 +24,9 @@
  * the orchestrator after merge). This file only owns the handler body.
  */
 
-import type {
-	ContentDeleteEvent,
-	PluginContext,
-	StorageCollection,
-} from "emdash";
+import type { ContentDeleteEvent, PluginContext, StorageCollection } from "emdash";
 
-import {
-	COURSES_COLLECTION_SLUG,
-	LEARN_ERRORS,
-	LESSONS_COLLECTION_SLUG,
-} from "../constants.js";
+import { COURSES_COLLECTION_SLUG, LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
 import type { Enrollment, Progress } from "../types/storage.js";
 
 /**
@@ -47,9 +39,7 @@ import type { Enrollment, Progress } from "../types/storage.js";
 function storageFor<T>(ctx: PluginContext, name: string): StorageCollection<T> {
 	const store = (ctx.storage as Record<string, StorageCollection | undefined>)[name];
 	if (!store) {
-		throw new Error(
-			`hooks/content: ctx.storage.${name} is not declared on the descriptor.`,
-		);
+		throw new Error(`hooks/content: ctx.storage.${name} is not declared on the descriptor.`);
 	}
 	return store as StorageCollection<T>;
 }
@@ -61,10 +51,7 @@ function storageFor<T>(ctx: PluginContext, name: string): StorageCollection<T> {
  * but if a course has many historical revoked rows we still cursor through
  * until we either find an active one or exhaust the stream.
  */
-async function hasActiveEnrollment(
-	ctx: PluginContext,
-	courseId: string,
-): Promise<boolean> {
+async function hasActiveEnrollment(ctx: PluginContext, courseId: string): Promise<boolean> {
 	const coll = storageFor<Enrollment>(ctx, "enrollments");
 	let cursor: string | undefined;
 	do {

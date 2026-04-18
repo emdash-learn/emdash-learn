@@ -66,12 +66,9 @@ export function toFormState(settings: SettingsShape): SettingsFormState {
 		siteName: settings.siteName,
 		supportEmail: settings.supportEmail,
 		defaultPassingScore: String(settings.defaultPassingScore),
-		certificateExpiryDaysMode:
-			settings.certificateExpiryDays === null ? "never" : "days",
+		certificateExpiryDaysMode: settings.certificateExpiryDays === null ? "never" : "days",
 		certificateExpiryDaysValue:
-			settings.certificateExpiryDays === null
-				? ""
-				: String(settings.certificateExpiryDays),
+			settings.certificateExpiryDays === null ? "" : String(settings.certificateExpiryDays),
 		dripMode: settings.dripMode,
 		commentGateRequiresEnrollment: settings.commentGateRequiresEnrollment,
 	};
@@ -229,14 +226,8 @@ export function SettingsPage(): ReactElement {
 			<section style={pageStyle}>
 				<h1 style={pageTitleStyle}>Settings</h1>
 				<div role="alert" style={errorBannerStyle}>
-					<div style={{ marginBlockEnd: "0.5rem" }}>
-						Couldn't load settings: {state.message}
-					</div>
-					<button
-						type="button"
-						onClick={() => void load()}
-						style={secondaryButtonStyle}
-					>
+					<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load settings: {state.message}</div>
+					<button type="button" onClick={() => void load()} style={secondaryButtonStyle}>
 						Retry
 					</button>
 				</div>
@@ -254,8 +245,7 @@ export function SettingsPage(): ReactElement {
 			<header style={headerStyle}>
 				<h1 style={pageTitleStyle}>Settings</h1>
 				<p style={subtitleStyle}>
-					Admin-wide defaults and provider status. Changes apply immediately
-					after saving.
+					Admin-wide defaults and provider status. Changes apply immediately after saving.
 				</p>
 			</header>
 
@@ -271,9 +261,7 @@ export function SettingsPage(): ReactElement {
 							placeholder="Emdash Learn"
 							style={inputStyle}
 						/>
-						<span style={hintStyle}>
-							Shown in the student UI and email subject lines.
-						</span>
+						<span style={hintStyle}>Shown in the student UI and email subject lines.</span>
 					</label>
 
 					<label style={fieldLabelStyle}>
@@ -296,14 +284,10 @@ export function SettingsPage(): ReactElement {
 							min={0}
 							max={100}
 							value={state.form.defaultPassingScore}
-							onChange={(e) =>
-								patchForm({ defaultPassingScore: e.target.value })
-							}
+							onChange={(e) => patchForm({ defaultPassingScore: e.target.value })}
 							style={inputStyle}
 						/>
-						<span style={hintStyle}>
-							Applied to new quizzes when no score is specified.
-						</span>
+						<span style={hintStyle}>Applied to new quizzes when no score is specified.</span>
 					</label>
 
 					<fieldset style={fieldsetStyle}>
@@ -314,9 +298,7 @@ export function SettingsPage(): ReactElement {
 								name="cert-expiry-mode"
 								value="never"
 								checked={state.form.certificateExpiryDaysMode === "never"}
-								onChange={() =>
-									patchForm({ certificateExpiryDaysMode: "never" })
-								}
+								onChange={() => patchForm({ certificateExpiryDaysMode: "never" })}
 							/>
 							Never expires
 						</label>
@@ -333,9 +315,7 @@ export function SettingsPage(): ReactElement {
 								type="number"
 								min={1}
 								value={state.form.certificateExpiryDaysValue}
-								onChange={(e) =>
-									patchForm({ certificateExpiryDaysValue: e.target.value })
-								}
+								onChange={(e) => patchForm({ certificateExpiryDaysValue: e.target.value })}
 								disabled={state.form.certificateExpiryDaysMode !== "days"}
 								placeholder="365"
 								style={{ ...inputStyle, inlineSize: "8rem" }}
@@ -356,9 +336,7 @@ export function SettingsPage(): ReactElement {
 							style={inputStyle}
 						>
 							<option value="immediate">Immediate — unlock on enrollment</option>
-							<option value="relative">
-								Relative — unlock on schedule from enrollment date
-							</option>
+							<option value="relative">Relative — unlock on schedule from enrollment date</option>
 						</select>
 					</label>
 
@@ -378,13 +356,7 @@ export function SettingsPage(): ReactElement {
 
 				<Card title="Email">
 					<div style={providerRowStyle}>
-						<span
-							style={
-								badge.tone === "ok" ? badgeOkStyle : badgeWarnStyle
-							}
-						>
-							{badge.label}
-						</span>
+						<span style={badge.tone === "ok" ? badgeOkStyle : badgeWarnStyle}>{badge.label}</span>
 						<button
 							type="button"
 							onClick={() => void onSendTestEmail()}
@@ -403,11 +375,10 @@ export function SettingsPage(): ReactElement {
 
 				<Card title="Danger zone" tone="danger">
 					<p style={{ marginBlock: 0 }}>
-						Uninstall Emdash Learn via emdash's standard plugin uninstall flow.
-						The confirmation dialog exposes a <strong>Delete all data</strong>{" "}
-						checkbox — unchecked by default to preserve student data. Checking
-						it wipes every course, lesson, enrollment, progress record, and
-						certificate.
+						Uninstall Emdash Learn via emdash's standard plugin uninstall flow. The confirmation
+						dialog exposes a <strong>Delete all data</strong> checkbox — unchecked by default to
+						preserve student data. Checking it wipes every course, lesson, enrollment, progress
+						record, and certificate.
 					</p>
 					<div>
 						<a href="/_emdash/admin/plugins" style={dangerLinkStyle}>
@@ -450,11 +421,7 @@ function Card({
 }): ReactElement {
 	return (
 		<section style={tone === "danger" ? dangerCardStyle : cardStyle}>
-			<h2
-				style={tone === "danger" ? dangerCardTitleStyle : cardTitleStyle}
-			>
-				{title}
-			</h2>
+			<h2 style={tone === "danger" ? dangerCardTitleStyle : cardTitleStyle}>{title}</h2>
 			<div style={cardBodyStyle}>{children}</div>
 		</section>
 	);

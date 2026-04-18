@@ -82,10 +82,7 @@ export function formatShortDate(isoTimestamp: string): string {
 	return `${day} ${month} ${year}`;
 }
 
-export function formatCapacityLine(
-	memberCount: number,
-	capacity?: number,
-): string {
+export function formatCapacityLine(memberCount: number, capacity?: number): string {
 	if (typeof capacity === "number") {
 		return `${capacity} seats · Current members: ${memberCount}`;
 	}
@@ -151,10 +148,7 @@ export function CohortDetailPage(): ReactElement {
 	const onRemoveMember = useCallback(
 		async (userId: string) => {
 			if (!cohortId) return;
-			if (
-				typeof window !== "undefined" &&
-				!window.confirm(`Remove ${userId} from this cohort?`)
-			)
+			if (typeof window !== "undefined" && !window.confirm(`Remove ${userId} from this cohort?`))
 				return;
 			try {
 				await api.cohorts.removeMember({ cohortId, userId });
@@ -190,11 +184,7 @@ export function CohortDetailPage(): ReactElement {
 						<div style={sectionHeaderStyle}>
 							<h2 style={sectionTitleStyle}>Members</h2>
 							<div style={sectionActionsStyle}>
-								<button
-									type="button"
-									onClick={() => setShowAdd(true)}
-									style={primaryButtonStyle}
-								>
+								<button type="button" onClick={() => setShowAdd(true)} style={primaryButtonStyle}>
 									+ Add member
 								</button>
 								<button
@@ -206,10 +196,7 @@ export function CohortDetailPage(): ReactElement {
 								</button>
 							</div>
 						</div>
-						<MembersTable
-							members={state.data.members}
-							onRemove={onRemoveMember}
-						/>
+						<MembersTable members={state.data.members} onRemove={onRemoveMember} />
 					</section>
 
 					{showAdd && cohortId ? (
@@ -251,21 +238,15 @@ function CohortHeader({ data }: { data: CohortDetailResponse }): ReactElement {
 			<dl style={metaGridStyle}>
 				<div style={metaItemStyle}>
 					<dt style={metaLabelStyle}>Start</dt>
-					<dd style={metaValueStyle}>
-						{cohort.startAt ? formatShortDate(cohort.startAt) : "—"}
-					</dd>
+					<dd style={metaValueStyle}>{cohort.startAt ? formatShortDate(cohort.startAt) : "—"}</dd>
 				</div>
 				<div style={metaItemStyle}>
 					<dt style={metaLabelStyle}>End</dt>
-					<dd style={metaValueStyle}>
-						{cohort.endAt ? formatShortDate(cohort.endAt) : "—"}
-					</dd>
+					<dd style={metaValueStyle}>{cohort.endAt ? formatShortDate(cohort.endAt) : "—"}</dd>
 				</div>
 				<div style={metaItemStyle}>
 					<dt style={metaLabelStyle}>Capacity</dt>
-					<dd style={metaValueStyle}>
-						{formatCapacityLine(members.length, cohort.capacity)}
-					</dd>
+					<dd style={metaValueStyle}>{formatCapacityLine(members.length, cohort.capacity)}</dd>
 				</div>
 			</dl>
 		</>
@@ -280,9 +261,7 @@ function MembersTable({
 	onRemove: (userId: string) => void;
 }): ReactElement {
 	if (members.length === 0) {
-		return (
-			<EmptyState message="No members yet — add them one at a time or import a list." />
-		);
+		return <EmptyState message="No members yet — add them one at a time or import a list." />;
 	}
 	return (
 		<div style={tableWrapperStyle}>
@@ -304,11 +283,7 @@ function MembersTable({
 							</td>
 							<td style={tdStyle}>{formatShortDate(m.joinedAt)}</td>
 							<td style={tdActionStyle}>
-								<button
-									type="button"
-									onClick={() => onRemove(m.userId)}
-									style={dangerLinkStyle}
-								>
+								<button type="button" onClick={() => onRemove(m.userId)} style={dangerLinkStyle}>
 									Remove
 								</button>
 							</td>
@@ -321,9 +296,10 @@ function MembersTable({
 }
 
 function RoleBadge({ role }: { role: CohortMemberRole }): ReactElement {
-	const palette = role === "ta"
-		? { label: "TA", bg: "#dbeafe", fg: "#1e40af" }
-		: { label: "Student", bg: "#f1f5f9", fg: "#475569" };
+	const palette =
+		role === "ta"
+			? { label: "TA", bg: "#dbeafe", fg: "#1e40af" }
+			: { label: "Student", bg: "#f1f5f9", fg: "#475569" };
 	return (
 		<span
 			style={{
@@ -346,12 +322,7 @@ interface AddMemberModalProps {
 	onAdded: () => void;
 }
 
-function AddMemberModal({
-	cohortId,
-	api,
-	onCancel,
-	onAdded,
-}: AddMemberModalProps): ReactElement {
+function AddMemberModal({ cohortId, api, onCancel, onAdded }: AddMemberModalProps): ReactElement {
 	const [userId, setUserId] = useState("");
 	const [role, setRole] = useState<CohortMemberRole>("student");
 	const [submitting, setSubmitting] = useState(false);
@@ -395,9 +366,7 @@ function AddMemberModal({
 						placeholder="usr_…"
 						style={inputStyle}
 					/>
-					<span style={hintStyle}>
-						Find the user ID in the admin user list.
-					</span>
+					<span style={hintStyle}>Find the user ID in the admin user list.</span>
 				</label>
 				<label style={fieldLabelStyle}>
 					Role
@@ -507,17 +476,10 @@ function ImportCsvModal({
 						/>
 					) : null}
 					{report.alreadyMembers.length > 0 ? (
-						<ReportList
-							label="Already members:"
-							items={report.alreadyMembers}
-						/>
+						<ReportList label="Already members:" items={report.alreadyMembers} />
 					) : null}
 					<div style={modalActionsStyle}>
-						<button
-							type="button"
-							onClick={onImported}
-							style={primaryButtonStyle}
-						>
+						<button type="button" onClick={onImported} style={primaryButtonStyle}>
 							Done
 						</button>
 					</div>
@@ -572,13 +534,7 @@ function ImportCsvModal({
 	);
 }
 
-function ReportList({
-	label,
-	items,
-}: {
-	label: string;
-	items: string[];
-}): ReactElement {
+function ReportList({ label, items }: { label: string; items: string[] }): ReactElement {
 	return (
 		<details style={reportDetailsStyle}>
 			<summary style={reportSummaryStyle}>
@@ -605,18 +561,10 @@ function LoadingBanner(): ReactElement {
 	);
 }
 
-function ErrorBanner({
-	message,
-	onRetry,
-}: {
-	message: string;
-	onRetry: () => void;
-}): ReactElement {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }): ReactElement {
 	return (
 		<div role="alert" style={errorBannerStyle}>
-			<div style={{ marginBlockEnd: "0.5rem" }}>
-				Couldn't load cohort: {message}
-			</div>
+			<div style={{ marginBlockEnd: "0.5rem" }}>Couldn't load cohort: {message}</div>
 			<button type="button" onClick={onRetry} style={secondaryButtonStyle}>
 				Retry
 			</button>
@@ -670,8 +618,7 @@ const slugBadgeStyle: CSSProperties = {
 	backgroundColor: "#f1f5f9",
 	color: "#475569",
 	fontSize: "0.8125rem",
-	fontFamily:
-		"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 };
 
 const metaGridStyle: CSSProperties = {
@@ -791,8 +738,7 @@ const tdStyle: CSSProperties = {
 
 const tdMonoStyle: CSSProperties = {
 	...tdStyle,
-	fontFamily:
-		"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 	fontSize: "0.875rem",
 	color: "#334155",
 };
@@ -827,8 +773,7 @@ const modalStyle: CSSProperties = {
 	inlineSize: "min(32rem, 90vw)",
 	display: "grid",
 	gap: "0.875rem",
-	boxShadow:
-		"0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+	boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
 };
 
 const modalTitleStyle: CSSProperties = {
@@ -901,8 +846,7 @@ const reportListStyle: CSSProperties = {
 };
 
 const reportListItemStyle: CSSProperties = {
-	fontFamily:
-		"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 	fontSize: "0.8125rem",
 };
 

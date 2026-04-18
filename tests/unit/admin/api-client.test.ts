@@ -138,16 +138,21 @@ describe("createApiClient", () => {
 		expect(url).toBe("/_emdash/api/plugins/lms-core/progress:tick");
 
 		fetchMock.mockClear();
-		fetchMock.mockResolvedValueOnce(
-			jsonResponse({ data: { items: [], hasMore: false } }),
-		);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { items: [], hasMore: false } }));
 		await api.curriculum.myLearning({ status: "active" });
 		const [url2] = fetchMock.mock.calls[0] as [string, RequestInit];
 		expect(url2).toBe("/_emdash/api/plugins/lms-core/my-learning");
 
 		fetchMock.mockClear();
 		fetchMock.mockResolvedValueOnce(
-			jsonResponse({ data: { added: [], unknownEmails: [], alreadyMembers: [], counts: { added: 0, unknown: 0, alreadyMembers: 0 } } }),
+			jsonResponse({
+				data: {
+					added: [],
+					unknownEmails: [],
+					alreadyMembers: [],
+					counts: { added: 0, unknown: 0, alreadyMembers: 0 },
+				},
+			}),
 		);
 		await api.cohorts.import({ cohortId: "coh_1", emails: ["x@y.z"] });
 		const [url3] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -170,15 +175,11 @@ describe("createApiClient", () => {
 
 		await api.enrollments.enroll({ courseId: "course_1", source: "free" });
 		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(init.body).toBe(
-			JSON.stringify({ courseId: "course_1", source: "free" }),
-		);
+		expect(init.body).toBe(JSON.stringify({ courseId: "course_1", source: "free" }));
 	});
 
 	it("throws MALFORMED_RESPONSE when a 2xx body is missing the `data` wrapper", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ unexpected: "shape" }),
-		);
+		const fetchMock: FetchMock = vi.fn(async () => jsonResponse({ unexpected: "shape" }));
 		const api = makeClient(fetchMock);
 
 		await expect(api.setup.state()).rejects.toMatchObject({

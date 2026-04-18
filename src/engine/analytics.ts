@@ -171,10 +171,7 @@ async function scanAll<T>(
 /**
  * Get the courseIds that `instructorId` is assigned to via `course_instructors`.
  */
-async function instructorCourseIds(
-	ctx: PluginContext,
-	instructorId: string,
-): Promise<string[]> {
+async function instructorCourseIds(ctx: PluginContext, instructorId: string): Promise<string[]> {
 	const rows = await scanAll<CourseInstructor>(ctx, "course_instructors", {
 		userId: instructorId,
 	});
@@ -695,9 +692,7 @@ export async function studentProgressAcrossCourses(
 		const lessonsCompleted = progressRows.filter((r) => r.data.completedAt).length;
 		const sumPct = progressRows.reduce((a, r) => a + (r.data.percentComplete ?? 0), 0);
 		const percentComplete =
-			progressRows.length > 0
-				? Math.round((sumPct / progressRows.length) * 100) / 100
-				: 0;
+			progressRows.length > 0 ? Math.round((sumPct / progressRows.length) * 100) / 100 : 0;
 
 		let lastActivityAt: string | undefined;
 		for (const r of progressRows) {

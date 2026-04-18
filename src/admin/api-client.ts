@@ -40,14 +40,8 @@ import type {
 	MyLearningPage,
 	VisibleLesson,
 } from "../routes/student-curriculum.js";
-import type {
-	EnrollInput,
-	UnenrollInput,
-} from "../routes/student-enrollments.js";
-import type {
-	ProgressCompleteInput,
-	ProgressTickInput,
-} from "../routes/student-progress.js";
+import type { EnrollInput, UnenrollInput } from "../routes/student-enrollments.js";
+import type { ProgressCompleteInput, ProgressTickInput } from "../routes/student-progress.js";
 import type {
 	ActivityItem,
 	CourseOverview,
@@ -336,19 +330,14 @@ function isApiError(body: unknown): body is ApiErrorEnvelope {
 }
 
 function isApiSuccess<T>(body: unknown): body is ApiSuccessEnvelope<T> {
-	return (
-		typeof body === "object" && body !== null && "data" in (body as object)
-	);
+	return typeof body === "object" && body !== null && "data" in (body as object);
 }
 
 export function createApiClient(opts: CreateApiClientOptions = {}) {
 	const fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis);
 	const baseUrl = opts.baseUrl ?? `/_emdash/api/plugins/${PLUGIN_ID}`;
 
-	async function request<TOut>(
-		routeName: string,
-		input?: unknown,
-	): Promise<TOut> {
+	async function request<TOut>(routeName: string, input?: unknown): Promise<TOut> {
 		// Non-GET private plugin routes require `X-EmDash-Request: 1` per
 		// emdash's CSRF guard. Session cookie is ambient on same-origin.
 		// Always send `{}` (not omit) so Zod schemas don't reject `undefined`.
@@ -379,27 +368,15 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 			try {
 				parsed = JSON.parse(text);
 			} catch {
-				throw new LmsApiError(
-					"NETWORK_ERROR",
-					"Server returned non-JSON response",
-					res.status,
-				);
+				throw new LmsApiError("NETWORK_ERROR", "Server returned non-JSON response", res.status);
 			}
 		}
 
 		if (!res.ok) {
 			if (isApiError(parsed)) {
-				throw new LmsApiError(
-					parsed.error.code,
-					parsed.error.message,
-					res.status,
-				);
+				throw new LmsApiError(parsed.error.code, parsed.error.message, res.status);
 			}
-			throw new LmsApiError(
-				"MALFORMED_RESPONSE",
-				`Request failed (${res.status})`,
-				res.status,
-			);
+			throw new LmsApiError("MALFORMED_RESPONSE", `Request failed (${res.status})`, res.status);
 		}
 
 		if (!isApiSuccess<TOut>(parsed)) {
@@ -415,44 +392,33 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 	return {
 		setup: {
 			state: () => request<SetupStateResponse>("setup:state"),
-			mark: (input: SetupMarkInput) =>
-				request<SetupMarkResponse>("setup:mark", input),
+			mark: (input: SetupMarkInput) => request<SetupMarkResponse>("setup:mark", input),
 		},
 
 		enrollments: {
 			enroll: (input: EnrollInput) => request<EnrollResponse>("enroll", input),
-			unenroll: (input: UnenrollInput) =>
-				request<UnenrollResponse>("unenroll", input),
+			unenroll: (input: UnenrollInput) => request<UnenrollResponse>("unenroll", input),
 		},
 
 		progress: {
-			tick: (input: ProgressTickInput) =>
-				request<ProgressTickResponse>("progress:tick", input),
+			tick: (input: ProgressTickInput) => request<ProgressTickResponse>("progress:tick", input),
 			complete: (input: ProgressCompleteInput) =>
 				request<ProgressCompleteResponse>("progress:complete", input),
 		},
 
 		curriculum: {
-			get: (input: CurriculumInput) =>
-				request<CurriculumResponse>("curriculum", input),
+			get: (input: CurriculumInput) => request<CurriculumResponse>("curriculum", input),
 			lesson: (input: LessonInput) => request<LessonResponse>("lesson", input),
-			myLearning: (input?: MyLearningInput) =>
-				request<MyLearningPage>("my-learning", input ?? {}),
+			myLearning: (input?: MyLearningInput) => request<MyLearningPage>("my-learning", input ?? {}),
 		},
 
 		quizzes: {
-			start: (input: QuizStartInput) =>
-				request<StartAttemptResult>("quiz:start", input),
-			submit: (input: QuizSubmitInput) =>
-				request<SubmitAttemptResult>("quiz:submit", input),
-			create: (input: QuizCreateInput) =>
-				request<QuizRecordResponse>("quiz:create", input),
-			update: (input: QuizUpdateInput) =>
-				request<QuizRecordResponse>("quiz:update", input),
-			list: (input?: QuizListInput) =>
-				request<QuizListResponse>("quiz:list", input ?? {}),
-			delete: (input: QuizDeleteInput) =>
-				request<QuizDeleteResponse>("quiz:delete", input),
+			start: (input: QuizStartInput) => request<StartAttemptResult>("quiz:start", input),
+			submit: (input: QuizSubmitInput) => request<SubmitAttemptResult>("quiz:submit", input),
+			create: (input: QuizCreateInput) => request<QuizRecordResponse>("quiz:create", input),
+			update: (input: QuizUpdateInput) => request<QuizRecordResponse>("quiz:update", input),
+			list: (input?: QuizListInput) => request<QuizListResponse>("quiz:list", input ?? {}),
+			delete: (input: QuizDeleteInput) => request<QuizDeleteResponse>("quiz:delete", input),
 		},
 
 		certificates: {
@@ -463,23 +429,18 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 		},
 
 		cohorts: {
-			create: (input: CohortCreateInput) =>
-				request<CohortRecordResponse>("cohort:create", input),
-			list: (input?: CohortListInput) =>
-				request<CohortListResponse>("cohort:list", input ?? {}),
-			get: (input: CohortGetInput) =>
-				request<CohortDetailResponse>("cohort:get", input),
+			create: (input: CohortCreateInput) => request<CohortRecordResponse>("cohort:create", input),
+			list: (input?: CohortListInput) => request<CohortListResponse>("cohort:list", input ?? {}),
+			get: (input: CohortGetInput) => request<CohortDetailResponse>("cohort:get", input),
 			addMember: (input: CohortAddMemberInput) =>
 				request<CohortMemberResponse>("cohort:add-member", input),
 			removeMember: (input: CohortRemoveMemberInput) =>
 				request<CohortRemoveMemberResponse>("cohort:remove-member", input),
-			import: (input: CohortImportInput) =>
-				request<CohortImportResponse>("cohort:import", input),
+			import: (input: CohortImportInput) => request<CohortImportResponse>("cohort:import", input),
 		},
 
 		instructors: {
-			set: (input: InstructorSetInput) =>
-				request<InstructorSetResponse>("instructor:set", input),
+			set: (input: InstructorSetInput) => request<InstructorSetResponse>("instructor:set", input),
 			unset: (input: InstructorUnsetInput) =>
 				request<InstructorUnsetResponse>("instructor:unset", input),
 			list: (input?: InstructorListInput) =>
@@ -487,24 +448,16 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 		},
 
 		instructorAnalytics: {
-			dashboardStats: () =>
-				request<DashboardStats>("instructor:dashboard-stats"),
-			dashboardCourses: () =>
-				request<CourseSummary[]>("instructor:dashboard-courses"),
+			dashboardStats: () => request<DashboardStats>("instructor:dashboard-stats"),
+			dashboardCourses: () => request<CourseSummary[]>("instructor:dashboard-courses"),
 			recentActivity: (input?: RecentActivityInput) =>
 				request<ActivityItem[]>("instructor:recent-activity", input ?? {}),
 			courseOverview: (input: CourseIdInput) =>
 				request<CourseOverview>("instructor:course-overview", input),
 			courseEnrollmentsTimeline: (input: TimelineInput) =>
-				request<TimelinePoint[]>(
-					"instructor:course-enrollments-timeline",
-					input,
-				),
+				request<TimelinePoint[]>("instructor:course-enrollments-timeline", input),
 			courseCompletionFunnel: (input: CourseIdInput) =>
-				request<CompletionFunnel>(
-					"instructor:course-completion-funnel",
-					input,
-				),
+				request<CompletionFunnel>("instructor:course-completion-funnel", input),
 			courseProgressMatrix: (input: ProgressMatrixInput) =>
 				request<ProgressMatrix>("instructor:course-progress-matrix", input),
 			courseQuizStats: (input: CourseIdInput) =>
@@ -521,10 +474,7 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 			overview: (input: DateRangeInput) =>
 				request<SiteAnalytics>("admin:analytics-overview", input),
 			coursesComparison: (input: DateRangeInput) =>
-				request<PaginatedResult<CourseComparison>>(
-					"admin:courses-comparison",
-					input,
-				),
+				request<PaginatedResult<CourseComparison>>("admin:courses-comparison", input),
 			engagementMetrics: (input: DateRangeInput) =>
 				request<EngagementMetrics>("admin:engagement-metrics", input),
 		},
@@ -537,8 +487,7 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 				request<TestEmailResponse>("admin:test-email", input ?? {}),
 		},
 
-		catalog: (input?: CatalogInput) =>
-			request<CatalogPage>("catalog", input ?? {}),
+		catalog: (input?: CatalogInput) => request<CatalogPage>("catalog", input ?? {}),
 	};
 }
 

@@ -16,8 +16,7 @@ function stubCtx(opts: { email?: { send: (m: EmailMessage) => Promise<void> } } 
 		log,
 		ctx: {
 			kv: {
-				get: async <T,>(key: string): Promise<T | null> =>
-					(store.get(key) as T | undefined) ?? null,
+				get: async <T>(key: string): Promise<T | null> => (store.get(key) as T | undefined) ?? null,
 				set: async (key: string, value: unknown): Promise<void> => {
 					store.set(key, value);
 				},

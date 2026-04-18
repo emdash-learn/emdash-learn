@@ -13,12 +13,7 @@ import { handleContentPublish } from "emdash";
 
 import { dripReleaseRemindersReconciler } from "../../../src/reconcilers/drip-release-reminders.js";
 import { settingKey } from "../../../src/kv-keys.js";
-import {
-	seedCourse,
-	seedEnrollment,
-	seedLesson,
-	seedStudent,
-} from "../../utils/seed.js";
+import { seedCourse, seedEnrollment, seedLesson, seedStudent } from "../../utils/seed.js";
 import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;

@@ -17,9 +17,9 @@ const enrollment = { enrolledAt: "2026-06-01T00:00:00.000Z" };
 
 describe("drip.unlocksAt — four-cell matrix", () => {
 	test("immediate + no scheduled_at: unlocks at enrolledAt", () => {
-		expect(
-			unlocksAt(enrollment, { dripOffsetDays: 7 }, "immediate"),
-		).toBe("2026-06-01T00:00:00.000Z");
+		expect(unlocksAt(enrollment, { dripOffsetDays: 7 }, "immediate")).toBe(
+			"2026-06-01T00:00:00.000Z",
+		);
 	});
 
 	test("immediate + scheduled_at in the future: scheduled_at wins (floor)", () => {
@@ -33,9 +33,9 @@ describe("drip.unlocksAt — four-cell matrix", () => {
 	});
 
 	test("relative + no scheduled_at: unlocks at enrolledAt + dripOffsetDays", () => {
-		expect(
-			unlocksAt(enrollment, { dripOffsetDays: 7 }, "relative"),
-		).toBe("2026-06-08T00:00:00.000Z");
+		expect(unlocksAt(enrollment, { dripOffsetDays: 7 }, "relative")).toBe(
+			"2026-06-08T00:00:00.000Z",
+		);
 	});
 
 	test("relative + scheduled_at later than drip: scheduled_at wins", () => {

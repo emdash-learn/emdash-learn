@@ -44,8 +44,7 @@ function stubCollection<T>(rows: Array<StubRow<T>>): {
 				const data = row.data as Record<string, unknown>;
 				return Object.entries(where).every(([key, val]) => data[key] === val);
 			});
-			const limited =
-				typeof opts?.limit === "number" ? filtered.slice(0, opts.limit) : filtered;
+			const limited = typeof opts?.limit === "number" ? filtered.slice(0, opts.limit) : filtered;
 			return { items: limited, hasMore: limited.length < filtered.length };
 		},
 	};

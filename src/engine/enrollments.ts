@@ -38,10 +38,7 @@ import type { PluginContext, StorageCollection } from "emdash";
 import { ulid } from "emdash";
 
 import { LEARN_ERRORS } from "../constants.js";
-import type {
-	Enrollment,
-	EnrollmentSource,
-} from "../types/storage.js";
+import type { Enrollment, EnrollmentSource } from "../types/storage.js";
 import { emit } from "./event-bus.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -132,10 +129,7 @@ function checkEnrollmentWindow(course: { data: unknown }): Result<never> | null 
 	if (typeof opensAt === "string" && opensAt.length > 0) {
 		const opens = Date.parse(opensAt);
 		if (!Number.isNaN(opens) && now < opens) {
-			return err(
-				LEARN_ERRORS.ENROLLMENT_CLOSED,
-				`Enrollment opens at ${opensAt}`,
-			);
+			return err(LEARN_ERRORS.ENROLLMENT_CLOSED, `Enrollment opens at ${opensAt}`);
 		}
 	}
 
@@ -143,10 +137,7 @@ function checkEnrollmentWindow(course: { data: unknown }): Result<never> | null 
 	if (typeof closesAt === "string" && closesAt.length > 0) {
 		const closes = Date.parse(closesAt);
 		if (!Number.isNaN(closes) && now >= closes) {
-			return err(
-				LEARN_ERRORS.ENROLLMENT_CLOSED,
-				`Enrollment closed at ${closesAt}`,
-			);
+			return err(LEARN_ERRORS.ENROLLMENT_CLOSED, `Enrollment closed at ${closesAt}`);
 		}
 	}
 
@@ -259,16 +250,10 @@ export async function revoke(
 	const store = enrollmentsStore(ctx);
 	const existing = await store.get(enrollmentId);
 	if (!existing) {
-		return err(
-			LEARN_ERRORS.NOT_ENROLLED,
-			`Enrollment ${enrollmentId} not found`,
-		);
+		return err(LEARN_ERRORS.NOT_ENROLLED, `Enrollment ${enrollmentId} not found`);
 	}
 	if (existing.revokedAt) {
-		return err(
-			LEARN_ERRORS.NOT_ENROLLED,
-			`Enrollment ${enrollmentId} is already revoked`,
-		);
+		return err(LEARN_ERRORS.NOT_ENROLLED, `Enrollment ${enrollmentId} is already revoked`);
 	}
 
 	const revokedAt = new Date().toISOString();
