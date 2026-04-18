@@ -16,6 +16,7 @@ import QuizEditPage from "./admin/QuizEditPage.js";
 import QuizListPage from "./admin/QuizListPage.js";
 import SettingsPage from "./admin/SettingsPage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
+import StudentProgressPage from "./admin/StudentProgressPage.js";
 
 export const pages: Record<string, ComponentType> = {
 	"/": DashboardPage,
@@ -26,6 +27,7 @@ export const pages: Record<string, ComponentType> = {
 	"/quizzes/:quizId": QuizEditPage,
 	"/settings": SettingsPage,
 	"/setup": SetupWizardPage,
+	"/students/:userId": StudentProgressPage,
 };
 
 export const widgets: Record<string, ComponentType> = {};
