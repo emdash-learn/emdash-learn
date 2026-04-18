@@ -8,10 +8,14 @@
 
 import type { ComponentType } from "react";
 
+import CohortDetailPage from "./admin/CohortDetailPage.js";
+import CohortsPage from "./admin/CohortsPage.js";
 import CoursePage from "./admin/CoursePage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
 
 export const pages: Record<string, ComponentType> = {
+	"/cohorts": CohortsPage,
+	"/cohorts/:cohortId": CohortDetailPage,
 	"/courses/:courseId": CoursePage,
 	"/setup": SetupWizardPage,
 };

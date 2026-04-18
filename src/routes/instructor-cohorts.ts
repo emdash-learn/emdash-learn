@@ -1,12 +1,17 @@
 /**
  * Instructor cohort routes (T10 / §6.3).
  *
- * Five POST endpoints, all `EDITOR`-gated:
+ * Six POST endpoints, all `EDITOR`-gated:
  *   - cohort:create       { slug, title, startAt?, endAt?, capacity? }
  *   - cohort:list         { cursor?, limit? }
+ *   - cohort:get          { cohortId }
  *   - cohort:add-member   { cohortId, userId, role? }
  *   - cohort:remove-member{ cohortId, userId }
  *   - cohort:import       { cohortId, emails? } | { cohortId, csv? }
+ *
+ * `cohort:get` returns `{ cohort, members }` — the admin detail page
+ * (§16.6) needs the member roster alongside cohort metadata; the engine
+ * already exposes `cohorts.get()`, so this just wires a route to it.
  *
  * `cohort:import` accepts either an `emails` array (UI input) or a `csv`
  * string (paste-a-sheet flow). Exactly one must be provided. CSV is split
@@ -44,6 +49,11 @@ export const cohortListInput = z.object({
 	limit: z.number().int().min(1).max(100).optional(),
 });
 export type CohortListInput = z.infer<typeof cohortListInput>;
+
+export const cohortGetInput = z.object({
+	cohortId: z.string().min(1),
+});
+export type CohortGetInput = z.infer<typeof cohortGetInput>;
 
 export const cohortAddMemberInput = z.object({
 	cohortId: z.string().min(1),
@@ -126,10 +136,28 @@ const listRoute: PluginRoute<CohortListInput> = {
 		if (ctx.input.cursor !== undefined) opts.cursor = ctx.input.cursor;
 		if (ctx.input.limit !== undefined) opts.limit = ctx.input.limit;
 		const page = unwrap(await cohorts.list(ctx, opts));
+		const counts = await cohorts.memberCountsByCohort(ctx);
 		return {
-			items: page.items.map((r) => ({ id: r.id, ...r.data })),
+			items: page.items.map((r) => ({
+				id: r.id,
+				memberCount: counts[r.id] ?? 0,
+				...r.data,
+			})),
 			cursor: page.cursor,
 			hasMore: page.hasMore,
+		};
+	},
+};
+
+const getRoute: PluginRoute<CohortGetInput> = {
+	input: cohortGetInput,
+	handler: async (ctx) => {
+		gate(ctx);
+		const result = unwrap(await cohorts.get(ctx, ctx.input.cohortId));
+		return {
+			id: result.cohort.id,
+			cohort: result.cohort.data,
+			members: result.members.map((m) => ({ id: m.id, ...m.data })),
 		};
 	},
 };
@@ -207,6 +235,7 @@ const importRoute: PluginRoute<CohortImportInput> = {
 export const cohortRoutes = {
 	"cohort:create": createRoute,
 	"cohort:list": listRoute,
+	"cohort:get": getRoute,
 	"cohort:add-member": addMemberRoute,
 	"cohort:remove-member": removeMemberRoute,
 	"cohort:import": importRoute,

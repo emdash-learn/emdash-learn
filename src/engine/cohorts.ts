@@ -117,6 +117,21 @@ export async function list(
 	return ok(out);
 }
 
+/**
+ * Member count per cohort. Consumed by the admin cohort-list page (§16.6);
+ * at v1 scale the member roster is small, so a full scan is acceptable.
+ */
+export async function memberCountsByCohort(
+	ctx: PluginContext,
+): Promise<Record<string, number>> {
+	const res = await membersStore(ctx).query({});
+	const counts: Record<string, number> = {};
+	for (const m of res.items) {
+		counts[m.data.cohortId] = (counts[m.data.cohortId] ?? 0) + 1;
+	}
+	return counts;
+}
+
 export async function get(
 	ctx: PluginContext,
 	cohortId: string,

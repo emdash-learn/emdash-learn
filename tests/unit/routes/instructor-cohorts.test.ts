@@ -151,10 +151,11 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 // ---------------------------------------------------------------------------
 
 describe("cohortRoutes table", () => {
-	it("exports exactly the five §6.3 cohort names", () => {
+	it("exports exactly the six §6.3 cohort names (§6.3 + cohort:get for §16.6)", () => {
 		expect(Object.keys(cohortRoutes).sort()).toEqual([
 			"cohort:add-member",
 			"cohort:create",
+			"cohort:get",
 			"cohort:import",
 			"cohort:list",
 			"cohort:remove-member",
@@ -214,20 +215,87 @@ describe("cohort:create route", () => {
 // ---------------------------------------------------------------------------
 
 describe("cohort:list route", () => {
-	it("returns paginated cohorts ordered by slug", async () => {
+	it("returns paginated cohorts ordered by slug, with per-cohort memberCount", async () => {
 		const { buildRouteCtx } = makeCtx();
 		const createRoute = cohortRoutes["cohort:create"];
-		await createRoute.handler(
+		const b = (await createRoute.handler(
 			buildRouteCtx(createRoute.input!.parse({ slug: "b", title: "B" })),
-		);
-		await createRoute.handler(
+		)) as { id: string };
+		const a = (await createRoute.handler(
 			buildRouteCtx(createRoute.input!.parse({ slug: "a", title: "A" })),
+		)) as { id: string };
+
+		const addRoute = cohortRoutes["cohort:add-member"];
+		await addRoute.handler(
+			buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u1" })),
 		);
+		await addRoute.handler(
+			buildRouteCtx(addRoute.input!.parse({ cohortId: b.id, userId: "u2" })),
+		);
+
 		const listRoute = cohortRoutes["cohort:list"];
 		const result = (await listRoute.handler(
 			buildRouteCtx(listRoute.input!.parse({})),
-		)) as { items: Cohort[] };
+		)) as { items: Array<{ id: string; memberCount: number } & Cohort> };
 		expect(result.items.map((c) => c.slug)).toEqual(["a", "b"]);
+		const counts = Object.fromEntries(
+			result.items.map((c) => [c.id, c.memberCount]),
+		);
+		expect(counts[a.id]).toBe(0);
+		expect(counts[b.id]).toBe(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// cohort:get
+// ---------------------------------------------------------------------------
+
+describe("cohort:get route", () => {
+	it("returns { id, cohort, members } for an existing cohort", async () => {
+		const { buildRouteCtx } = makeCtx();
+		const createRoute = cohortRoutes["cohort:create"];
+		const created = (await createRoute.handler(
+			buildRouteCtx(createRoute.input!.parse({ slug: "g", title: "G" })),
+		)) as { id: string };
+
+		const addRoute = cohortRoutes["cohort:add-member"];
+		await addRoute.handler(
+			buildRouteCtx(addRoute.input!.parse({ cohortId: created.id, userId: "u_a" })),
+		);
+		await addRoute.handler(
+			buildRouteCtx(
+				addRoute.input!.parse({ cohortId: created.id, userId: "u_b", role: "ta" }),
+			),
+		);
+
+		const getRoute = cohortRoutes["cohort:get"];
+		const result = (await getRoute.handler(
+			buildRouteCtx(getRoute.input!.parse({ cohortId: created.id })),
+		)) as {
+			id: string;
+			cohort: Cohort;
+			members: Array<{ id: string } & CohortMember>;
+		};
+		expect(result.id).toBe(created.id);
+		expect(result.cohort.slug).toBe("g");
+		expect(result.members).toHaveLength(2);
+		expect(result.members.map((m) => m.userId).sort()).toEqual(["u_a", "u_b"]);
+	});
+
+	it("rejects a missing cohort with SETUP_INCOMPLETE", async () => {
+		const { buildRouteCtx } = makeCtx();
+		const getRoute = cohortRoutes["cohort:get"];
+		await expect(
+			getRoute.handler(buildRouteCtx(getRoute.input!.parse({ cohortId: "coh_missing" }))),
+		).rejects.toMatchObject({ code: LEARN_ERRORS.SETUP_INCOMPLETE });
+	});
+
+	it("rejects callers below EDITOR with FORBIDDEN", async () => {
+		const { buildRouteCtx } = makeCtx({ roleLevel: Role.SUBSCRIBER });
+		const getRoute = cohortRoutes["cohort:get"];
+		await expect(
+			getRoute.handler(buildRouteCtx(getRoute.input!.parse({ cohortId: "coh_any" }))),
+		).rejects.toMatchObject({ code: LEARN_ERRORS.FORBIDDEN });
 	});
 });
 
