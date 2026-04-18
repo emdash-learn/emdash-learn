@@ -27,7 +27,12 @@ import {
 	PLUGIN_ID,
 	PLUGIN_VERSION,
 } from "./constants.js";
+import { commentBeforeCreate } from "./hooks/comment.js";
+import { contentBeforeDelete } from "./hooks/content.js";
+import { cronDispatch } from "./hooks/cron.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
+import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
+import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
 import { cohortRoutes } from "./routes/instructor-cohorts.js";
 import { instructorAssignmentRoutes } from "./routes/instructor-assignments.js";
 import { certificateRoutesPublic } from "./routes/public-certificates.js";
@@ -153,6 +158,11 @@ export function createPlugin() {
 				await dropCollection(COURSES_COLLECTION_SLUG);
 				ctx.log.info(`${PLUGIN_ID} uninstalled with deleteData=true.`);
 			},
+
+			// Wave 4 hooks — per-file ownership per §17.1.
+			"content:beforeDelete": contentBeforeDelete,
+			"comment:beforeCreate": commentBeforeCreate,
+			cron: cronDispatch,
 		},
 
 		routes: {
@@ -193,6 +203,10 @@ export function createPlugin() {
 			...(certificateRoutesPublic as Record<string, PluginRoute<unknown>>),
 			...(cohortRoutes as Record<string, PluginRoute<unknown>>),
 			...(instructorAssignmentRoutes as Record<string, PluginRoute<unknown>>),
+
+			// Wave 4 routes — analytics backends (D33 defers admin UI to v2).
+			...(instructorAnalyticsRoutes as Record<string, PluginRoute<unknown>>),
+			...(adminAnalyticsRoutes as Record<string, PluginRoute<unknown>>),
 		},
 	});
 }
