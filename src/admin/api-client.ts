@@ -8,6 +8,7 @@ import type {
 	CohortImportInput,
 	CohortAddMemberInput,
 	CohortCreateInput,
+	CohortGetInput,
 	CohortListInput,
 	CohortRemoveMemberInput,
 } from "../routes/instructor-cohorts.js";
@@ -168,9 +169,15 @@ export interface CohortRecordResponse {
 }
 
 export interface CohortListResponse {
-	items: Array<{ id: string } & Cohort>;
+	items: Array<{ id: string; memberCount: number } & Cohort>;
 	cursor?: string;
 	hasMore: boolean;
+}
+
+export interface CohortDetailResponse {
+	id: string;
+	cohort: Cohort;
+	members: Array<{ id: string } & CohortMember>;
 }
 
 export interface CohortMemberResponse {
@@ -441,6 +448,8 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 				request<CohortRecordResponse>("cohort:create", input),
 			list: (input?: CohortListInput) =>
 				request<CohortListResponse>("cohort:list", input ?? {}),
+			get: (input: CohortGetInput) =>
+				request<CohortDetailResponse>("cohort:get", input),
 			addMember: (input: CohortAddMemberInput) =>
 				request<CohortMemberResponse>("cohort:add-member", input),
 			removeMember: (input: CohortRemoveMemberInput) =>
