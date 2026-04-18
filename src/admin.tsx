@@ -10,7 +10,6 @@ import type { ComponentType } from "react";
 
 import CohortDetailPage from "./admin/CohortDetailPage.js";
 import CohortsPage from "./admin/CohortsPage.js";
-import CoursePage from "./admin/CoursePage.js";
 import InstructorsPage from "./admin/InstructorsPage.js";
 import SettingsPage from "./admin/SettingsPage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
@@ -18,7 +17,6 @@ import SetupWizardPage from "./admin/SetupWizardPage.js";
 export const pages: Record<string, ComponentType> = {
 	"/cohorts": CohortsPage,
 	"/cohorts/:cohortId": CohortDetailPage,
-	"/courses/:courseId": CoursePage,
 	"/instructors": InstructorsPage,
 	"/settings": SettingsPage,
 	"/setup": SetupWizardPage,
