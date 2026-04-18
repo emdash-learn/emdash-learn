@@ -13,6 +13,9 @@ import type {
 	CohortRemoveMemberInput,
 } from "../routes/instructor-cohorts.js";
 import type {
+	InstructorListInput,
+	InstructorListItem,
+	InstructorListResponse,
 	InstructorSetInput,
 	InstructorUnsetInput,
 } from "../routes/instructor-assignments.js";
@@ -284,6 +287,8 @@ export type {
 	DateRange,
 	EngagementMetrics,
 	Enrollment,
+	InstructorListItem,
+	InstructorListResponse,
 	MyLearningPage,
 	PaginatedResult,
 	Progress,
@@ -477,6 +482,8 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 				request<InstructorSetResponse>("instructor:set", input),
 			unset: (input: InstructorUnsetInput) =>
 				request<InstructorUnsetResponse>("instructor:unset", input),
+			list: (input?: InstructorListInput) =>
+				request<InstructorListResponse>("instructor:list", input ?? {}),
 		},
 
 		instructorAnalytics: {

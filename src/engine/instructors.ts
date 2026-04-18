@@ -187,6 +187,20 @@ export async function listForUser(
 }
 
 /**
+ * Full scan of `course_instructors`. Consumed by the admin `/instructors`
+ * page (§16.9) which renders every assignment grouped by user. At v1 scale
+ * the instructor roster is small (dozens, not thousands), so a single scan
+ * beats paginating through courses client-side.
+ */
+export async function listAll(
+	ctx: PluginContext,
+): Promise<CourseInstructor[]> {
+	const collection = instructorsCollection(ctx);
+	const result = await collection.query({});
+	return result.items.map((row) => row.data);
+}
+
+/**
  * Boolean predicate consumed by `authz.requireInstructor` (T03) and later
  * route handlers that gate on "is the caller an instructor of this course?".
  * Returns a raw boolean rather than a `Result<boolean>` because every call
