@@ -15,15 +15,36 @@ export const PLUGIN_VERSION = "0.0.0";
 export const BOOTSTRAP_VERSION = 1;
 
 /**
- * Default KV values seeded on plugin:install. Admin settings UI (T24) later
- * lets admins override them.
+ * Default KV values seeded on plugin:install. Admin settings UI (T24) lets
+ * admins override them via `admin:settings:*` routes; each KV key lives under
+ * the `settings:<name>` namespace (see `kv-keys.ts`).
  */
 export const DEFAULT_SETTINGS = {
+	siteName: "",
+	supportEmail: "",
 	defaultPassingScore: 70,
 	certificateExpiryDays: null as number | null,
 	dripMode: "immediate" as "immediate" | "relative",
 	commentGateRequiresEnrollment: false,
 } as const;
+
+export type SettingsShape = {
+	siteName: string;
+	supportEmail: string;
+	defaultPassingScore: number;
+	certificateExpiryDays: number | null;
+	dripMode: "immediate" | "relative";
+	commentGateRequiresEnrollment: boolean;
+};
+
+export const SETTING_KEYS = [
+	"siteName",
+	"supportEmail",
+	"defaultPassingScore",
+	"certificateExpiryDays",
+	"dripMode",
+	"commentGateRequiresEnrollment",
+] as const satisfies ReadonlyArray<keyof SettingsShape>;
 
 export const COURSES_COLLECTION_SLUG = "courses";
 export const LESSONS_COLLECTION_SLUG = "lessons";
