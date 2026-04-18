@@ -16,7 +16,7 @@
  */
 
 import { definePlugin } from "emdash";
-import type { PluginContext } from "emdash";
+import type { PluginContext, PluginRoute } from "emdash";
 import { z } from "astro/zod";
 
 import {
@@ -28,6 +28,14 @@ import {
 	PLUGIN_VERSION,
 } from "./constants.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
+import { cohortRoutes } from "./routes/instructor-cohorts.js";
+import { instructorAssignmentRoutes } from "./routes/instructor-assignments.js";
+import { certificateRoutesPublic } from "./routes/public-certificates.js";
+import { quizRoutes } from "./routes/quizzes.js";
+import { certificateRoutesStudent } from "./routes/student-certificates.js";
+import { curriculumRoutes } from "./routes/student-curriculum.js";
+import { enrollmentRoutes } from "./routes/student-enrollments.js";
+import { progressRoutes } from "./routes/student-progress.js";
 import type { BootstrapState } from "./types/storage.js";
 
 const setupMarkInput = z.object({
@@ -173,6 +181,18 @@ export function createPlugin() {
 					return { state: next };
 				},
 			},
+
+			// Wave 3 routes — composed from per-task modules per §26 ownership.
+			// Cast widens each module's `PluginRoute<SpecificInput>` entries to
+			// `PluginRoute<unknown>` so the invariant Record index signature accepts them.
+			...(enrollmentRoutes as Record<string, PluginRoute<unknown>>),
+			...(progressRoutes as Record<string, PluginRoute<unknown>>),
+			...(curriculumRoutes as Record<string, PluginRoute<unknown>>),
+			...(quizRoutes as Record<string, PluginRoute<unknown>>),
+			...(certificateRoutesStudent as Record<string, PluginRoute<unknown>>),
+			...(certificateRoutesPublic as Record<string, PluginRoute<unknown>>),
+			...(cohortRoutes as Record<string, PluginRoute<unknown>>),
+			...(instructorAssignmentRoutes as Record<string, PluginRoute<unknown>>),
 		},
 	});
 }

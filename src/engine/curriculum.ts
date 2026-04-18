@@ -96,7 +96,8 @@ async function listLessonsForCourse(
 	} while (cursor);
 	/* oxlint-enable no-await-in-loop */
 
-	return out.toSorted((a, b) => lessonOrder(a) - lessonOrder(b));
+	// oxlint-disable-next-line no-array-sort -- `out` is a local array we own
+	return [...out].sort((a, b) => lessonOrder(a) - lessonOrder(b));
 }
 
 function lessonOrder(item: RuntimeContentItem): number {
