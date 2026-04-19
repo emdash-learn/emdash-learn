@@ -38,8 +38,19 @@ import type {
 	LessonInput,
 	MyLearningInput,
 	MyLearningPage,
+	TopicInput,
 	VisibleLesson,
+	VisibleTopic,
 } from "../routes/student-curriculum.js";
+import type { LessonListInput, LessonSummary } from "../routes/instructor-lessons.js";
+import type {
+	TopicCreateInput,
+	TopicDeleteInput,
+	TopicGetInput,
+	TopicListInput,
+	TopicReorderInput,
+	TopicUpdateInput,
+} from "../routes/instructor-topics.js";
 import type { EnrollInput, UnenrollInput } from "../routes/student-enrollments.js";
 import type { ProgressCompleteInput, ProgressTickInput } from "../routes/student-progress.js";
 import type {
@@ -71,8 +82,8 @@ import type {
 	CohortMember,
 	CourseInstructor,
 	Enrollment,
-	Progress,
 	Quiz,
+	StepProgress,
 } from "../types/storage.js";
 import type { SettingsShape } from "../constants.js";
 
@@ -122,7 +133,7 @@ export interface UnenrollResponse {
 
 export interface ProgressTickResponse {
 	ok: true;
-	progress: Progress;
+	progress: StepProgress;
 }
 
 export interface ProgressCompleteResponse {
@@ -145,6 +156,58 @@ export interface LessonContentItem {
 
 export interface LessonResponse {
 	lesson: LessonContentItem;
+}
+
+/** Topic body returned by the student `topic` route. */
+export interface TopicContentItem {
+	id: string;
+	slug?: string | null;
+	status?: string;
+	publishedAt?: string | null;
+	data: Record<string, unknown>;
+}
+
+export interface TopicResponse {
+	topic: TopicContentItem;
+}
+
+export interface TopicSummary {
+	id: string;
+	slug?: string | null;
+	status?: string;
+	publishedAt?: string | null;
+	lessonId?: string;
+	courseId?: string;
+	order?: number;
+	title?: string;
+}
+
+export interface TopicListResponse {
+	items: TopicSummary[];
+	cursor?: string;
+	hasMore: boolean;
+}
+
+export interface LessonListResponse {
+	items: LessonSummary[];
+	cursor?: string;
+	hasMore: boolean;
+}
+
+export interface TopicGetResponse {
+	topic: TopicContentItem;
+}
+
+export interface TopicMutationResponse {
+	topic: TopicContentItem;
+}
+
+export interface TopicDeleteResponse {
+	ok: true;
+}
+
+export interface TopicReorderResponse {
+	reordered: TopicSummary[];
 }
 
 export interface QuizRecordResponse {
@@ -283,10 +346,11 @@ export type {
 	Enrollment,
 	InstructorListItem,
 	InstructorListResponse,
+	LessonSummary,
 	MyLearningPage,
 	PaginatedResult,
-	Progress,
 	Quiz,
+	StepProgress,
 	QuizStats,
 	SettingsGetResponse,
 	SettingsShape,
@@ -300,6 +364,7 @@ export type {
 	TestEmailResponse,
 	VerificationResult,
 	VisibleLesson,
+	VisibleTopic,
 };
 
 // ---------------------------------------------------------------------------
@@ -409,7 +474,21 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 		curriculum: {
 			get: (input: CurriculumInput) => request<CurriculumResponse>("curriculum", input),
 			lesson: (input: LessonInput) => request<LessonResponse>("lesson", input),
+			topic: (input: TopicInput) => request<TopicResponse>("topic", input),
 			myLearning: (input?: MyLearningInput) => request<MyLearningPage>("my-learning", input ?? {}),
+		},
+
+		lessons: {
+			list: (input: LessonListInput) => request<LessonListResponse>("lesson:list", input),
+		},
+
+		topics: {
+			list: (input?: TopicListInput) => request<TopicListResponse>("topic:list", input ?? {}),
+			get: (input: TopicGetInput) => request<TopicGetResponse>("topic:get", input),
+			create: (input: TopicCreateInput) => request<TopicMutationResponse>("topic:create", input),
+			update: (input: TopicUpdateInput) => request<TopicMutationResponse>("topic:update", input),
+			delete: (input: TopicDeleteInput) => request<TopicDeleteResponse>("topic:delete", input),
+			reorder: (input: TopicReorderInput) => request<TopicReorderResponse>("topic:reorder", input),
 		},
 
 		quizzes: {

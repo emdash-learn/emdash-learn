@@ -7,7 +7,7 @@
  *   - `false` — handler throw is swallowed; reconciler sweeps will retry.
  */
 
-import type { Certificate, Enrollment, Progress, QuizAttempt } from "./storage.js";
+import type { Certificate, Enrollment, QuizAttempt, StepProgress } from "./storage.js";
 
 interface BaseEvent<TName extends string, TKey extends string, TData> {
 	name: TName;
@@ -22,7 +22,8 @@ export type EnrollmentRevoked = BaseEvent<
 	`revoke:${string}`,
 	{ enrollmentId: string; reason?: string }
 >;
-export type LessonCompleted = BaseEvent<"lesson:completed", `lc:${string}:${string}`, Progress>;
+export type LessonCompleted = BaseEvent<"lesson:completed", `lc:${string}:${string}`, StepProgress>;
+export type TopicCompleted = BaseEvent<"topic:completed", `tc:${string}:${string}`, StepProgress>;
 export type CourseCompleted = BaseEvent<"course:completed", `cc:${string}:${string}`, Enrollment>;
 export type QuizAttempted = BaseEvent<"quiz:attempted", `qa:${string}`, QuizAttempt>;
 export type CertificateIssued = BaseEvent<"certificate:issued", `cert:${string}`, Certificate>;
@@ -37,6 +38,7 @@ export type EngineEvent =
 	| EnrollmentCreated
 	| EnrollmentRevoked
 	| LessonCompleted
+	| TopicCompleted
 	| CourseCompleted
 	| QuizAttempted
 	| CertificateIssued

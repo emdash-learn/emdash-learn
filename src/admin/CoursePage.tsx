@@ -137,6 +137,7 @@ function formatError(err: unknown): string {
 
 type TabKey =
 	| "overview"
+	| "curriculum"
 	| "enrollments"
 	| "progress"
 	| "quizzes"
@@ -146,6 +147,7 @@ type TabKey =
 
 const TABS: Array<{ key: TabKey; label: string }> = [
 	{ key: "overview", label: "Overview" },
+	{ key: "curriculum", label: "Curriculum" },
 	{ key: "enrollments", label: "Enrollments" },
 	{ key: "progress", label: "Progress" },
 	{ key: "quizzes", label: "Quizzes" },
@@ -306,6 +308,9 @@ function TabPanel({
 }): ReactElement {
 	if (activeTab === "overview") {
 		return <OverviewTab api={api} courseId={courseId} headerState={headerState} />;
+	}
+	if (activeTab === "curriculum") {
+		return <CurriculumTab api={api} courseId={courseId} />;
 	}
 	if (activeTab === "enrollments") {
 		return <EnrollmentsTab api={api} courseId={courseId} />;
@@ -552,6 +557,120 @@ function FunnelChart({ funnel }: { funnel: CompletionFunnel }): ReactElement {
 				);
 			})}
 		</ul>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Curriculum tab — two-level Lesson → Topic tree (ADR 0001)
+// ---------------------------------------------------------------------------
+
+interface CurriculumLessonNode {
+	id: string;
+	title: string;
+	order: number;
+	topics: Array<{ id: string; title: string; order: number }>;
+}
+
+type CurriculumState =
+	| { kind: "loading" }
+	| { kind: "error"; message: string }
+	| { kind: "ready"; lessons: CurriculumLessonNode[] };
+
+function CurriculumTab({ api, courseId }: { api: Api; courseId: string }): ReactElement {
+	const [state, setState] = useState<CurriculumState>({ kind: "loading" });
+
+	const load = useCallback(async () => {
+		setState({ kind: "loading" });
+		try {
+			// Load lessons + topics in parallel. The lesson list is the source
+			// of truth for the lesson tree (so lessons without topics still
+			// appear); topic.list is overlaid onto its parent lesson nodes.
+			const [lessonsResp, topicsResp] = await Promise.all([
+				api.lessons.list({ courseId, limit: 100 }),
+				api.topics.list({ courseId, limit: 100 }),
+			]);
+			const byLesson = new Map<string, CurriculumLessonNode>();
+			for (const l of lessonsResp.items) {
+				byLesson.set(l.id, {
+					id: l.id,
+					title: l.title ?? "Untitled lesson",
+					order: l.order ?? 0,
+					topics: [],
+				});
+			}
+			for (const t of topicsResp.items) {
+				if (!t.lessonId) continue;
+				const node = byLesson.get(t.lessonId);
+				if (!node) continue;
+				node.topics.push({
+					id: t.id,
+					title: t.title ?? "Untitled",
+					order: t.order ?? 0,
+				});
+			}
+			for (const node of byLesson.values()) {
+				// oxlint-disable-next-line no-array-sort -- local
+				node.topics.sort((a, b) => a.order - b.order);
+			}
+			const lessons = Array.from(byLesson.values());
+			// oxlint-disable-next-line no-array-sort -- local
+			lessons.sort((a, b) => a.order - b.order);
+			setState({ kind: "ready", lessons });
+		} catch (err) {
+			setState({ kind: "error", message: formatError(err) });
+		}
+	}, [api, courseId]);
+
+	useEffect(() => {
+		void load();
+	}, [load]);
+
+	if (state.kind === "loading") return <LoadingBanner label="Loading curriculum…" />;
+	if (state.kind === "error") {
+		return <ErrorBanner message={state.message} onRetry={() => void load()} />;
+	}
+	if (state.lessons.length === 0) {
+		return (
+			<div style={tabBodyStyle}>
+				<EmptyState message="No lessons yet. Create lessons in the content editor, then add topics here." />
+			</div>
+		);
+	}
+
+	return (
+		<div style={tabBodyStyle}>
+			<p style={mutedTextStyle}>
+				Two-level tree: lessons → topics. Use the content editor for lesson body edits; click a
+				topic to edit its body.
+			</p>
+			<ul style={curriculumListStyle}>
+				{state.lessons.map((lesson) => (
+					<li key={lesson.id} style={curriculumLessonStyle}>
+						<div style={curriculumLessonHeaderStyle}>
+							<strong>{lesson.title}</strong>
+							<a
+								href={`${PLUGIN_BASE}/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lesson.id)}/topics/new`}
+								style={linkStyle}
+							>
+								+ Add topic
+							</a>
+						</div>
+						<ol style={curriculumTopicListStyle}>
+							{lesson.topics.map((t) => (
+								<li key={t.id}>
+									<a
+										href={`${PLUGIN_BASE}/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lesson.id)}/topics/${encodeURIComponent(t.id)}`}
+										style={linkStyle}
+									>
+										{t.title}
+									</a>
+								</li>
+							))}
+						</ol>
+					</li>
+				))}
+			</ul>
+		</div>
 	);
 }
 
@@ -1565,6 +1684,38 @@ const linkStyle: CSSProperties = {
 	color: "#2563eb",
 	textDecoration: "none",
 	fontWeight: 500,
+};
+
+const curriculumListStyle: CSSProperties = {
+	listStyle: "none",
+	paddingInlineStart: 0,
+	marginBlock: 0,
+	display: "grid",
+	gap: "0.75rem",
+};
+
+const curriculumLessonStyle: CSSProperties = {
+	padding: "0.875rem",
+	border: "1px solid #e2e8f0",
+	borderRadius: "0.5rem",
+	backgroundColor: "white",
+};
+
+const curriculumLessonHeaderStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	justifyContent: "space-between",
+	gap: "0.5rem",
+	marginBlockEnd: "0.5rem",
+};
+
+const curriculumTopicListStyle: CSSProperties = {
+	listStyle: "decimal",
+	paddingInlineStart: "1.25rem",
+	marginBlock: 0,
+	color: "#0f172a",
+	display: "grid",
+	gap: "0.25rem",
 };
 
 // ── Heatmap ─────────────────────────────────────────────────────────────────

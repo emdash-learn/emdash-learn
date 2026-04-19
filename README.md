@@ -45,14 +45,18 @@ export default defineConfig({
 ```
 
 Start the site, then open the one-click setup wizard at
-`/_emdash/admin/plugins/lms-core/setup` — it provisions the `courses` and `lessons` content collections, seeds defaults, and drops you on the teaching dashboard.
+`/_emdash/admin/plugins/lms-core/setup` — it provisions the `courses`, `lessons`, and `topics` content collections, seeds defaults, and drops you on the teaching dashboard.
 
 ## What's in the box
 
 **Content**
 
-- `courses` and `lessons` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
+- `courses`, `lessons`, and `topics` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
 - Inline quiz blocks via a custom Portable Text block type (native-plugin only).
+
+### Topics
+
+The content tree is **Course → Lesson → Topic**, mirroring LearnDash's `sfwd-topic` post type. Topics belong to a single lesson, denormalize their `course` reference for query locality, and ship with their own body, video, summary, ordering, and `requires_previous` gating. Topics intentionally do **not** have free-preview or independent drip — they inherit visibility and drip from the parent lesson per ADR 0001. See [`docs/adr/0001-topics-primitive.md`](./docs/adr/0001-topics-primitive.md) for the design decision.
 
 **Learning engine**
 
@@ -78,18 +82,19 @@ Start the site, then open the one-click setup wizard at
 
 All admin pages mount under `/_emdash/admin/plugins/lms-core/`:
 
-| Path                 | Page                                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `/`                  | Teaching dashboard (stats, recent activity)                                                                |
-| `/setup`             | One-click setup wizard                                                                                     |
-| `/courses/:courseId` | Course detail — 7-tab layout (overview, curriculum, enrollments, quizzes, cohorts, instructors, analytics) |
-| `/quizzes`           | Quiz list                                                                                                  |
-| `/quizzes/:quizId`   | Quiz authoring editor                                                                                      |
-| `/cohorts`           | Cohorts list                                                                                               |
-| `/cohorts/:cohortId` | Cohort detail + CSV import                                                                                 |
-| `/instructors`       | Instructor assignments                                                                                     |
-| `/students/:userId`  | Per-student progress across all enrollments                                                                |
-| `/settings`          | Plugin settings + test-email                                                                               |
+| Path                                                   | Page                                                                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `/`                                                    | Teaching dashboard (stats, recent activity)                                                                |
+| `/setup`                                               | One-click setup wizard                                                                                     |
+| `/courses/:courseId`                                   | Course detail — 7-tab layout (overview, curriculum, enrollments, quizzes, cohorts, instructors, analytics) |
+| `/courses/:courseId/lessons/:lessonId/topics/:topicId` | Topic editor (portable-text body)                                                                          |
+| `/quizzes`                                             | Quiz list                                                                                                  |
+| `/quizzes/:quizId`                                     | Quiz authoring editor                                                                                      |
+| `/cohorts`                                             | Cohorts list                                                                                               |
+| `/cohorts/:cohortId`                                   | Cohort detail + CSV import                                                                                 |
+| `/instructors`                                         | Instructor assignments                                                                                     |
+| `/students/:userId`                                    | Per-student progress across all enrollments                                                                |
+| `/settings`                                            | Plugin settings + test-email                                                                               |
 
 ## Site-side routes
 
@@ -103,14 +108,15 @@ Typed RPC endpoints under `/_emdash/api/plugins/lms-core/*` — call from theme 
 **Student (auth required)**
 
 - `enroll`, `unenroll`
-- `curriculum`, `lesson`, `my-learning`
-- `progress:tick`, `progress:complete`
+- `curriculum`, `lesson`, `topic`, `my-learning`
+- `progress:tick`, `progress:complete` (input is `{ stepType, stepId, … }`)
 - `quiz:start`, `quiz:submit`
 - `certificates:mine`
 
 **Admin / instructor (auth + capability)**
 
 - `quiz:list`, `quiz:create`, `quiz:update`, `quiz:delete`
+- `topic:list`, `topic:get`, `topic:create`, `topic:update`, `topic:delete`, `topic:reorder`
 - `cohort:list`, `cohort:get`, `cohort:create`, `cohort:add-member`, `cohort:remove-member`, `cohort:import`
 - `instructor:list`, `instructor:set`, `instructor:unset`
 - `instructor:*-analytics`, `admin:analytics-overview`, `admin:courses-comparison`, `admin:engagement-metrics`

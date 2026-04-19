@@ -190,6 +190,9 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 
 		expect(submitted.ok && submitted.data.passed).toBe(true);
 		expect(received).toHaveLength(1);
-		expect(received[0]?.lessonId).toBe(lesson.id);
+		// Post-ADR 0001: LessonCompleted carries StepProgress; the lesson id is
+		// `stepId` (with `stepType === "lesson"`).
+		expect(received[0]?.stepType).toBe("lesson");
+		expect(received[0]?.stepId).toBe(lesson.id);
 	});
 });

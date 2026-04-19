@@ -27,6 +27,7 @@ import {
 	LESSONS_COLLECTION_SLUG,
 	PLUGIN_ID,
 	PLUGIN_VERSION,
+	TOPICS_COLLECTION_SLUG,
 } from "./constants.js";
 import { commentBeforeCreate } from "./hooks/comment.js";
 import { contentBeforeDelete } from "./hooks/content.js";
@@ -37,6 +38,8 @@ import { adminSettingsRoutes } from "./routes/admin-settings.js";
 import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
 import { cohortRoutes } from "./routes/instructor-cohorts.js";
 import { instructorAssignmentRoutes } from "./routes/instructor-assignments.js";
+import { instructorLessonRoutes } from "./routes/instructor-lessons.js";
+import { instructorTopicRoutes } from "./routes/instructor-topics.js";
 import { catalogRoutes } from "./routes/public-catalog.js";
 import { certificateRoutesPublic } from "./routes/public-certificates.js";
 import { quizRoutes } from "./routes/quizzes.js";
@@ -92,8 +95,16 @@ export function createPlugin() {
 				indexes: ["userId", "courseId", "enrolledAt"],
 				uniqueIndexes: [["userId", "courseId"]],
 			},
-			progress: {
-				indexes: ["userId", "courseId", "lessonId", ["userId", "courseId"], "completedAt"],
+			step_progress: {
+				indexes: [
+					"userId",
+					"courseId",
+					"stepId",
+					"stepType",
+					["userId", "courseId"],
+					["userId", "courseId", "stepType"],
+					"completedAt",
+				],
 			},
 			quizzes: {
 				indexes: ["updatedAt"],
@@ -150,8 +161,10 @@ export function createPlugin() {
 					return;
 				}
 				// Emdash core drops plugin storage automatically; we only need
-				// to drop the authored content collections. Lessons first so
-				// lesson→course references don't block the courses drop.
+				// to drop the authored content collections. Topics first
+				// (reference lessons), lessons next (reference courses), then
+				// courses. Reverse-dependency order avoids reference-integrity
+				// blockers on the drop.
 				const dropCollection = async (slug: string): Promise<void> => {
 					try {
 						const res = await fetch(
@@ -165,6 +178,7 @@ export function createPlugin() {
 						ctx.log.error(`Collection drop failed for ${slug}`, err);
 					}
 				};
+				await dropCollection(TOPICS_COLLECTION_SLUG);
 				await dropCollection(LESSONS_COLLECTION_SLUG);
 				await dropCollection(COURSES_COLLECTION_SLUG);
 				ctx.log.info(`${PLUGIN_ID} uninstalled with deleteData=true.`);
@@ -210,6 +224,8 @@ export function createPlugin() {
 			...(progressRoutes as Record<string, PluginRoute<unknown>>),
 			...(curriculumRoutes as Record<string, PluginRoute<unknown>>),
 			...(quizRoutes as Record<string, PluginRoute<unknown>>),
+			...(instructorLessonRoutes as Record<string, PluginRoute<unknown>>),
+			...(instructorTopicRoutes as Record<string, PluginRoute<unknown>>),
 			...(certificateRoutesStudent as Record<string, PluginRoute<unknown>>),
 			...(certificateRoutesPublic as Record<string, PluginRoute<unknown>>),
 			...(cohortRoutes as Record<string, PluginRoute<unknown>>),

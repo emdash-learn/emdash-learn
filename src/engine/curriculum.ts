@@ -1,32 +1,26 @@
 /**
- * Curriculum engine (T07 / §22 / §6.1).
+ * Curriculum engine — step-aware (ADR 0001).
  *
- * Assembles a user's view of a course's lessons, applying:
- *   - `is_preview` — visible without enrollment.
- *   - enrollment — non-preview lessons require an active enrollment.
- *   - drip — `drip.unlocksAt` against the configured `dripMode` setting.
- *   - `requires_previous` — a lesson with this flag is locked until the
- *     preceding lesson (by `order`) is completed.
+ * Assembles a user's view of a course as a two-level tree
+ * (Lesson → [Topic]). Topics inherit visibility + drip from the parent
+ * lesson; their own gate is `requires_previous` against sibling topics.
  *
  * `forUser` is the read the `curriculum` route calls. `myLearning` produces
- * the cross-course dashboard summary for the `my-learning` route (§6.1).
+ * the cross-course dashboard summary for the `my-learning` route.
  */
 
 import type { PluginContext, StorageCollection } from "emdash";
 
 /**
- * Local alias for the content item shape `ctx.content.get` returns. The
- * `emdash` package exports a narrower `ContentItem` type, but the runtime
- * `get` signature returns a wider shape (with `authorId`, `scheduledAt`,
- * etc.) — so we infer from the method to stay in lockstep.
+ * Local alias for the content item shape `ctx.content.get` returns.
  */
 type RuntimeContentItem = NonNullable<
 	Awaited<ReturnType<NonNullable<PluginContext["content"]>["get"]>>
 >;
 
-import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
+import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
 import { settingKey } from "../kv-keys.js";
-import type { Enrollment, Progress } from "../types/storage.js";
+import type { Enrollment, StepProgress } from "../types/storage.js";
 import { isUnlocked, unlocksAt, type DripMode } from "./drip.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -36,6 +30,21 @@ function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T
 		throw new Error(`Plugin storage collection "${name}" is not declared in the descriptor.`);
 	}
 	return collection as StorageCollection<T>;
+}
+
+const STEP_PROGRESS_COLLECTION = "step_progress";
+
+export interface VisibleTopic {
+	id: string;
+	title: string;
+	order: number;
+	summary?: string;
+	requiresPrevious: boolean;
+	unlocked: boolean;
+	completed: boolean;
+	percentComplete: number;
+	videoUrl?: string;
+	durationSeconds?: number;
 }
 
 export interface VisibleLesson {
@@ -52,6 +61,7 @@ export interface VisibleLesson {
 	percentComplete: number;
 	videoUrl?: string;
 	durationSeconds?: number;
+	topics: VisibleTopic[];
 }
 
 async function getDripMode(ctx: PluginContext): Promise<DripMode> {
@@ -95,25 +105,55 @@ async function listLessonsForCourse(
 	/* oxlint-enable no-await-in-loop */
 
 	// oxlint-disable-next-line no-array-sort -- `out` is a local array we own
-	return [...out].sort((a, b) => lessonOrder(a) - lessonOrder(b));
+	return [...out].sort((a, b) => contentOrder(a) - contentOrder(b));
 }
 
-function lessonOrder(item: RuntimeContentItem): number {
+async function listTopicsForCourse(
+	ctx: PluginContext,
+	courseId: string,
+): Promise<RuntimeContentItem[]> {
+	if (!ctx.content) return [];
+	const out: RuntimeContentItem[] = [];
+	let cursor: string | undefined;
+	/* oxlint-disable no-await-in-loop */
+	do {
+		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
+			where: { status: "published" },
+			limit: 100,
+			cursor,
+		});
+		for (const item of page.items) {
+			if (item.data["course"] === courseId) out.push(item);
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	/* oxlint-enable no-await-in-loop */
+
+	// oxlint-disable-next-line no-array-sort -- `out` is a local array we own
+	return [...out].sort((a, b) => contentOrder(a) - contentOrder(b));
+}
+
+function contentOrder(item: RuntimeContentItem): number {
 	const v = (item.data as Record<string, unknown>)["order"];
 	return typeof v === "number" ? v : 0;
 }
 
-function lessonField<T>(item: RuntimeContentItem, key: string): T | undefined {
+function contentField<T>(item: RuntimeContentItem, key: string): T | undefined {
 	return (item.data as Record<string, unknown>)[key] as T | undefined;
+}
+
+interface ProgressMap {
+	lesson: Map<string, StepProgress>;
+	topic: Map<string, StepProgress>;
 }
 
 async function getProgressMap(
 	ctx: PluginContext,
 	userId: string,
 	courseId: string,
-): Promise<Map<string, Progress>> {
-	const out = new Map<string, Progress>();
-	const collection = getCollection<Progress>(ctx, "progress");
+): Promise<ProgressMap> {
+	const out: ProgressMap = { lesson: new Map(), topic: new Map() };
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
@@ -122,7 +162,10 @@ async function getProgressMap(
 			limit: 100,
 			cursor,
 		});
-		for (const row of page.items) out.set(row.data.lessonId, row.data);
+		for (const row of page.items) {
+			if (row.data.stepType === "lesson") out.lesson.set(row.data.stepId, row.data);
+			else out.topic.set(row.data.stepId, row.data);
+		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
 	/* oxlint-enable no-await-in-loop */
@@ -140,7 +183,16 @@ export async function forUser(
 	const enrollment = userId ? await getEnrollment(ctx, userId, courseId) : null;
 	const progress = enrollment
 		? await getProgressMap(ctx, userId, courseId)
-		: new Map<string, Progress>();
+		: { lesson: new Map<string, StepProgress>(), topic: new Map<string, StepProgress>() };
+	const allTopics = await listTopicsForCourse(ctx, courseId);
+	const topicsByLesson = new Map<string, RuntimeContentItem[]>();
+	for (const t of allTopics) {
+		const lessonId = contentField<string>(t, "lesson");
+		if (!lessonId) continue;
+		const list = topicsByLesson.get(lessonId);
+		if (list) list.push(t);
+		else topicsByLesson.set(lessonId, [t]);
+	}
 	const mode = await getDripMode(ctx);
 	const now = new Date();
 
@@ -148,11 +200,11 @@ export async function forUser(
 	let previousCompleted = true; // first lesson has no previous
 
 	for (const item of lessons) {
-		const isPreview = lessonField<boolean | number>(item, "is_preview");
+		const isPreview = contentField<boolean | number>(item, "is_preview");
 		const isPreviewBool = isPreview === true || isPreview === 1;
-		const requiresPrevious = lessonField<boolean | number>(item, "requires_previous");
+		const requiresPrevious = contentField<boolean | number>(item, "requires_previous");
 		const requiresPreviousBool = requiresPrevious === true || requiresPrevious === 1;
-		const dripOffsetDays = lessonField<number>(item, "drip_offset_days") ?? 0;
+		const dripOffsetDays = contentField<number>(item, "drip_offset_days") ?? 0;
 
 		const scheduledAt = (item as { scheduledAt?: string | null }).scheduledAt ?? null;
 		const lessonForDrip = { dripOffsetDays, scheduledAt };
@@ -164,14 +216,47 @@ export async function forUser(
 		const visible = isPreviewBool || enrollment !== null;
 		if (!visible) continue;
 
-		const prog = progress.get(item.id);
+		const prog = progress.lesson.get(item.id);
 		const completed = Boolean(prog?.completedAt);
 		const unlocked = dripUnlocked && (!requiresPreviousBool || previousCompleted);
 
+		// Build topic list under this lesson. `slice()` makes a local copy.
+		const rawTopics = topicsByLesson.get(item.id) ?? [];
+		const lessonTopicsArr = rawTopics.slice();
+		// oxlint-disable-next-line no-array-sort -- `lessonTopicsArr` is a local copy
+		lessonTopicsArr.sort((a, b) => contentOrder(a) - contentOrder(b));
+		const lessonTopics = lessonTopicsArr;
+		const visibleTopics: VisibleTopic[] = [];
+		let prevTopicCompleted = true;
+		for (const topicItem of lessonTopics) {
+			const topicProg = progress.topic.get(topicItem.id);
+			const topicCompleted = Boolean(topicProg?.completedAt);
+			const topicRequiresPrev = contentField<boolean | number>(topicItem, "requires_previous");
+			const topicRequiresPrevBool = topicRequiresPrev === true || topicRequiresPrev === 1;
+			const topicUnlocked = unlocked && (!topicRequiresPrevBool || prevTopicCompleted);
+			const topicEntry: VisibleTopic = {
+				id: topicItem.id,
+				title: contentField<string>(topicItem, "title") ?? "Untitled",
+				order: contentOrder(topicItem),
+				requiresPrevious: topicRequiresPrevBool,
+				unlocked: topicUnlocked,
+				completed: topicCompleted,
+				percentComplete: topicProg?.percentComplete ?? 0,
+			};
+			const tSummary = contentField<string>(topicItem, "summary");
+			if (tSummary !== undefined) topicEntry.summary = tSummary;
+			const tVideo = contentField<string>(topicItem, "video_url");
+			if (tVideo !== undefined) topicEntry.videoUrl = tVideo;
+			const tDur = contentField<number>(topicItem, "duration_seconds");
+			if (tDur !== undefined) topicEntry.durationSeconds = tDur;
+			visibleTopics.push(topicEntry);
+			prevTopicCompleted = topicCompleted;
+		}
+
 		const entry: VisibleLesson = {
 			id: item.id,
-			title: lessonField<string>(item, "title") ?? "Untitled",
-			order: lessonOrder(item),
+			title: contentField<string>(item, "title") ?? "Untitled",
+			order: contentOrder(item),
 			isPreview: isPreviewBool,
 			requiresPrevious: requiresPreviousBool,
 			dripOffsetDays,
@@ -179,12 +264,13 @@ export async function forUser(
 			unlocked,
 			completed,
 			percentComplete: prog?.percentComplete ?? 0,
+			topics: visibleTopics,
 		};
-		const summary = lessonField<string>(item, "summary");
+		const summary = contentField<string>(item, "summary");
 		if (summary !== undefined) entry.summary = summary;
-		const videoUrl = lessonField<string>(item, "video_url");
+		const videoUrl = contentField<string>(item, "video_url");
 		if (videoUrl !== undefined) entry.videoUrl = videoUrl;
-		const durationSeconds = lessonField<number>(item, "duration_seconds");
+		const durationSeconds = contentField<number>(item, "duration_seconds");
 		if (durationSeconds !== undefined) entry.durationSeconds = durationSeconds;
 		out.push(entry);
 
@@ -211,12 +297,12 @@ export async function getLesson(
 	if (!item || item.status !== "published") {
 		return err(LEARN_ERRORS.LESSON_LOCKED, `Lesson ${lessonId} is not available`);
 	}
-	const courseId = lessonField<string>(item, "course");
+	const courseId = contentField<string>(item, "course");
 	if (!courseId) {
 		return err(LEARN_ERRORS.LESSON_LOCKED, "Lesson has no course reference");
 	}
 
-	const isPreview = lessonField<boolean | number>(item, "is_preview");
+	const isPreview = contentField<boolean | number>(item, "is_preview");
 	const isPreviewBool = isPreview === true || isPreview === 1;
 
 	if (isPreviewBool) return ok(item);
@@ -226,12 +312,52 @@ export async function getLesson(
 		return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in ${courseId}`);
 	}
 
-	// Find the lesson in the user's curriculum to respect gating.
 	const curriculum = await forUser(ctx, userId, courseId);
 	if (!curriculum.ok) return curriculum as unknown as Result<RuntimeContentItem>;
 	const entry = curriculum.data.find((l) => l.id === lessonId);
 	if (!entry || !entry.unlocked) {
 		return err(LEARN_ERRORS.LESSON_LOCKED, `Lesson ${lessonId} is not unlocked yet`);
+	}
+	return ok(item);
+}
+
+/**
+ * Load a single topic's full body, gated on enrollment + parent-lesson
+ * visibility + topic unlocked state. Topics inside preview lessons still
+ * require enrollment per ADR 0001.
+ */
+export async function getTopic(
+	ctx: PluginContext,
+	userId: string,
+	topicId: string,
+): Promise<Result<RuntimeContentItem>> {
+	if (!ctx.content) {
+		return err(LEARN_ERRORS.SETUP_INCOMPLETE, "content access is not available");
+	}
+	const item = await ctx.content.get(TOPICS_COLLECTION_SLUG, topicId);
+	if (!item || item.status !== "published") {
+		return err(LEARN_ERRORS.TOPIC_LOCKED, `Topic ${topicId} is not available`);
+	}
+	const courseId = contentField<string>(item, "course");
+	const lessonId = contentField<string>(item, "lesson");
+	if (!courseId || !lessonId) {
+		return err(LEARN_ERRORS.TOPIC_LOCKED, "Topic is missing course or lesson reference");
+	}
+
+	const enrollment = userId ? await getEnrollment(ctx, userId, courseId) : null;
+	if (!enrollment) {
+		return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in ${courseId}`);
+	}
+
+	const curriculum = await forUser(ctx, userId, courseId);
+	if (!curriculum.ok) return curriculum as unknown as Result<RuntimeContentItem>;
+	const lessonEntry = curriculum.data.find((l) => l.id === lessonId);
+	if (!lessonEntry) {
+		return err(LEARN_ERRORS.TOPIC_LOCKED, `Parent lesson ${lessonId} is not visible`);
+	}
+	const topicEntry = lessonEntry.topics.find((t) => t.id === topicId);
+	if (!topicEntry || !topicEntry.unlocked) {
+		return err(LEARN_ERRORS.TOPIC_LOCKED, `Topic ${topicId} is not unlocked yet`);
 	}
 	return ok(item);
 }
@@ -247,7 +373,7 @@ export interface MyLearningItem {
 	enrolledAt: string;
 	percentComplete: number;
 	lastActivityAt?: string;
-	nextLesson?: { id: string; title: string };
+	nextStep?: { type: "lesson" | "topic"; id: string; title: string; lessonId?: string };
 	completedAt?: string;
 }
 
@@ -291,18 +417,44 @@ export async function myLearning(
 		if (!course) continue;
 		const curriculum = await forUser(ctx, userId, courseId);
 		const lessons = curriculum.ok ? curriculum.data : [];
-		const total = lessons.length;
-		const completedCount = lessons.filter((l) => l.completed).length;
-		const percent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+		// Count every published step (lesson body + topics) as 1 unit.
+		let totalSteps = 0;
+		let completedSteps = 0;
+		for (const l of lessons) {
+			totalSteps += 1;
+			if (l.completed) completedSteps += 1;
+			for (const t of l.topics) {
+				totalSteps += 1;
+				if (t.completed) completedSteps += 1;
+			}
+		}
+		const percent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
 		const progressMap = await getProgressMap(ctx, userId, courseId);
 		let lastActivityAt: string | undefined;
-		for (const p of progressMap.values()) {
-			const ts = p.completedAt ?? p.startedAt;
-			if (!lastActivityAt || ts > lastActivityAt) lastActivityAt = ts;
+		for (const map of [progressMap.lesson, progressMap.topic]) {
+			for (const p of map.values()) {
+				const ts = p.completedAt ?? p.startedAt;
+				if (!lastActivityAt || ts > lastActivityAt) lastActivityAt = ts;
+			}
 		}
 
-		const nextLessonEntry = lessons.find((l) => !l.completed);
+		// Next step: walk the tree in order; first non-complete unlocked step.
+		let nextStep: MyLearningItem["nextStep"];
+		outer: for (const l of lessons) {
+			if (!l.completed && l.unlocked) {
+				nextStep = { type: "lesson", id: l.id, title: l.title };
+				break;
+			}
+			for (const t of l.topics) {
+				if (!t.completed && t.unlocked) {
+					nextStep = { type: "topic", id: t.id, title: t.title, lessonId: l.id };
+					break outer;
+				}
+			}
+		}
+
 		const item: MyLearningItem = {
 			courseId,
 			courseTitle: ((course.data as Record<string, unknown>)["title"] as string) ?? "Untitled",
@@ -312,9 +464,7 @@ export async function myLearning(
 		const cover = (course.data as Record<string, unknown>)["cover_image"];
 		if (typeof cover === "string") item.coverImage = cover;
 		if (lastActivityAt) item.lastActivityAt = lastActivityAt;
-		if (nextLessonEntry) {
-			item.nextLesson = { id: nextLessonEntry.id, title: nextLessonEntry.title };
-		}
+		if (nextStep) item.nextStep = nextStep;
 		if (row.data.completedAt) item.completedAt = row.data.completedAt;
 		items.push(item);
 	}

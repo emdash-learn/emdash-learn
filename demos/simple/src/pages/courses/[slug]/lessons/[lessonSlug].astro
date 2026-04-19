@@ -5,6 +5,19 @@
 
 import { callLmsRoute, escapeHtml } from "../../../../lib/lms-api.ts";
 
+interface VisibleTopic {
+	id: string;
+	title: string;
+	order: number;
+	summary?: string;
+	requiresPrevious: boolean;
+	unlocked: boolean;
+	completed: boolean;
+	percentComplete: number;
+	videoUrl?: string;
+	durationSeconds?: number;
+}
+
 interface VisibleLesson {
 	id: string;
 	title: string;
@@ -19,6 +32,7 @@ interface VisibleLesson {
 	percentComplete: number;
 	videoUrl?: string;
 	durationSeconds?: number;
+	topics: VisibleTopic[];
 }
 
 interface LessonDoc {
@@ -87,6 +101,8 @@ const quizBlock = body.find((b) => b && b._type === "lmsQuiz" && typeof b.quizId
 const idx = curriculum.findIndex((l) => l.id === lessonId);
 const prev = idx > 0 ? curriculum[idx - 1] : undefined;
 const next = idx >= 0 && idx < curriculum.length - 1 ? curriculum[idx + 1] : undefined;
+const lessonInCurriculum = idx >= 0 ? curriculum[idx] : undefined;
+const topicsForLesson: VisibleTopic[] = lessonInCurriculum?.topics ?? [];
 
 const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string) : "Lesson";
 ---
@@ -165,6 +181,33 @@ const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string
 			</button>
 		)}
 
+		{topicsForLesson.length > 0 && (
+			<section style="margin-block: 1.5rem;">
+				<h2 style="font-size: 1.05rem;">Topics</h2>
+				<ol class="lessons" data-testid="topics-list">
+					{topicsForLesson.map((topic) => (
+						<li data-topic-id={topic.id}>
+							{topic.unlocked ? (
+								<a
+									href={`/courses/${course.slug}/lessons/${lessonId}/topics/${topic.id}`}
+									data-testid="topic-link"
+								>
+									{topic.title}
+								</a>
+							) : (
+								<span>{topic.title}</span>
+							)}
+							{!topic.unlocked && <span class="meta"> · locked</span>}
+							{topic.completed && <span class="meta"> · ✓ done</span>}
+							{topic.requiresPrevious && !topic.completed && (
+								<span class="meta"> · requires previous</span>
+							)}
+						</li>
+					))}
+				</ol>
+			</section>
+		)}
+
 		<div class="nav">
 			<div>
 				{prev && (
@@ -197,7 +240,12 @@ const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string
 								"X-EmDash-Request": "1",
 							},
 							credentials: "same-origin",
-							body: JSON.stringify({ lessonId, positionSeconds: pos, percentComplete: pct }),
+							body: JSON.stringify({
+								stepType: "lesson",
+								stepId: lessonId,
+								positionSeconds: pos,
+								percentComplete: pct,
+							}),
 						});
 					} catch {
 						// Ticks are best-effort; ignore transient failures.
@@ -218,7 +266,10 @@ const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string
 								"X-EmDash-Request": "1",
 							},
 							credentials: "same-origin",
-							body: JSON.stringify({ lessonId: btn.getAttribute("data-lesson-id") }),
+							body: JSON.stringify({
+								stepType: "lesson",
+								stepId: btn.getAttribute("data-lesson-id"),
+							}),
 						});
 						if (!res.ok) {
 							const text = await res.text();

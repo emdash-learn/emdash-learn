@@ -5,26 +5,62 @@
 
 import type { ContentBylineCredit, PortableTextBlock } from "emdash";
 
-export interface Page {
+export interface Course {
   id: string;
   slug: string | null;
   status: string;
   title: string;
-  content?: PortableTextBlock[];
+  subtitle?: string;
+  description?: string;
+  body?: PortableTextBlock[];
+  cover_image?: { id: string; src?: string; alt?: string; width?: number; height?: number };
+  trailer_url?: string;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  estimated_hours?: number;
+  price_cents?: number;
+  currency?: string;
+  enrollment_open?: boolean;
+  enrollment_opens_at?: string;
+  enrollment_closes_at?: string;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
   bylines?: ContentBylineCredit[];
 }
 
-export interface Post {
+export interface Lesson {
   id: string;
   slug: string | null;
   status: string;
   title: string;
-  featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number };
-  content?: PortableTextBlock[];
-  excerpt?: string;
+  course: string;
+  order: number;
+  summary?: string;
+  body?: PortableTextBlock[];
+  video_url?: string;
+  duration_seconds?: number;
+  is_preview?: boolean;
+  requires_previous?: boolean;
+  drip_offset_days?: number;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  bylines?: ContentBylineCredit[];
+}
+
+export interface Topic {
+  id: string;
+  slug: string | null;
+  status: string;
+  title: string;
+  lesson: string;
+  course: string;
+  order: number;
+  summary?: string;
+  body?: PortableTextBlock[];
+  video_url?: string;
+  duration_seconds?: number;
+  requires_previous?: boolean;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
@@ -33,7 +69,8 @@ export interface Post {
 
 declare module "emdash" {
   interface EmDashCollections {
-    pages: Page;
-    posts: Post;
+    courses: Course;
+    lessons: Lesson;
+    topics: Topic;
   }
 }

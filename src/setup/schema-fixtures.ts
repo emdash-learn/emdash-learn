@@ -12,7 +12,11 @@
 
 import type { CreateCollectionInput, CreateFieldInput, UpdateCollectionInput } from "emdash";
 
-import { COURSES_COLLECTION_SLUG, LESSONS_COLLECTION_SLUG } from "../constants.js";
+import {
+	COURSES_COLLECTION_SLUG,
+	LESSONS_COLLECTION_SLUG,
+	TOPICS_COLLECTION_SLUG,
+} from "../constants.js";
 
 /**
  * A field spec as the wizard carries it: the emdash `CreateFieldInput` plus a
@@ -238,9 +242,99 @@ export const LESSONS_FIXTURE: CollectionFixture = {
 	fields: lessonsFields,
 };
 
+const topicsFields: FieldSpec[] = [
+	{
+		slug: "title",
+		label: "Title",
+		type: "string",
+		required: true,
+		validation: { maxLength: 200 },
+		locked: true,
+	},
+	{
+		slug: "lesson",
+		label: "Lesson",
+		type: "reference",
+		required: true,
+		options: { collection: LESSONS_COLLECTION_SLUG, allowMultiple: false },
+		locked: true,
+	},
+	{
+		slug: "course",
+		label: "Course",
+		type: "reference",
+		required: true,
+		options: { collection: COURSES_COLLECTION_SLUG, allowMultiple: false },
+		locked: true,
+	},
+	{
+		slug: "order",
+		label: "Order",
+		type: "integer",
+		required: true,
+		defaultValue: 0,
+		validation: { min: 0 },
+		locked: true,
+	},
+	{
+		slug: "summary",
+		label: "Summary",
+		type: "text",
+		validation: { maxLength: 500 },
+		locked: false,
+	},
+	{
+		slug: "body",
+		label: "Body",
+		type: "portableText",
+		locked: false,
+	},
+	{
+		slug: "video_url",
+		label: "Video URL",
+		type: "string",
+		validation: { maxLength: 500 },
+		locked: false,
+	},
+	{
+		slug: "duration_seconds",
+		label: "Duration (seconds)",
+		type: "integer",
+		defaultValue: 0,
+		validation: { min: 0 },
+		locked: true,
+	},
+	{
+		slug: "requires_previous",
+		label: "Requires previous topic",
+		type: "boolean",
+		defaultValue: false,
+		locked: true,
+	},
+];
+
+export const TOPICS_FIXTURE: CollectionFixture = {
+	create: {
+		slug: TOPICS_COLLECTION_SLUG,
+		label: "Topics",
+		labelSingular: "Topic",
+		icon: "list-ordered",
+		supports: ["drafts", "revisions", "scheduling", "search"],
+		urlPattern: "/topics/{slug}",
+		hasSeo: true,
+		source: `template:${TOPICS_COLLECTION_SLUG}`,
+	},
+	postCreateUpdate: {
+		commentsEnabled: true,
+		commentsModeration: "first_time",
+	},
+	fields: topicsFields,
+};
+
 export const FIXTURES = {
 	courses: COURSES_FIXTURE,
 	lessons: LESSONS_FIXTURE,
+	topics: TOPICS_FIXTURE,
 } as const;
 
 export type FixtureKey = keyof typeof FIXTURES;

@@ -197,6 +197,8 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 	fieldsStep("courses"),
 	collectionStep("lessons"),
 	fieldsStep("lessons"),
+	collectionStep("topics"),
+	fieldsStep("topics"),
 	finalizeStep(),
 ];
 

@@ -8,7 +8,7 @@ interface MyLearningItem {
 	enrolledAt: string;
 	percentComplete: number;
 	lastActivityAt?: string;
-	nextLesson?: { id: string; title: string };
+	nextStep?: { type: "lesson" | "topic"; id: string; title: string; lessonId?: string };
 	completedAt?: string;
 }
 
@@ -127,8 +127,8 @@ function courseHref(item: MyLearningItem): string {
 							<div class="bar"><span style={`width: ${Math.round(item.percentComplete)}%`}></span></div>
 							<p class="meta">
 								{Math.round(item.percentComplete)}% complete
-								{item.nextLesson && (
-									<> · next: <strong>{item.nextLesson.title}</strong></>
+								{item.nextStep && (
+									<> · next: <strong>{item.nextStep.title}</strong> ({item.nextStep.type})</>
 								)}
 							</p>
 						</li>

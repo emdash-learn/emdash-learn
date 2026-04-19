@@ -18,12 +18,14 @@ import QuizListPage from "./admin/QuizListPage.js";
 import SettingsPage from "./admin/SettingsPage.js";
 import SetupWizardPage from "./admin/SetupWizardPage.js";
 import StudentProgressPage from "./admin/StudentProgressPage.js";
+import TopicEditPage from "./admin/TopicEditPage.js";
 
 export const pages: Record<string, ComponentType> = {
 	"/": DashboardPage,
 	"/cohorts": CohortsPage,
 	"/cohorts/:cohortId": CohortDetailPage,
 	"/courses/:courseId": CoursePage,
+	"/courses/:courseId/lessons/:lessonId/topics/:topicId": TopicEditPage,
 	"/instructors": InstructorsPage,
 	"/quizzes": QuizListPage,
 	"/quizzes/:quizId": QuizEditPage,

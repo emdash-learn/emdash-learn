@@ -130,7 +130,8 @@ describe("createApiClient", () => {
 		const api = makeClient(fetchMock);
 
 		await api.progress.tick({
-			lessonId: "lesson_1",
+			stepType: "lesson",
+			stepId: "lesson_1",
 			positionSeconds: 30,
 			percentComplete: 50,
 		});

@@ -51,6 +51,7 @@ import { createPlugin } from "../../src/sandbox-entry.js";
 import {
 	COURSES_FIXTURE,
 	LESSONS_FIXTURE,
+	TOPICS_FIXTURE,
 	type CollectionFixture,
 } from "../../src/setup/schema-fixtures.js";
 
@@ -190,6 +191,7 @@ export async function createTestPluginCtx(
 		const registry = new SchemaRegistry(db);
 		await provisionCollection(registry, COURSES_FIXTURE);
 		await provisionCollection(registry, LESSONS_FIXTURE);
+		await provisionCollection(registry, TOPICS_FIXTURE);
 	}
 
 	const resolved = createPlugin();

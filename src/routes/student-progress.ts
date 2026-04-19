@@ -44,19 +44,20 @@ import type { Result, ResultError } from "../engine/result.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Mirrors `progressTickInput` in §23. Kept inline (rather than imported from
- * a shared `routes/schemas.ts`) so T06 owns its own files and doesn't race
- * the parallel Wave 3 tasks against a shared schema module.
+ * Mirrors `progressTickInput` in §23, updated for the topics primitive
+ * (ADR 0001) — `lessonId` becomes `stepId` + `stepType`.
  */
 export const progressTickInput = z.object({
-	lessonId: z.string().min(1),
-	positionSeconds: z.number().int().min(0),
+	stepType: z.enum(["lesson", "topic"]),
+	stepId: z.string().min(1),
+	positionSeconds: z.number().int().nonnegative(),
 	percentComplete: z.number().min(0).max(100),
 });
 export type ProgressTickInput = z.infer<typeof progressTickInput>;
 
 export const progressCompleteInput = z.object({
-	lessonId: z.string().min(1),
+	stepType: z.enum(["lesson", "topic"]),
+	stepId: z.string().min(1),
 });
 export type ProgressCompleteInput = z.infer<typeof progressCompleteInput>;
 
@@ -78,6 +79,7 @@ function statusForCode(code: string): number {
 		case LEARN_ERRORS.NOT_ENROLLED:
 		case LEARN_ERRORS.NOT_INSTRUCTOR:
 		case LEARN_ERRORS.LESSON_LOCKED:
+		case LEARN_ERRORS.TOPIC_LOCKED:
 		case LEARN_ERRORS.ENROLLMENT_CLOSED:
 			return 403;
 		case LEARN_ERRORS.QUIZ_NOT_STARTED:
@@ -125,7 +127,12 @@ const tickRoute: PluginRoute<ProgressTickInput> = {
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
-		const result = await progress.tick(ctx, user.data.id, ctx.input);
+		const result = await progress.tick(ctx, user.data.id, {
+			stepType: ctx.input.stepType,
+			stepId: ctx.input.stepId,
+			positionSeconds: ctx.input.positionSeconds,
+			percentComplete: ctx.input.percentComplete,
+		});
 		const row = unwrap(result);
 		return { ok: true, progress: row };
 	},
@@ -143,7 +150,12 @@ const completeRoute: PluginRoute<ProgressCompleteInput> = {
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
-		const result = await progress.markLessonComplete(ctx, user.data.id, ctx.input.lessonId);
+		const result = await progress.markStepComplete(
+			ctx,
+			user.data.id,
+			ctx.input.stepType,
+			ctx.input.stepId,
+		);
 		const data = unwrap(result);
 		return { ok: true, courseComplete: data.courseComplete };
 	},

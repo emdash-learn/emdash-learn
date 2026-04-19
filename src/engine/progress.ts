@@ -1,44 +1,37 @@
 /**
- * Progress engine (T06).
+ * Progress engine — step-aware (ADR 0001).
  *
- * Three concerns, four exported functions per §22:
- *   1. `tick`  — heartbeat from the lesson player every ~15s (D20). Upserts the
- *      `progress` row and, when `percentComplete >= 90`, auto-promotes the
- *      lesson to "complete" via `markLessonComplete`. The 90% threshold is the
- *      auto-complete rule pinned in §8.2 (T06 acceptance) and §21 Phase 2.
- *   2. `markLessonComplete` — the single entrypoint that finalises a lesson.
- *      Called by both the `progress:complete` route AND by `tick` when the
- *      90% threshold trips. Writes the authoritative completed row first
- *      (§8.3 invariant), emits `lesson:completed`, then evaluates whether the
- *      whole course is now done — if it is, flips `enrollments.completedAt`
- *      and emits `course:completed` so T09 can issue a certificate downstream.
- *   3. `getForUser` — paginates a user's progress rows for a course. Uses the
- *      composite `[userId, courseId]` index declared in the descriptor (§5.3),
- *      so it's a point lookup, not a scan.
- *   4. `evaluateCourseComplete` — pure-ish predicate over storage: "are all
- *      published lessons in this course complete for this user?" Surfaced as
- *      its own function so reconcilers (T14) can re-check completion without
- *      duplicating the logic.
+ * Replaces the original lesson-only progress engine. Every progress row is
+ * keyed by `(userId, stepType, stepId)` where `stepType ∈ {"lesson", "topic"}`.
+ * Topics inherit their gating from the parent lesson (via `parentLessonId`),
+ * and a lesson cannot be marked complete until all its child topics are
+ * complete.
  *
- * Course-completion definition (§12 Q26): the user has a completed `progress`
- * row for every published lesson in the course, including preview lessons.
- * Preview lessons are visible without enrollment (§5.2) but are not flagged
- * "optional for completion" anywhere in the schema, so v1 treats them as
- * required. Adding an `optional_for_completion` lesson flag is an additive
- * v1.1 change with no migration.
+ * Public API:
+ *   - `tick`               — heartbeat from the player. Auto-completes the
+ *     step when `percentComplete >= 90`. For topic ticks, when the topic
+ *     auto-completes the engine checks whether the parent lesson now
+ *     qualifies for completion (lesson body 100% AND all sibling topics
+ *     complete) and cascades.
+ *   - `markStepComplete`   — explicit "I'm done" entrypoint. Emits
+ *     `lesson:completed` for lesson rows and `topic:completed` for topic
+ *     rows. Marking a lesson complete while topics remain incomplete
+ *     returns `LEARN_LESSON_LOCKED` ("topics incomplete").
+ *   - `getForUser`         — paginated read of `step_progress` rows for one
+ *     `(userId, courseId)`.
+ *   - `evaluateCourseComplete` — true iff every published lesson AND every
+ *     published topic has a completed row.
  *
- * Authz/idempotency conventions (§24): every mutating function returns
- * `Result<T>` (§17.5), `LEARN_*` error codes only (§17.6), and the event-bus
- * idempotency markers (§17.4) ensure re-driving a route never double-emits.
- * The progress row itself is keyed by a deterministic `(userId, lessonId)`
- * id, so duplicate ticks coalesce into one row.
+ * Course-completion definition (§12 Q26 + ADR 0001): every published
+ * step (lesson body + topics, including preview lesson bodies) has a
+ * completed `step_progress` row.
  */
 
 import type { PluginContext, StorageCollection } from "emdash";
 
-import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
-import type { CourseCompleted, LessonCompleted } from "../types/engine.js";
-import type { Enrollment, Progress } from "../types/storage.js";
+import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
+import type { CourseCompleted, LessonCompleted, TopicCompleted } from "../types/engine.js";
+import type { Enrollment, StepProgress, StepType } from "../types/storage.js";
 import { emit } from "./event-bus.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -46,12 +39,6 @@ import { err, ok, type Result } from "./result.js";
 // Storage helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Narrow `ctx.storage[name]` out of the generic record. Plugin storage
- * collections are declared in the descriptor (see `sandbox-entry.ts`); a
- * missing collection is a programmer error (descriptor drift), not a
- * request-time failure mode — mirrors the `authz.ts` helper.
- */
 function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T> {
 	const collection = (ctx.storage as Record<string, StorageCollection | undefined>)[name];
 	if (!collection) {
@@ -60,20 +47,19 @@ function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T
 	return collection as StorageCollection<T>;
 }
 
+const STEP_PROGRESS_COLLECTION = "step_progress";
+
 /**
- * Deterministic id for a `(userId, lessonId)` progress row. Using a derived
- * id (rather than a random ulid) means a duplicate tick from the player
- * coalesces into a single row — no read-then-decide race, no orphan rows.
- *
- * Encoded so neither field can break the separator: any user/lesson id that
- * contained `__` would still parse unambiguously because we never split on it.
+ * Deterministic id for a `(userId, stepType, stepId)` progress row. Encoding
+ * `stepType` into the id prevents lesson/topic rows for the same id from
+ * colliding (very unlikely with content ULIDs, but the id space is shared).
  */
-function progressId(userId: string, lessonId: string): string {
-	return `prog__${userId}__${lessonId}`;
+function progressId(userId: string, stepType: StepType, stepId: string): string {
+	return `prog__${userId}__${stepType}__${stepId}`;
 }
 
 // ---------------------------------------------------------------------------
-// Lesson lookup (content collection)
+// Lesson + topic content lookup
 // ---------------------------------------------------------------------------
 
 interface LessonContext {
@@ -81,15 +67,6 @@ interface LessonContext {
 	status: string;
 }
 
-/**
- * Read the minimum fields the engine cares about from the `lessons` content
- * collection. The `course` field is a content reference — its raw value is
- * the referenced course's content id (string). See `tests/utils/seed.ts`'s
- * `seedLesson` for the matching write shape.
- *
- * Returns `null` when the lesson does not exist or the `course` field is
- * missing — callers translate to `LEARN_LESSON_LOCKED`.
- */
 async function readLessonContext(
 	ctx: PluginContext,
 	lessonId: string,
@@ -102,26 +79,34 @@ async function readLessonContext(
 	return { courseId: courseRef, status: item.status };
 }
 
-interface PublishedLesson {
+interface TopicContext {
+	courseId: string;
+	parentLessonId: string;
+	status: string;
+}
+
+async function readTopicContext(ctx: PluginContext, topicId: string): Promise<TopicContext | null> {
+	if (!ctx.content) return null;
+	const item = await ctx.content.get(TOPICS_COLLECTION_SLUG, topicId);
+	if (!item) return null;
+	const lessonRef = item.data["lesson"];
+	const courseRef = item.data["course"];
+	if (typeof lessonRef !== "string" || !lessonRef) return null;
+	if (typeof courseRef !== "string" || !courseRef) return null;
+	return { courseId: courseRef, parentLessonId: lessonRef, status: item.status };
+}
+
+interface PublishedItem {
 	id: string;
 }
 
-/**
- * List every published lesson belonging to `courseId`. We can't filter by the
- * `course` reference field server-side (`ContentListWhere` only supports
- * `status` + `locale` per emdash's content API), so we paginate
- * `status=published` and filter client-side. At v1 scale (D42) this stays
- * cheap; v1.1+ may rollup `lessonsTotal` per course if it ever shows up in a
- * profile.
- */
 async function listPublishedLessonsForCourse(
 	ctx: PluginContext,
 	courseId: string,
-): Promise<PublishedLesson[]> {
+): Promise<PublishedItem[]> {
 	if (!ctx.content) return [];
-	const matches: PublishedLesson[] = [];
+	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
-	// Sequential by design: cursor depends on the previous page.
 	/* oxlint-disable no-await-in-loop */
 	do {
 		const page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
@@ -138,31 +123,72 @@ async function listPublishedLessonsForCourse(
 	return matches;
 }
 
+async function listPublishedTopicsForCourse(
+	ctx: PluginContext,
+	courseId: string,
+): Promise<PublishedItem[]> {
+	if (!ctx.content) return [];
+	const matches: PublishedItem[] = [];
+	let cursor: string | undefined;
+	/* oxlint-disable no-await-in-loop */
+	do {
+		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
+			where: { status: "published" },
+			limit: 100,
+			cursor,
+		});
+		for (const topic of page.items) {
+			if (topic.data["course"] === courseId) matches.push({ id: topic.id });
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	/* oxlint-enable no-await-in-loop */
+	return matches;
+}
+
+async function listPublishedTopicsForLesson(
+	ctx: PluginContext,
+	lessonId: string,
+): Promise<PublishedItem[]> {
+	if (!ctx.content) return [];
+	const matches: PublishedItem[] = [];
+	let cursor: string | undefined;
+	/* oxlint-disable no-await-in-loop */
+	do {
+		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
+			where: { status: "published" },
+			limit: 100,
+			cursor,
+		});
+		for (const topic of page.items) {
+			if (topic.data["lesson"] === lessonId) matches.push({ id: topic.id });
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	/* oxlint-enable no-await-in-loop */
+	return matches;
+}
+
 // ---------------------------------------------------------------------------
 // Progress queries
 // ---------------------------------------------------------------------------
 
 interface ProgressLookup {
 	id: string;
-	row: Progress;
+	row: StepProgress;
 }
 
-/**
- * Look up the (user, lesson) progress row by deterministic id. Faster than
- * `query()` because it's a primary-key fetch.
- */
-async function getProgressByLesson(
+async function getProgressByStep(
 	ctx: PluginContext,
 	userId: string,
-	lessonId: string,
+	stepType: StepType,
+	stepId: string,
 ): Promise<ProgressLookup | null> {
-	const collection = getCollection<Progress>(ctx, "progress");
-	const id = progressId(userId, lessonId);
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+	const id = progressId(userId, stepType, stepId);
 	const row = await collection.get(id);
 	if (!row) return null;
-	// The deterministic id ties the row to (userId, lessonId); double-check the
-	// row's own fields match in case the id ever collides (defensive but cheap).
-	if (row.userId !== userId || row.lessonId !== lessonId) return null;
+	if (row.userId !== userId || row.stepType !== stepType || row.stepId !== stepId) return null;
 	return { id, row };
 }
 
@@ -179,63 +205,74 @@ async function getEnrollment(
 }
 
 // ---------------------------------------------------------------------------
-// Public API (matches §22 signatures)
+// Public API
 // ---------------------------------------------------------------------------
 
 export interface TickInput {
-	lessonId: string;
+	stepType: StepType;
+	stepId: string;
 	positionSeconds: number;
 	percentComplete: number;
 }
 
 /**
- * Auto-complete threshold for `tick`. §8.2 / §21 Phase 2 / T06 acceptance row
- * pin this at 90% — exposed as a constant so tests can reference the same
- * source of truth.
+ * Auto-complete threshold for `tick`. Pinned at 90% per §8.2 / §21 Phase 2.
  */
 export const PROGRESS_AUTO_COMPLETE_THRESHOLD = 90;
 
+interface ResolvedStep {
+	courseId: string;
+	parentLessonId?: string;
+}
+
+async function resolveStep(
+	ctx: PluginContext,
+	stepType: StepType,
+	stepId: string,
+): Promise<ResolvedStep | null> {
+	if (stepType === "lesson") {
+		const lessonCtx = await readLessonContext(ctx, stepId);
+		if (!lessonCtx) return null;
+		return { courseId: lessonCtx.courseId };
+	}
+	const topicCtx = await readTopicContext(ctx, stepId);
+	if (!topicCtx) return null;
+	return { courseId: topicCtx.courseId, parentLessonId: topicCtx.parentLessonId };
+}
+
 /**
- * Heartbeat from the lesson player. Upserts the `progress` row and triggers
- * `markLessonComplete` when the percent crosses the auto-complete threshold.
- *
- * Validation rules:
- *   - User must be enrolled in the lesson's course (`LEARN_NOT_ENROLLED`).
- *   - Lesson must exist and have a course reference (`LEARN_LESSON_LOCKED`
- *     covers both missing-lesson and orphaned-lesson cases — they're both
- *     "you cannot record progress against this lesson").
- *
- * The function is monotonic on `percentComplete`: it never lets the value
- * regress (re-running a stale tick from a slow client doesn't reset progress).
- * `positionSeconds` is overwritten freely — that's the resume cursor and the
- * latest report wins.
+ * Heartbeat from the lesson player. Upserts the `step_progress` row and
+ * triggers `markStepComplete` when percent crosses the auto-complete
+ * threshold. Monotonic on `percentComplete` — never lets the value regress.
  */
 export async function tick(
 	ctx: PluginContext,
 	userId: string,
 	input: TickInput,
-): Promise<Result<Progress>> {
-	const lessonCtx = await readLessonContext(ctx, input.lessonId);
-	if (!lessonCtx) {
-		return err(LEARN_ERRORS.LESSON_LOCKED, `Lesson ${input.lessonId} is not available.`);
+): Promise<Result<StepProgress>> {
+	const resolved = await resolveStep(ctx, input.stepType, input.stepId);
+	if (!resolved) {
+		const code =
+			input.stepType === "topic" ? LEARN_ERRORS.TOPIC_LOCKED : LEARN_ERRORS.LESSON_LOCKED;
+		return err(code, `Step ${input.stepId} is not available.`);
 	}
 
-	const enrollment = await getEnrollment(ctx, userId, lessonCtx.courseId);
+	const enrollment = await getEnrollment(ctx, userId, resolved.courseId);
 	if (!enrollment || enrollment.row.revokedAt) {
 		return err(
 			LEARN_ERRORS.NOT_ENROLLED,
-			`User ${userId} is not enrolled in course ${lessonCtx.courseId}.`,
+			`User ${userId} is not enrolled in course ${resolved.courseId}.`,
 		);
 	}
 
-	const collection = getCollection<Progress>(ctx, "progress");
-	const existing = await getProgressByLesson(ctx, userId, input.lessonId);
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+	const existing = await getProgressByStep(ctx, userId, input.stepType, input.stepId);
 	const now = new Date().toISOString();
 
-	// Already-complete rows are immutable on the percent dimension — once
-	// completedAt is set we never walk the bar back.
+	// Already-complete rows are immutable on percent — once completedAt is set
+	// the bar never walks back.
 	if (existing?.row.completedAt) {
-		const refreshed: Progress = {
+		const refreshed: StepProgress = {
 			...existing.row,
 			positionSeconds: input.positionSeconds,
 		};
@@ -244,25 +281,26 @@ export async function tick(
 	}
 
 	const monotonicPercent = Math.max(input.percentComplete, existing?.row.percentComplete ?? 0);
-	const next: Progress = {
+	const next: StepProgress = {
 		userId,
-		courseId: lessonCtx.courseId,
-		lessonId: input.lessonId,
+		courseId: resolved.courseId,
+		stepType: input.stepType,
+		stepId: input.stepId,
 		startedAt: existing?.row.startedAt ?? now,
 		percentComplete: monotonicPercent,
 		positionSeconds: input.positionSeconds,
 	};
+	if (resolved.parentLessonId !== undefined) {
+		next.parentLessonId = resolved.parentLessonId;
+	}
 
-	const id = existing?.id ?? progressId(userId, input.lessonId);
+	const id = existing?.id ?? progressId(userId, input.stepType, input.stepId);
 	await collection.put(id, next);
 
-	// Auto-complete crossing — only once per (user, lesson). The next branch
-	// returns the post-completion row so the route handler reflects the new
-	// state immediately.
 	if (monotonicPercent >= PROGRESS_AUTO_COMPLETE_THRESHOLD) {
-		const completed = await markLessonComplete(ctx, userId, input.lessonId);
-		if (!completed.ok) return completed as Result<Progress>;
-		const refreshed = await getProgressByLesson(ctx, userId, input.lessonId);
+		const completed = await markStepComplete(ctx, userId, input.stepType, input.stepId);
+		if (!completed.ok) return completed as Result<StepProgress>;
+		const refreshed = await getProgressByStep(ctx, userId, input.stepType, input.stepId);
 		return ok(refreshed?.row ?? next);
 	}
 
@@ -270,19 +308,120 @@ export async function tick(
 }
 
 /**
- * Finalize a lesson as complete and propagate completion upward.
+ * Finalize a lesson or topic as complete and propagate completion upward.
  *
- * Writes the authoritative completed `progress` row first (§8.3), emits
- * `lesson:completed` for downstream handlers (T09 issues certificates,
- * T14 sends emails), then evaluates whether the course is now done. Course
- * completion writes `enrollments.completedAt` *before* emitting
- * `course:completed` — same row-first-then-emit invariant.
+ * For topics: writes the topic row, emits `topic:completed`, then if all
+ * sibling topics are complete AND the parent lesson body itself is complete
+ * (or the lesson has no body progress required because completion cascades
+ * via topics), cascades to lesson completion.
  *
- * Idempotent: re-calling on an already-complete lesson is a no-op for the
- * row write, and the event bus's `handled:` markers (§17.4) ensure
- * downstream handlers never run twice for the same key.
+ * For lessons: refuses with `LEARN_LESSON_LOCKED` if any child topic is
+ * incomplete. Otherwise writes the lesson row, emits `lesson:completed`,
+ * then evaluates course completion.
  */
-export async function markLessonComplete(
+export async function markStepComplete(
+	ctx: PluginContext,
+	userId: string,
+	stepType: StepType,
+	stepId: string,
+): Promise<Result<{ courseComplete: boolean }>> {
+	if (stepType === "topic") {
+		return markTopicCompleteInternal(ctx, userId, stepId);
+	}
+	return markLessonCompleteInternal(ctx, userId, stepId);
+}
+
+async function markTopicCompleteInternal(
+	ctx: PluginContext,
+	userId: string,
+	topicId: string,
+): Promise<Result<{ courseComplete: boolean }>> {
+	const topicCtx = await readTopicContext(ctx, topicId);
+	if (!topicCtx) {
+		return err(LEARN_ERRORS.TOPIC_LOCKED, `Topic ${topicId} is not available.`);
+	}
+
+	const enrollment = await getEnrollment(ctx, userId, topicCtx.courseId);
+	if (!enrollment || enrollment.row.revokedAt) {
+		return err(
+			LEARN_ERRORS.NOT_ENROLLED,
+			`User ${userId} is not enrolled in course ${topicCtx.courseId}.`,
+		);
+	}
+
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+	const existing = await getProgressByStep(ctx, userId, "topic", topicId);
+	const now = new Date().toISOString();
+
+	const completedRow: StepProgress = {
+		userId,
+		courseId: topicCtx.courseId,
+		stepType: "topic",
+		stepId: topicId,
+		parentLessonId: topicCtx.parentLessonId,
+		startedAt: existing?.row.startedAt ?? now,
+		percentComplete: 100,
+		completedAt: existing?.row.completedAt ?? now,
+	};
+	if (existing?.row.positionSeconds !== undefined) {
+		completedRow.positionSeconds = existing.row.positionSeconds;
+	}
+	const id = existing?.id ?? progressId(userId, "topic", topicId);
+	await collection.put(id, completedRow);
+
+	const event: TopicCompleted = {
+		name: "topic:completed",
+		key: `tc:${userId}:${topicId}`,
+		data: completedRow,
+		critical: true,
+	};
+	await emit(event, ctx);
+
+	// Try to cascade lesson completion. Only succeeds when every other
+	// published topic on the lesson is complete AND the lesson's own body
+	// progress row is complete (per the lesson-completion rule). When the
+	// lesson hasn't been touched at all we don't auto-complete it — the
+	// lesson body still requires its own 90% threshold.
+	const lessonStatus = await isLessonReadyForCompletion(ctx, userId, topicCtx.parentLessonId);
+	if (lessonStatus.ready) {
+		const cascade = await markLessonCompleteInternal(ctx, userId, topicCtx.parentLessonId);
+		if (!cascade.ok) return cascade;
+		return ok({ courseComplete: cascade.data.courseComplete });
+	}
+
+	return ok({ courseComplete: false });
+}
+
+interface LessonReadyResult {
+	ready: boolean;
+}
+
+/**
+ * `true` iff every published child topic of `lessonId` is complete AND the
+ * lesson body's own progress row is complete. Used by the topic-cascade path:
+ * we don't want to mark the lesson complete just because the topics are done
+ * if the user hasn't actually watched the lesson body.
+ */
+async function isLessonReadyForCompletion(
+	ctx: PluginContext,
+	userId: string,
+	lessonId: string,
+): Promise<LessonReadyResult> {
+	const topics = await listPublishedTopicsForLesson(ctx, lessonId);
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+
+	for (const topic of topics) {
+		// eslint-disable-next-line no-await-in-loop
+		const row = await collection.get(progressId(userId, "topic", topic.id));
+		if (!row?.completedAt) return { ready: false };
+	}
+
+	const lessonRow = await collection.get(progressId(userId, "lesson", lessonId));
+	if (!lessonRow?.completedAt) return { ready: false };
+	return { ready: true };
+}
+
+async function markLessonCompleteInternal(
 	ctx: PluginContext,
 	userId: string,
 	lessonId: string,
@@ -300,21 +439,36 @@ export async function markLessonComplete(
 		);
 	}
 
-	const progress = getCollection<Progress>(ctx, "progress");
-	const existing = await getProgressByLesson(ctx, userId, lessonId);
-	const now = new Date().toISOString();
+	// Lesson cannot be marked complete while any published child topic is
+	// incomplete. The topic-cascade path uses `markStepComplete` for the
+	// lesson, but only after `isLessonReadyForCompletion` has cleared the
+	// gate, so the cascade satisfies this check by construction.
+	const topics = await listPublishedTopicsForLesson(ctx, lessonId);
+	const stepProgress = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+	for (const topic of topics) {
+		// eslint-disable-next-line no-await-in-loop
+		const row = await stepProgress.get(progressId(userId, "topic", topic.id));
+		if (!row?.completedAt) {
+			return err(LEARN_ERRORS.LESSON_LOCKED, "topics incomplete");
+		}
+	}
 
-	const completedRow: Progress = {
+	const existing = await getProgressByStep(ctx, userId, "lesson", lessonId);
+	const now = new Date().toISOString();
+	const completedRow: StepProgress = {
 		userId,
 		courseId: lessonCtx.courseId,
-		lessonId,
+		stepType: "lesson",
+		stepId: lessonId,
 		startedAt: existing?.row.startedAt ?? now,
-		positionSeconds: existing?.row.positionSeconds,
 		percentComplete: 100,
 		completedAt: existing?.row.completedAt ?? now,
 	};
-	const id = existing?.id ?? progressId(userId, lessonId);
-	await progress.put(id, completedRow);
+	if (existing?.row.positionSeconds !== undefined) {
+		completedRow.positionSeconds = existing.row.positionSeconds;
+	}
+	const id = existing?.id ?? progressId(userId, "lesson", lessonId);
+	await stepProgress.put(id, completedRow);
 
 	const lessonEvent: LessonCompleted = {
 		name: "lesson:completed",
@@ -328,7 +482,6 @@ export async function markLessonComplete(
 	if (!courseDone.ok) return courseDone as Result<{ courseComplete: boolean }>;
 	if (!courseDone.data) return ok({ courseComplete: false });
 
-	// Authoritative row write first, then emit (§8.3).
 	const enrollments = getCollection<Enrollment>(ctx, "enrollments");
 	const completedEnrollment: Enrollment = {
 		...enrollment.row,
@@ -348,18 +501,16 @@ export async function markLessonComplete(
 }
 
 /**
- * Paginated read of a single user's progress for a single course. Uses the
- * composite `[userId, courseId]` index declared on the `progress` collection
- * in the descriptor — this is the hot path for the lesson-player UI which
- * needs every lesson's status.
+ * Paginated read of a single user's progress for a single course. Returns
+ * both lesson and topic rows.
  */
 export async function getForUser(
 	ctx: PluginContext,
 	userId: string,
 	courseId: string,
-): Promise<Result<Progress[]>> {
-	const collection = getCollection<Progress>(ctx, "progress");
-	const out: Progress[] = [];
+): Promise<Result<StepProgress[]>> {
+	const collection = getCollection<StepProgress>(ctx, STEP_PROGRESS_COLLECTION);
+	const out: StepProgress[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
@@ -376,11 +527,9 @@ export async function getForUser(
 }
 
 /**
- * `true` iff the user has a completed `progress` row for every published
- * lesson in the course. Returns `false` (not an error) when the course has
- * zero published lessons — an empty course can't be "completed."
- *
- * See §12 Q26 for the "all published lessons including preview" rule.
+ * `true` iff every published lesson AND every published topic in the course
+ * has a completed row for the given user. Returns `false` (not error) for
+ * empty courses.
  */
 export async function evaluateCourseComplete(
 	ctx: PluginContext,
@@ -388,14 +537,23 @@ export async function evaluateCourseComplete(
 	courseId: string,
 ): Promise<Result<boolean>> {
 	const lessons = await listPublishedLessonsForCourse(ctx, courseId);
-	if (lessons.length === 0) return ok(false);
+	const topics = await listPublishedTopicsForCourse(ctx, courseId);
+	if (lessons.length === 0 && topics.length === 0) return ok(false);
 
 	const progress = await getForUser(ctx, userId, courseId);
 	if (!progress.ok) return progress as Result<boolean>;
 
-	const completedLessonIds = new Set(
-		progress.data.filter((row) => row.completedAt).map((row) => row.lessonId),
+	const completedLesson = new Set(
+		progress.data
+			.filter((row) => row.stepType === "lesson" && row.completedAt)
+			.map((row) => row.stepId),
 	);
-	const allComplete = lessons.every((lesson) => completedLessonIds.has(lesson.id));
-	return ok(allComplete);
+	const completedTopic = new Set(
+		progress.data
+			.filter((row) => row.stepType === "topic" && row.completedAt)
+			.map((row) => row.stepId),
+	);
+	const allLessons = lessons.every((l) => completedLesson.has(l.id));
+	const allTopics = topics.every((t) => completedTopic.has(t.id));
+	return ok(allLessons && allTopics);
 }

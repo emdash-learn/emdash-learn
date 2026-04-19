@@ -18,14 +18,24 @@ export interface Enrollment {
 	revokedReason?: string;
 }
 
-export interface Progress {
+/**
+ * Per-step progress (ADR 0001). Replaces the previous lesson-only `Progress`
+ * shape. One row per `(userId, stepType, stepId)`. `parentLessonId` is set
+ * only on `stepType === "topic"` rows so "all progress within this lesson"
+ * queries stay cheap.
+ */
+export type StepType = "lesson" | "topic";
+
+export interface StepProgress {
 	userId: string;
 	courseId: string;
-	lessonId: string;
+	stepType: StepType;
+	stepId: string;
+	parentLessonId?: string;
 	startedAt: string;
 	completedAt?: string;
-	positionSeconds?: number;
 	percentComplete: number;
+	positionSeconds?: number;
 }
 
 export type QuestionType = "mcq" | "multi" | "true_false" | "short_text";

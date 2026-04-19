@@ -42,7 +42,7 @@ describe("T04 self-test: createTestPluginCtx", () => {
 		expect(storage.enrollments).toBeDefined();
 		expect(typeof storage.enrollments.put).toBe("function");
 		expect(typeof storage.enrollments.query).toBe("function");
-		expect(storage.progress).toBeDefined();
+		expect(storage.step_progress).toBeDefined();
 		expect(storage.quizzes).toBeDefined();
 		expect(storage.certificates).toBeDefined();
 	});

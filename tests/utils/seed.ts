@@ -230,10 +230,43 @@ export async function seedEnrollment(
 	return { id, userId: input.userId, courseId: input.courseId, enrolledAt, source };
 }
 
+export interface SeedTopicInput {
+	courseId: string;
+	lessonId: string;
+	title?: string;
+	order?: number;
+	summary?: string;
+	videoUrl?: string;
+	durationSeconds?: number;
+	requiresPrevious?: boolean;
+}
+
+/**
+ * Insert a row into the `topics` content collection. `lessonId` and
+ * `courseId` are both required because the topic schema mirrors the
+ * `course` reference for query locality (ADR 0001).
+ */
+export async function seedTopic(ctx: PluginContext, input: SeedTopicInput): Promise<ContentItem> {
+	const content = requireContentWrite(ctx);
+	const data: Record<string, unknown> = {
+		title: input.title ?? "Seed Topic",
+		lesson: input.lessonId,
+		course: input.courseId,
+		order: input.order ?? 0,
+	};
+	if (input.summary !== undefined) data.summary = input.summary;
+	if (input.videoUrl !== undefined) data.video_url = input.videoUrl;
+	if (input.durationSeconds !== undefined) data.duration_seconds = input.durationSeconds;
+	if (input.requiresPrevious !== undefined) data.requires_previous = input.requiresPrevious;
+	return content.create("topics", data);
+}
+
 export interface SeedProgressInput {
 	userId: string;
 	courseId: string;
-	lessonId: string;
+	stepType?: "lesson" | "topic";
+	stepId: string;
+	parentLessonId?: string;
 	percentComplete?: number;
 	startedAt?: string;
 	completedAt?: string;
@@ -244,12 +277,13 @@ export interface SeedProgressResult {
 	id: string;
 	userId: string;
 	courseId: string;
-	lessonId: string;
+	stepType: "lesson" | "topic";
+	stepId: string;
 	percentComplete: number;
 }
 
 /**
- * Insert a row into the plugin's `progress` storage collection.
+ * Insert a row into the plugin's `step_progress` storage collection (ADR 0001).
  */
 export async function seedProgress(
 	ctx: PluginContext,
@@ -258,21 +292,25 @@ export async function seedProgress(
 	const id = `prog_${ulid()}`;
 	const percentComplete = input.percentComplete ?? 0;
 	const startedAt = input.startedAt ?? new Date().toISOString();
+	const stepType = input.stepType ?? "lesson";
 	const data: Record<string, unknown> = {
 		userId: input.userId,
 		courseId: input.courseId,
-		lessonId: input.lessonId,
+		stepType,
+		stepId: input.stepId,
 		percentComplete,
 		startedAt,
 	};
+	if (input.parentLessonId !== undefined) data.parentLessonId = input.parentLessonId;
 	if (input.completedAt !== undefined) data.completedAt = input.completedAt;
 	if (input.positionSeconds !== undefined) data.positionSeconds = input.positionSeconds;
-	await collection(ctx, "progress").put(id, data);
+	await collection(ctx, "step_progress").put(id, data);
 	return {
 		id,
 		userId: input.userId,
 		courseId: input.courseId,
-		lessonId: input.lessonId,
+		stepType,
+		stepId: input.stepId,
 		percentComplete,
 	};
 }

@@ -34,7 +34,7 @@ import type {
 	QuizTimeLimitPolicy,
 } from "../types/storage.js";
 import { emit } from "./event-bus.js";
-import { markLessonComplete } from "./progress.js";
+import { markStepComplete } from "./progress.js";
 import { err, ok, type Result } from "./result.js";
 
 const QUIZZES = "quizzes";
@@ -427,10 +427,13 @@ export async function submitAttempt(
 	// attempt to a lessonId — passing + lessonId means this quiz is the
 	// lesson's terminal assessment.
 	if (persistedPassed && attempt.lessonId) {
-		const completed = await markLessonComplete(ctx, attempt.userId, attempt.lessonId);
+		const completed = await markStepComplete(ctx, attempt.userId, "lesson", attempt.lessonId);
 		if (!completed.ok) {
 			// Don't fail the submit — the attempt grading succeeded; the lesson
 			// completion will be swept by the reconciler on the next cron tick.
+			// Also note: a `LEARN_LESSON_LOCKED` here means topics-incomplete;
+			// the user must finish topics before the quiz auto-completes the
+			// lesson body.
 			ctx.log.warn("quiz: lesson completion failed after pass", {
 				attemptId,
 				code: completed.error.code,

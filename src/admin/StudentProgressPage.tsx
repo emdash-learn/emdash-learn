@@ -242,6 +242,14 @@ function CourseCard({ course }: { course: StudentCourse }): ReactElement {
 						{formatCount(course.lessonsCompleted)} / {formatCount(course.lessonsTotal)} complete
 					</dd>
 				</div>
+				{course.topicsTotal > 0 ? (
+					<div style={metricStyle}>
+						<dt style={metricLabelStyle}>Topics</dt>
+						<dd style={metricValueStyle}>
+							{formatCount(course.topicsCompleted)} / {formatCount(course.topicsTotal)} complete
+						</dd>
+					</div>
+				) : null}
 				<div style={metricStyle}>
 					<dt style={metricLabelStyle}>Status</dt>
 					<dd style={metricValueStyle}>

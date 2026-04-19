@@ -12,12 +12,14 @@ Introduces **Emdash Learn**, an open-source LMS plugin for emdash.
 
 **Content**
 
-- `courses` and `lessons` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
+- `courses`, `lessons`, and `topics` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
+- **Topics primitive** (ADR 0001): first-class `Course → Lesson → Topic` hierarchy mirroring LearnDash's `sfwd-topic` post type. Topics inherit drip from the parent lesson and have no free-preview flag; gated by per-topic `requires_previous` within the lesson.
 - Inline quiz blocks via a custom Portable Text block type (native-plugin only).
 
 **Learning engine**
 
-- Enrollments, per-lesson progress with video resume, per-lesson drip gating (immediate + relative modes), sequential-lesson requirements, free-preview lessons.
+- Enrollments, per-step progress with video resume, per-lesson drip gating (immediate + relative modes), sequential-lesson requirements, free-preview lessons.
+- Step-aware progress: a single `step_progress` collection tracks both lesson-body and topic completion. Course completion now requires every published lesson AND every published topic to be complete.
 - Server-graded quizzes with 4 question types (MCQ, multi-select, true/false, short-text), configurable time limits (hard/soft policy), optional randomization.
 - Certificate records with unique verification codes; public `certificate:verify` endpoint.
 - Cohorts with capacity hints and CSV email import.
@@ -33,7 +35,7 @@ Introduces **Emdash Learn**, an open-source LMS plugin for emdash.
 **Integrations**
 
 - Reuses emdash's passkey/OAuth/magic-link auth; no plugin-side auth surface.
-- Site-side routes documented for theme authors: `catalog`, `my-learning`, `curriculum`, `lesson`, `progress:tick`/`complete`, `quiz:start`/`submit`, `certificates:mine`, `certificate:verify`.
+- Site-side routes documented for theme authors: `catalog`, `my-learning`, `curriculum`, `lesson`, `topic`, `progress:tick`/`complete`, `quiz:start`/`submit`, `certificates:mine`, `certificate:verify`.
 
 ### Deferred to v1.1+
 

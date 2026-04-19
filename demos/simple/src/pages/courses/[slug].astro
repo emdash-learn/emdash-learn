@@ -14,6 +14,15 @@ interface CatalogCourse {
 	enrollmentOpen?: boolean;
 }
 
+interface VisibleTopic {
+	id: string;
+	title: string;
+	order: number;
+	requiresPrevious: boolean;
+	unlocked: boolean;
+	completed: boolean;
+}
+
 interface VisibleLesson {
 	id: string;
 	title: string;
@@ -26,6 +35,7 @@ interface VisibleLesson {
 	unlocked: boolean;
 	completed: boolean;
 	percentComplete: number;
+	topics: VisibleTopic[];
 }
 
 const { slug } = Astro.params;

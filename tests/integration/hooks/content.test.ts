@@ -108,7 +108,8 @@ describe("hooks/content.contentBeforeDelete — lessons", () => {
 		await seedProgress(ctx, {
 			userId: student.id,
 			courseId: course.id,
-			lessonId: lesson.id,
+			stepType: "lesson",
+			stepId: lesson.id,
 			percentComplete: 50,
 		});
 

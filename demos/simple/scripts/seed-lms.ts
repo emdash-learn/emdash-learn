@@ -44,6 +44,15 @@ type LessonSeed = {
 	data: Record<string, unknown>;
 };
 
+type TopicSeed = {
+	localId: string;
+	slug: string;
+	status: "published" | "draft";
+	lessonLocalId: string;
+	courseLocalId: string;
+	data: Record<string, unknown>;
+};
+
 type UserSeed = {
 	localId: string;
 	email: string;
@@ -301,6 +310,51 @@ const LESSONS: LessonSeed[] = [
 	},
 ];
 
+// Topics for Course A, lesson "Components" (l_a3) — demonstrates the
+// Course → Lesson → Topic → Quiz hierarchy from ADR 0001.
+const TOPICS: TopicSeed[] = [
+	{
+		localId: "t_a3_1",
+		slug: "react-jsx-syntax",
+		status: "published",
+		lessonLocalId: "l_a3",
+		courseLocalId: "course_a",
+		data: {
+			title: "JSX syntax",
+			order: 0,
+			summary: "Embedding HTML-like markup inside JavaScript.",
+			duration_seconds: 360,
+		},
+	},
+	{
+		localId: "t_a3_2",
+		slug: "react-props",
+		status: "published",
+		lessonLocalId: "l_a3",
+		courseLocalId: "course_a",
+		data: {
+			title: "Props",
+			order: 1,
+			summary: "Passing data into components.",
+			duration_seconds: 420,
+			requires_previous: true,
+		},
+	},
+	{
+		localId: "t_a3_3",
+		slug: "react-children",
+		status: "published",
+		lessonLocalId: "l_a3",
+		courseLocalId: "course_a",
+		data: {
+			title: "Children",
+			order: 2,
+			summary: "Composing components via the children prop.",
+			duration_seconds: 300,
+		},
+	},
+];
+
 // Deterministic verification code so the E2E suite can hit it directly.
 const CERT_VERIFICATION_CODE = "LEARN-DEMO-LIN-A";
 
@@ -386,6 +440,48 @@ const LESSON_FIELDS: FieldDef[] = [
 		defaultValue: false,
 	},
 	{ slug: "drip_offset_days", label: "Drip offset (days)", type: "integer", defaultValue: 0 },
+];
+
+const TOPIC_FIELDS: FieldDef[] = [
+	{ slug: "title", label: "Title", type: "string", required: true, validation: { maxLength: 200 } },
+	{
+		slug: "lesson",
+		label: "Lesson",
+		type: "reference",
+		required: true,
+		options: { collection: "lessons", allowMultiple: false },
+	},
+	{
+		slug: "course",
+		label: "Course",
+		type: "reference",
+		required: true,
+		options: { collection: "courses", allowMultiple: false },
+	},
+	{
+		slug: "order",
+		label: "Order",
+		type: "integer",
+		required: true,
+		defaultValue: 0,
+		validation: { min: 0 },
+	},
+	{ slug: "summary", label: "Summary", type: "text", validation: { maxLength: 500 } },
+	{ slug: "body", label: "Body", type: "portableText" },
+	{ slug: "video_url", label: "Video URL", type: "string", validation: { maxLength: 500 } },
+	{
+		slug: "duration_seconds",
+		label: "Duration (seconds)",
+		type: "integer",
+		defaultValue: 0,
+		validation: { min: 0 },
+	},
+	{
+		slug: "requires_previous",
+		label: "Requires previous topic",
+		type: "boolean",
+		defaultValue: false,
+	},
 ];
 
 // ---------------------------------------------------------------------------
@@ -504,6 +600,7 @@ async function main(): Promise<void> {
 	const registry = new SchemaRegistry(db);
 	await ensureCollection(registry, "courses", "Courses", "Course", "graduation-cap", COURSE_FIELDS);
 	await ensureCollection(registry, "lessons", "Lessons", "Lesson", "play-circle", LESSON_FIELDS);
+	await ensureCollection(registry, "topics", "Topics", "Topic", "list-ordered", TOPIC_FIELDS);
 
 	const content = new ContentRepository(db);
 
@@ -513,10 +610,13 @@ async function main(): Promise<void> {
 
 	try {
 		// Wipe seeded content (leave any dev-created content alone).
+		// Reverse-dependency order: topics → lessons → courses.
 		const courseSlugs = COURSES.map((c) => c.slug);
 		const lessonSlugs = LESSONS.map((l) => l.slug);
-		await wipeSeededContent(sqlite, "courses", courseSlugs);
+		const topicSlugs = TOPICS.map((t) => t.slug);
+		await wipeSeededContent(sqlite, "topics", topicSlugs);
 		await wipeSeededContent(sqlite, "lessons", lessonSlugs);
+		await wipeSeededContent(sqlite, "courses", courseSlugs);
 
 		// Wipe seeded users (by email) so the re-insert matches summary counts.
 		// Keep dev-bypass admin (`dev@emdash.local`) + any other developer users.
@@ -527,7 +627,7 @@ async function main(): Promise<void> {
 		// Wipe plugin storage owned by this plugin.
 		for (const col of [
 			"enrollments",
-			"progress",
+			"step_progress",
 			"certificates",
 			"cohorts",
 			"cohort_members",
@@ -599,6 +699,27 @@ async function main(): Promise<void> {
 			lessonIds.set(l.localId, item.id);
 		}
 
+		// -- Topics (ADR 0001) -------------------------------------------------
+		const topicIds = new Map<string, string>();
+		/* oxlint-disable no-await-in-loop -- ContentRepository.create is sequential by design */
+		for (const t of TOPICS) {
+			const lessonId = lessonIds.get(t.lessonLocalId);
+			const courseId = courseIds.get(t.courseLocalId);
+			if (!lessonId) throw new Error(`Unknown lessonLocalId ${t.lessonLocalId}`);
+			if (!courseId) throw new Error(`Unknown courseLocalId ${t.courseLocalId}`);
+			const data: Record<string, unknown> = { ...t.data, lesson: lessonId, course: courseId };
+			const publishedAt = t.status === "published" ? new Date().toISOString() : null;
+			const item = await content.create({
+				type: "topics",
+				slug: t.slug,
+				status: t.status,
+				data,
+				publishedAt,
+			});
+			topicIds.set(t.localId, item.id);
+		}
+		/* oxlint-enable no-await-in-loop */
+
 		// -- Plugin storage ------------------------------------------------
 		const now = () => new Date().toISOString();
 
@@ -668,32 +789,48 @@ async function main(): Promise<void> {
 			insertPluginRow(sqlite, "enrollments", ulid(), data);
 		}
 
-		// progress: Alice → lessons 1-4 of A complete (68% via 4/6 = 66.6…; close enough);
-		// Jon → 12% on Course B lesson 1; Lin → all Course A lessons complete.
+		// step_progress (ADR 0001): Alice → lessons 1-4 of A complete; Jon → 12% on Course B lesson 1;
+		// Lin → all Course A lessons + topics complete (lin's path includes the new topics on l_a3).
 		const aliceAProgress = ["l_a1", "l_a2", "l_a3", "l_a4"];
 		for (const lid of aliceAProgress) {
-			insertPluginRow(sqlite, "progress", ulid(), {
+			insertPluginRow(sqlite, "step_progress", ulid(), {
 				userId: userIds.get("user_alice"),
 				courseId: courseIds.get("course_a"),
-				lessonId: lessonIds.get(lid),
+				stepType: "lesson",
+				stepId: lessonIds.get(lid),
 				startedAt: now(),
 				completedAt: now(),
 				percentComplete: 100,
 			});
 		}
-		insertPluginRow(sqlite, "progress", ulid(), {
+		insertPluginRow(sqlite, "step_progress", ulid(), {
 			userId: userIds.get("user_jon"),
 			courseId: courseIds.get("course_b"),
-			lessonId: lessonIds.get("l_b1"),
+			stepType: "lesson",
+			stepId: lessonIds.get("l_b1"),
 			startedAt: now(),
 			percentComplete: 12,
 			positionSeconds: 220,
 		});
 		for (const lid of ["l_a1", "l_a2", "l_a3", "l_a4", "l_a5", "l_a6"]) {
-			insertPluginRow(sqlite, "progress", ulid(), {
+			insertPluginRow(sqlite, "step_progress", ulid(), {
 				userId: userIds.get("user_lin"),
 				courseId: courseIds.get("course_a"),
-				lessonId: lessonIds.get(lid),
+				stepType: "lesson",
+				stepId: lessonIds.get(lid),
+				startedAt: now(),
+				completedAt: now(),
+				percentComplete: 100,
+			});
+		}
+		// Lin completes the topics on l_a3 too.
+		for (const tid of ["t_a3_1", "t_a3_2", "t_a3_3"]) {
+			insertPluginRow(sqlite, "step_progress", ulid(), {
+				userId: userIds.get("user_lin"),
+				courseId: courseIds.get("course_a"),
+				stepType: "topic",
+				stepId: topicIds.get(tid),
+				parentLessonId: lessonIds.get("l_a3"),
 				startedAt: now(),
 				completedAt: now(),
 				percentComplete: 100,
@@ -815,7 +952,7 @@ async function main(): Promise<void> {
 
 	const elapsed = Date.now() - start;
 	console.log(
-		"Seeded 4 courses, 14 lessons, 5 users, 5 enrollments, 1 quiz, 2 attempts, 1 certificate.",
+		"Seeded 4 courses, 14 lessons, 3 topics, 5 users, 5 enrollments, 1 quiz, 2 attempts, 1 certificate.",
 	);
 	if (process.env.EMDASH_LMS_SEED_VERBOSE === "1") {
 		console.log(`(seed completed in ${elapsed} ms)`);

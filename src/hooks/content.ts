@@ -26,8 +26,13 @@
 
 import type { ContentDeleteEvent, PluginContext, StorageCollection } from "emdash";
 
-import { COURSES_COLLECTION_SLUG, LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
-import type { Enrollment, Progress } from "../types/storage.js";
+import {
+	COURSES_COLLECTION_SLUG,
+	LEARN_ERRORS,
+	LESSONS_COLLECTION_SLUG,
+	TOPICS_COLLECTION_SLUG,
+} from "../constants.js";
+import type { Enrollment, StepProgress } from "../types/storage.js";
 
 /**
  * Typed access to a named plugin-storage collection. Mirrors the pattern
@@ -68,14 +73,53 @@ async function hasActiveEnrollment(ctx: PluginContext, courseId: string): Promis
 }
 
 /**
- * Refuse-if-any check against the `progress` collection for a given
- * `lessonId`. A single existing row is enough to block the delete, so this
- * only asks for one item.
+ * Refuse-if-any check against the `step_progress` collection for a given
+ * step (lesson or topic). A single existing row is enough to block the delete.
  */
-async function hasAnyProgress(ctx: PluginContext, lessonId: string): Promise<boolean> {
-	const coll = storageFor<Progress>(ctx, "progress");
-	const page = await coll.query({ where: { lessonId }, limit: 1 });
+async function hasAnyProgress(ctx: PluginContext, stepId: string): Promise<boolean> {
+	const coll = storageFor<StepProgress>(ctx, "step_progress");
+	const page = await coll.query({ where: { stepId }, limit: 1 });
 	return page.items.length > 0;
+}
+
+/**
+ * Refuse-if-any topic references the given lessonId. Topics live in their
+ * own content collection (`topics`); we paginate with the same client-side
+ * filter pattern as the curriculum engine.
+ */
+async function hasTopicReferencingLesson(ctx: PluginContext, lessonId: string): Promise<boolean> {
+	if (!ctx.content) return false;
+	let cursor: string | undefined;
+	/* oxlint-disable no-await-in-loop */
+	do {
+		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, { limit: 100, cursor });
+		for (const item of page.items) {
+			if (item.data["lesson"] === lessonId) return true;
+		}
+		cursor = page.hasMore ? page.cursor : undefined;
+	} while (cursor);
+	/* oxlint-enable no-await-in-loop */
+	return false;
+}
+
+/**
+ * Refuse-if-any lesson or topic references the given courseId.
+ */
+async function hasContentReferencingCourse(ctx: PluginContext, courseId: string): Promise<boolean> {
+	if (!ctx.content) return false;
+	for (const collection of [LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG]) {
+		let cursor: string | undefined;
+		/* oxlint-disable no-await-in-loop */
+		do {
+			const page = await ctx.content.list(collection, { limit: 100, cursor });
+			for (const item of page.items) {
+				if (item.data["course"] === courseId) return true;
+			}
+			cursor = page.hasMore ? page.cursor : undefined;
+		} while (cursor);
+		/* oxlint-enable no-await-in-loop */
+	}
+	return false;
 }
 
 /**
@@ -96,6 +140,12 @@ export async function contentBeforeDelete(
 			);
 			return false;
 		}
+		if (await hasContentReferencingCourse(ctx, event.id)) {
+			ctx.log.warn(
+				`[${LEARN_ERRORS.COURSE_HAS_ENROLLMENTS}] refusing to delete course ${event.id}: lessons or topics still reference it`,
+			);
+			return false;
+		}
 		return;
 	}
 
@@ -103,6 +153,22 @@ export async function contentBeforeDelete(
 		if (await hasAnyProgress(ctx, event.id)) {
 			ctx.log.warn(
 				`[${LEARN_ERRORS.LESSON_HAS_PROGRESS}] refusing to delete lesson ${event.id}: progress rows exist`,
+			);
+			return false;
+		}
+		if (await hasTopicReferencingLesson(ctx, event.id)) {
+			ctx.log.warn(
+				`[${LEARN_ERRORS.LESSON_HAS_PROGRESS}] refusing to delete lesson ${event.id}: topics still reference it`,
+			);
+			return false;
+		}
+		return;
+	}
+
+	if (event.collection === TOPICS_COLLECTION_SLUG) {
+		if (await hasAnyProgress(ctx, event.id)) {
+			ctx.log.warn(
+				`[${LEARN_ERRORS.LESSON_HAS_PROGRESS}] refusing to delete topic ${event.id}: progress rows exist`,
 			);
 			return false;
 		}

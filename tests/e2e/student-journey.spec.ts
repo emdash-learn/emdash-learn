@@ -59,4 +59,37 @@ test.describe("student journey — admin-as-student", () => {
 		await expect(card).toContainText("Getting Started with React");
 		await expect(card).not.toContainText("0% complete");
 	});
+
+	test("topic step: open a lesson with topics and complete the first topic", async ({ page }) => {
+		await page.goto("/_emdash/api/auth/dev-bypass");
+		await page.goto("/courses/getting-started-with-react");
+
+		// Ensure enrollment (idempotent — 200 or 409 both fine).
+		const enrollButton = page.getByTestId("enroll-btn");
+		if (await enrollButton.isVisible()) {
+			const courseId = await enrollButton.getAttribute("data-course-id");
+			await page.evaluate(async (cid) => {
+				await fetch("/_emdash/api/plugins/lms-core/enroll", {
+					method: "POST",
+					headers: { "Content-Type": "application/json", "X-EmDash-Request": "1" },
+					credentials: "same-origin",
+					body: JSON.stringify({ courseId: cid, source: "free" }),
+				});
+			}, courseId);
+			await page.reload();
+		}
+
+		// Lesson "Components" (l_a3) is the lesson with seeded topics.
+		await page.getByRole("link", { name: "Components", exact: true }).click();
+		const topicsList = page.getByTestId("topics-list");
+		await expect(topicsList).toBeVisible();
+		await expect(topicsList).toContainText("JSX syntax");
+
+		// Open the first topic (unlocked by default).
+		await page.getByRole("link", { name: "JSX syntax", exact: true }).click();
+		const topicComplete = page.getByTestId("topic-complete-btn");
+		await expect(topicComplete).toBeVisible();
+		await topicComplete.click();
+		await expect(topicComplete).toContainText("Completed");
+	});
 });

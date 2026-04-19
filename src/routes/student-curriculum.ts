@@ -27,6 +27,9 @@ export type CurriculumInput = z.infer<typeof curriculumInput>;
 export const lessonInput = z.object({ lessonId: z.string().min(1) });
 export type LessonInput = z.infer<typeof lessonInput>;
 
+export const topicInput = z.object({ topicId: z.string().min(1) });
+export type TopicInput = z.infer<typeof topicInput>;
+
 export const myLearningInput = z.object({
 	status: z.enum(["active", "completed", "all"]).optional(),
 	cursor: z.string().optional(),
@@ -45,6 +48,7 @@ function statusForCode(code: string): number {
 		case LEARN_ERRORS.FORBIDDEN:
 		case LEARN_ERRORS.NOT_ENROLLED:
 		case LEARN_ERRORS.LESSON_LOCKED:
+		case LEARN_ERRORS.TOPIC_LOCKED:
 			return 403;
 		case LEARN_ERRORS.SETUP_INCOMPLETE:
 			return 409;
@@ -91,6 +95,15 @@ const lessonRoute: PluginRoute<LessonInput> = {
 	},
 };
 
+const topicRoute: PluginRoute<TopicInput> = {
+	input: topicInput,
+	handler: async (ctx) => {
+		const user = gateStudent(ctx);
+		const item = unwrap(await curriculum.getTopic(ctx, user.id, ctx.input.topicId));
+		return { topic: item };
+	},
+};
+
 const myLearningRoute: PluginRoute<MyLearningInput> = {
 	input: myLearningInput,
 	handler: async (ctx) => {
@@ -107,7 +120,13 @@ const myLearningRoute: PluginRoute<MyLearningInput> = {
 export const curriculumRoutes = {
 	curriculum: curriculumRoute,
 	lesson: lessonRoute,
+	topic: topicRoute,
 	"my-learning": myLearningRoute,
 } as const;
 
-export type { MyLearningItem, MyLearningPage, VisibleLesson } from "../engine/curriculum.js";
+export type {
+	MyLearningItem,
+	MyLearningPage,
+	VisibleLesson,
+	VisibleTopic,
+} from "../engine/curriculum.js";

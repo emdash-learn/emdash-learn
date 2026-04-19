@@ -27,9 +27,9 @@ import type {
 	Certificate,
 	CourseInstructor,
 	Enrollment,
-	Progress,
 	Quiz,
 	QuizAttempt,
+	StepProgress,
 } from "../types/storage.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -94,6 +94,8 @@ export interface StudentProgress {
 		percentComplete: number;
 		lessonsCompleted: number;
 		lessonsTotal: number;
+		topicsCompleted: number;
+		topicsTotal: number;
 		completedAt?: string;
 		lastActivityAt?: string;
 	}>;
@@ -191,12 +193,24 @@ async function courseTitle(ctx: PluginContext, courseId: string): Promise<string
 
 /** Count published lessons in a course. Returns 0 if content is unavailable. */
 async function countLessons(ctx: PluginContext, courseId: string): Promise<number> {
+	return countContentInCourse(ctx, "lessons", courseId);
+}
+
+async function countTopics(ctx: PluginContext, courseId: string): Promise<number> {
+	return countContentInCourse(ctx, "topics", courseId);
+}
+
+async function countContentInCourse(
+	ctx: PluginContext,
+	collection: string,
+	courseId: string,
+): Promise<number> {
 	if (!ctx.content) return 0;
 	let count = 0;
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list("lessons", {
+		const page = await ctx.content.list(collection, {
 			where: { status: "published" },
 			limit: 200,
 			cursor,
@@ -267,10 +281,10 @@ export async function dashboardStats(
 	const enrollments = await enrollmentsForCourses(ctx, courseIds);
 	const studentIds = new Set(enrollments.map((e) => e.userId));
 
-	const progressRows: Progress[] = [];
+	const progressRows: StepProgress[] = [];
 	for (const courseId of courseIds) {
 		// eslint-disable-next-line no-await-in-loop
-		const rows = await scanAll<Progress>(ctx, "progress", { courseId });
+		const rows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 		for (const row of rows) progressRows.push(row.data);
 	}
 
@@ -337,7 +351,7 @@ export async function dashboardCourses(
 		const completionRate = enrolled > 0 ? (completed / enrolled) * 100 : 0;
 
 		// eslint-disable-next-line no-await-in-loop
-		const progressRows = await scanAll<Progress>(ctx, "progress", { courseId });
+		const progressRows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 		const activeUsers = new Set<string>();
 		for (const row of progressRows) {
 			const p = row.data;
@@ -401,18 +415,21 @@ export async function recentActivity(
 		}
 	}
 
-	// Lesson completions.
+	// Step (lesson + topic) completions. Surface lesson completion events;
+	// topic completions don't get their own activity row at v1 (they roll up
+	// into the lesson completion via the cascade).
 	for (const courseId of courseIds) {
 		// eslint-disable-next-line no-await-in-loop
-		const rows = await scanAll<Progress>(ctx, "progress", { courseId });
+		const rows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 		for (const row of rows) {
 			if (!row.data.completedAt) continue;
+			if (row.data.stepType !== "lesson") continue;
 			events.push({
 				type: "lesson-completed",
 				userId: row.data.userId,
 				courseId,
 				courseTitle: titleCache.get(courseId),
-				lessonId: row.data.lessonId,
+				lessonId: row.data.stepId,
 				at: row.data.completedAt,
 			});
 		}
@@ -456,7 +473,7 @@ export async function courseOverview(
 	const enrolled = active.length;
 	const completed = active.filter((r) => r.data.completedAt).length;
 
-	const progressRows = await scanAll<Progress>(ctx, "progress", { courseId });
+	const progressRows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 	const thirtyDaysAgo = msAgo(30);
 	const activeUsers = new Set<string>();
 	const byUser = new Map<string, number[]>();
@@ -529,7 +546,7 @@ export async function courseCompletionFunnel(
 	const started = active.length;
 
 	// Per-user max percentComplete across all progress rows in the course.
-	const progressRows = await scanAll<Progress>(ctx, "progress", { courseId });
+	const progressRows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 	const maxByUser = new Map<string, number>();
 	for (const row of progressRows) {
 		const p = row.data;
@@ -574,11 +591,14 @@ export async function courseProgressMatrix(
 	});
 	const active = page.items.filter((r) => !r.data.revokedAt);
 
-	const progressRows = await scanAll<Progress>(ctx, "progress", { courseId });
+	const progressRows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 	const byUser = new Map<string, Record<string, number>>();
 	for (const row of progressRows) {
+		// Course progress matrix is lesson-scoped; topic rollups are reflected
+		// via the cascade (lesson auto-completes when topics complete).
+		if (row.data.stepType !== "lesson") continue;
 		const map = byUser.get(row.data.userId) ?? {};
-		map[row.data.lessonId] = row.data.percentComplete ?? 0;
+		map[row.data.stepId] = row.data.percentComplete ?? 0;
 		byUser.set(row.data.userId, map);
 	}
 
@@ -684,12 +704,23 @@ export async function studentProgressAcrossCourses(
 		// eslint-disable-next-line no-await-in-loop
 		const title = await courseTitle(ctx, e.courseId);
 		// eslint-disable-next-line no-await-in-loop
-		const progressRows = await scanAll<Progress>(ctx, "progress", {
+		const progressRows = await scanAll<StepProgress>(ctx, "step_progress", {
 			userId: studentId,
 			courseId: e.courseId,
 		});
-		const lessonsTotal = await countLessons(ctx, e.courseId);
-		const lessonsCompleted = progressRows.filter((r) => r.data.completedAt).length;
+		// eslint-disable-next-line no-await-in-loop
+		const [lessonsTotal, topicsTotal] = await Promise.all([
+			countLessons(ctx, e.courseId),
+			countTopics(ctx, e.courseId),
+		]);
+		// Count step-rows separately by type; topics roll up under their parent
+		// lesson but the breakdown is surfaced on the StudentProgress shape.
+		const lessonsCompleted = progressRows.filter(
+			(r) => r.data.completedAt && r.data.stepType === "lesson",
+		).length;
+		const topicsCompleted = progressRows.filter(
+			(r) => r.data.completedAt && r.data.stepType === "topic",
+		).length;
 		const sumPct = progressRows.reduce((a, r) => a + (r.data.percentComplete ?? 0), 0);
 		const percentComplete =
 			progressRows.length > 0 ? Math.round((sumPct / progressRows.length) * 100) / 100 : 0;
@@ -708,6 +739,8 @@ export async function studentProgressAcrossCourses(
 			percentComplete,
 			lessonsCompleted,
 			lessonsTotal,
+			topicsCompleted,
+			topicsTotal,
 		};
 		if (e.completedAt !== undefined) entry.completedAt = e.completedAt;
 		if (lastActivityAt !== undefined) entry.lastActivityAt = lastActivityAt;
@@ -727,7 +760,7 @@ export async function siteAnalytics(
 ): Promise<Result<SiteAnalytics>> {
 	const enrollments = await scanAll<Enrollment>(ctx, "enrollments");
 	const certificates = await scanAll<Certificate>(ctx, "certificates");
-	const progressRows = await scanAll<Progress>(ctx, "progress");
+	const progressRows = await scanAll<StepProgress>(ctx, "step_progress");
 
 	let totalEnrollments = 0;
 	let totalCompletions = 0;
@@ -796,7 +829,7 @@ export async function coursesComparison(
 		const completionRate = enrolled > 0 ? (completed / enrolled) * 100 : 0;
 
 		// eslint-disable-next-line no-await-in-loop
-		const progressRows = await scanAll<Progress>(ctx, "progress", { courseId });
+		const progressRows = await scanAll<StepProgress>(ctx, "step_progress", { courseId });
 		const byUser = new Map<string, number[]>();
 		for (const row of progressRows) {
 			const arr = byUser.get(row.data.userId) ?? [];
@@ -830,7 +863,7 @@ export async function engagementMetrics(
 	ctx: PluginContext,
 	range: DateRange,
 ): Promise<Result<EngagementMetrics>> {
-	const progressRows = await scanAll<Progress>(ctx, "progress");
+	const progressRows = await scanAll<StepProgress>(ctx, "step_progress");
 	const enrollments = await scanAll<Enrollment>(ctx, "enrollments");
 
 	const dauMap = new Map<string, Set<string>>(); // date -> userIds

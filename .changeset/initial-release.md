@@ -6,12 +6,14 @@ Introduces **Emdash Learn**, an open-source LMS plugin for emdash.
 
 **Content:**
 
-- `courses` and `lessons` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
+- `courses`, `lessons`, and `topics` content collections with rich Portable Text bodies, drafts, revisions, scheduling, SEO, and i18n.
+- **Topics primitive** (ADR 0001): first-class `Course → Lesson → Topic` hierarchy. Topics inherit drip from the parent lesson and have no free-preview flag; gated within the lesson via per-topic `requires_previous`.
 - Inline quiz blocks via a custom Portable Text block type (native-plugin only).
 
 **Learning engine:**
 
-- Enrollments, per-lesson progress with video resume, per-lesson drip gating (immediate + relative modes), sequential-lesson requirements, free-preview lessons.
+- Enrollments, per-step progress with video resume, per-lesson drip gating (immediate + relative modes), sequential-lesson requirements, free-preview lessons.
+- Step-aware progress: a unified `step_progress` collection tracks lesson-body and topic completion together. Course completion requires every published lesson AND every published topic.
 - Server-graded quizzes with 4 question types (MCQ, multi-select, true/false, short-text), configurable time limits (hard/soft policy), optional randomization.
 - Certificate records with unique verification codes; public `certificate:verify` endpoint.
 - Cohorts with capacity hints and CSV email import.

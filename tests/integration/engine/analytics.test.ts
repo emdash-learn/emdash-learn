@@ -108,13 +108,15 @@ describe("engine/analytics.dashboardStats", () => {
 		await seedProgress(ctx, {
 			userId: s1.id,
 			courseId: c1.id,
-			lessonId: "l1",
+			stepType: "lesson",
+			stepId: "l1",
 			percentComplete: 50,
 		});
 		await seedProgress(ctx, {
 			userId: s2.id,
 			courseId: c1.id,
-			lessonId: "l1",
+			stepType: "lesson",
+			stepId: "l1",
 			percentComplete: 100,
 			completedAt: new Date().toISOString(),
 		});
@@ -180,13 +182,15 @@ describe("engine/analytics.courseOverview", () => {
 		await seedProgress(ctx, {
 			userId: s1.id,
 			courseId: c.id,
-			lessonId: "l1",
+			stepType: "lesson",
+			stepId: "l1",
 			percentComplete: 50,
 		});
 		await seedProgress(ctx, {
 			userId: s2.id,
 			courseId: c.id,
-			lessonId: "l1",
+			stepType: "lesson",
+			stepId: "l1",
 			percentComplete: 100,
 		});
 
@@ -249,7 +253,8 @@ describe("engine/analytics.courseCompletionFunnel", () => {
 			await seedProgress(ctx, {
 				userId: s.id,
 				courseId: c.id,
-				lessonId: "l1",
+				stepType: "lesson",
+				stepId: "l1",
 				percentComplete: percents[i] ?? 0,
 			});
 		}
@@ -273,19 +278,22 @@ describe("engine/analytics.courseProgressMatrix", () => {
 		await seedProgress(ctx, {
 			userId: s1.id,
 			courseId: c.id,
-			lessonId: "lesson-a",
+			stepType: "lesson",
+			stepId: "lesson-a",
 			percentComplete: 80,
 		});
 		await seedProgress(ctx, {
 			userId: s1.id,
 			courseId: c.id,
-			lessonId: "lesson-b",
+			stepType: "lesson",
+			stepId: "lesson-b",
 			percentComplete: 40,
 		});
 		await seedProgress(ctx, {
 			userId: s2.id,
 			courseId: c.id,
-			lessonId: "lesson-a",
+			stepType: "lesson",
+			stepId: "lesson-a",
 			percentComplete: 20,
 		});
 
@@ -406,7 +414,8 @@ describe("engine/analytics.engagementMetrics", () => {
 		await seedProgress(ctx, {
 			userId: s.id,
 			courseId: c.id,
-			lessonId: "l",
+			stepType: "lesson",
+			stepId: "l",
 			percentComplete: 100,
 		});
 

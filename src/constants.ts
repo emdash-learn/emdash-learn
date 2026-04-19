@@ -11,8 +11,11 @@ export const PLUGIN_VERSION = "0.0.0";
  * Incremented whenever the setup wizard's frozen schema set or seeded default
  * KV values change. Re-running the wizard against an older bootstrap marker
  * replays the idempotent steps and brings the install up to current.
+ *
+ * v2 bumps this for the topics primitive (ADR 0001) — adds the `topics`
+ * collection alongside `courses` and `lessons`.
  */
-export const BOOTSTRAP_VERSION = 1;
+export const BOOTSTRAP_VERSION = 2;
 
 /**
  * Default KV values seeded on plugin:install. Admin settings UI (T24) lets
@@ -48,6 +51,7 @@ export const SETTING_KEYS = [
 
 export const COURSES_COLLECTION_SLUG = "courses";
 export const LESSONS_COLLECTION_SLUG = "lessons";
+export const TOPICS_COLLECTION_SLUG = "topics";
 
 /**
  * Error codes surfaced by the engine (§17.6). Kept in an `as const` object so
@@ -60,6 +64,7 @@ export const LEARN_ERRORS = {
 	ENROLLMENT_CLOSED: "LEARN_ENROLLMENT_CLOSED",
 	COHORT_AT_CAPACITY: "LEARN_COHORT_AT_CAPACITY",
 	LESSON_LOCKED: "LEARN_LESSON_LOCKED",
+	TOPIC_LOCKED: "LEARN_TOPIC_LOCKED",
 	QUIZ_NOT_STARTED: "LEARN_QUIZ_NOT_STARTED",
 	QUIZ_TIMEOUT: "LEARN_QUIZ_TIMEOUT",
 	CERT_NOT_FOUND: "LEARN_CERT_NOT_FOUND",
