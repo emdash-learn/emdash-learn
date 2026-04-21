@@ -15,12 +15,28 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import { LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_VERSION, LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_STATE_KEY } from "../../../src/kv-keys.js";
 import {
 	instructorAssignmentRoutes,
 	type InstructorListResponse,
 } from "../../../src/routes/instructor-assignments.js";
 import type { CourseInstructor } from "../../../src/types/storage.js";
+
+/** Minimal KV stub with bootstrap state pre-seeded so `ensureSetupComplete` passes. */
+function makeKvStub() {
+	const store = new Map<string, unknown>([
+		[BOOTSTRAP_STATE_KEY, { version: BOOTSTRAP_VERSION, completedSteps: [] }],
+	]);
+	return {
+		async get<T>(key: string): Promise<T | null> {
+			return (store.get(key) as T | undefined) ?? null;
+		},
+		async set(key: string, value: unknown): Promise<void> {
+			store.set(key, value);
+		},
+	};
+}
 
 interface StoredRow<T> {
 	id: string;
@@ -85,12 +101,15 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 		createdAt: "2026-01-01T00:00:00Z",
 	};
 
+	const kv = makeKvStub();
+
 	function buildRouteCtx(input: unknown) {
 		return {
 			input,
 			storage: { course_instructors: courseInstructors },
 			log,
 			user,
+			kv,
 			users: { get: getUserSpy },
 			content: { get: getCourseSpy },
 			request: new Request("https://example.invalid/x", { method: "POST" }),

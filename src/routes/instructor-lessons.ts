@@ -20,6 +20,7 @@ import { PluginRouteError, type PluginRoute } from "emdash";
 
 import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schema
@@ -108,6 +109,7 @@ function lessonSummary(item: ContentItem): LessonSummary {
 const listRoute: PluginRoute<LessonListInput> = {
 	input: lessonListInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const limit = ctx.input.limit ?? 50;

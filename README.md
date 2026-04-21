@@ -20,7 +20,12 @@ Peer deps (provided by your emdash site):
 
 ## Quick start
 
-Register the plugin in your site's `astro.config`:
+> **Two steps are required before the LMS is usable.** `pnpm add` alone does
+> not provision the content collections the engine depends on. If you skip
+> Step 2, every student-facing and admin route will return
+> `LEARN_SETUP_INCOMPLETE` (HTTP 409) with a pointer to the wizard URL.
+
+### Step 1 — Install and register the plugin
 
 ```ts
 // astro.config.mjs
@@ -44,8 +49,22 @@ export default defineConfig({
 });
 ```
 
-Start the site, then open the one-click setup wizard at
-`/_emdash/admin/plugins/lms-core/setup` — it provisions the `courses`, `lessons`, and `topics` content collections, seeds defaults, and drops you on the teaching dashboard.
+### Step 2 — Run the setup wizard (required)
+
+Start the site, then **open the setup wizard** at
+`/_emdash/admin/plugins/lms-core/setup` as an admin user. The wizard:
+
+1. Provisions the `courses`, `lessons`, and `topics` content collections.
+2. Seeds default plugin settings.
+3. Stamps the bootstrap version marker.
+
+Until the wizard completes, all data routes return `LEARN_SETUP_INCOMPLETE`
+(409) with `{ setupPath: "/_emdash/admin/plugins/lms-core/setup" }` in the
+error `details` field, so your theme can redirect users to the wizard
+automatically.
+
+The wizard is idempotent — safe to re-run after a plugin upgrade that bumps
+the bootstrap version.
 
 ## What's in the box
 

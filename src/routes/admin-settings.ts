@@ -30,6 +30,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS, type SettingsShape } from "../constants.js";
 import { send as sendEmail } from "../engine/email-queue.js";
 import { settingKey } from "../kv-keys.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -152,6 +153,7 @@ async function countQueuedEmails(ctx: AuthContext): Promise<number> {
 
 const getRoute: PluginRoute<unknown> = {
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
@@ -168,6 +170,7 @@ const getRoute: PluginRoute<unknown> = {
 const updateRoute: PluginRoute<SettingsUpdateInput> = {
 	input: settingsUpdateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
@@ -191,6 +194,7 @@ const updateRoute: PluginRoute<SettingsUpdateInput> = {
 const testEmailRoute: PluginRoute<TestEmailInput> = {
 	input: testEmailInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);

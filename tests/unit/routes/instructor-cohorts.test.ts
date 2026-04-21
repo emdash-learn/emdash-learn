@@ -17,9 +17,22 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import { LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_VERSION, LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_STATE_KEY } from "../../../src/kv-keys.js";
 import { cohortRoutes } from "../../../src/routes/instructor-cohorts.js";
 import type { Cohort, CohortMember } from "../../../src/types/storage.js";
+
+/** Minimal KV stub with bootstrap state pre-seeded so `ensureSetupComplete` passes. */
+function makeKvStub() {
+	const store = new Map<string, unknown>([
+		[BOOTSTRAP_STATE_KEY, { version: BOOTSTRAP_VERSION, completedSteps: [] }],
+	]);
+	return {
+		async get<T>(key: string): Promise<T | null> {
+			return (store.get(key) as T | undefined) ?? null;
+		},
+	};
+}
 
 interface StoredRow<T> {
 	id: string;
@@ -118,6 +131,7 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 		opts.roleLevel === undefined
 			? { id: "u_editor", email: "ed@x.com", name: "Ed", role: Role.EDITOR, createdAt: "" }
 			: { id: "u_test", email: "t@x.com", name: "T", role: opts.roleLevel, createdAt: "" };
+	const kv = makeKvStub();
 
 	function buildRouteCtx(input: unknown) {
 		return {
@@ -125,6 +139,7 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 			storage: { cohorts, cohort_members: cohortMembers },
 			log,
 			user,
+			kv,
 			users: {
 				async getByEmail(email: string) {
 					return userMap.get(email.toLowerCase()) ?? null;

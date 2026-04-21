@@ -31,7 +31,10 @@ export function lmsCorePlugin(): PluginDescriptor {
 		// resolves users by id for certs + cohorts, and (optionally) sends
 		// welcome/completion emails via ctx.email.
 		capabilities: ["read:content", "read:users", "email:send"],
-		adminPages: [{ path: "/setup", label: "Setup", icon: "wand" }],
+		adminPages: [
+			{ path: "/setup", label: "Setup", icon: "wand" },
+			{ path: "/quizzes", label: "Quizzes", icon: "list-checks" },
+		],
 	};
 }
 

@@ -32,6 +32,7 @@ import { LEARN_ERRORS } from "../constants.js";
 import * as instructors from "../engine/instructors.js";
 import type { Result, ResultError } from "../engine/result.js";
 import type { CourseInstructor, InstructorRole } from "../types/storage.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -102,6 +103,7 @@ function unwrap<T>(result: Result<T>): T {
 const setRoute: PluginRoute<InstructorSetInput> = {
 	input: instructorSetInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
@@ -116,6 +118,7 @@ const setRoute: PluginRoute<InstructorSetInput> = {
 const unsetRoute: PluginRoute<InstructorUnsetInput> = {
 	input: instructorUnsetInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
@@ -173,6 +176,7 @@ async function hydrateAssignment(
 const listRoute: PluginRoute<InstructorListInput> = {
 	input: instructorListInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);

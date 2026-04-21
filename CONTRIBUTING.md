@@ -76,6 +76,37 @@ We use [`@changesets/cli`](https://github.com/changesets/changesets):
 
 Every change that affects `src/**` should ship with a changeset describing what a user sees.
 
+## Uninstalling with data deletion
+
+The plugin manages three content collections (`courses`, `lessons`, `topics`)
+that emdash's uninstall flow cannot delete automatically (a platform limitation
+tracked in [`docs/upstream/plugin-schema-api.md`](./docs/upstream/plugin-schema-api.md)).
+
+### If you need to fully remove all authored content
+
+1. Open the setup wizard at `/_emdash/admin/plugins/lms-core/setup` as an
+   admin user.
+2. Scroll to the **"Drop plugin data"** section at the bottom of the page.
+3. Check both confirmation checkboxes and click **"Drop plugin data"**.
+   This permanently deletes the `courses`, `lessons`, and `topics` content
+   collections and all content inside them.
+4. Only after all collections are empty (or deleted) should you proceed to
+   uninstall the plugin via the emdash admin. Plugin storage (enrollments,
+   progress, certificates, etc.) is dropped by emdash automatically.
+
+### Why this is a two-step process
+
+The plugin's `plugin:uninstall` hook runs in a server context without browser
+cookies, so it cannot call the `/_emdash/api/schema/collections/:slug` endpoint
+that requires `schema:manage` permission. If the hook detects non-empty content
+collections when `deleteData=true`, it throws a descriptive error to prevent
+silent data-retention. The wizard's browser session does have the necessary
+permission and is the supported path.
+
+An upstream RFC proposes adding `ctx.schema.deleteCollection` to the emdash
+plugin context so this can eventually happen in a single atomic step:
+[`docs/upstream/plugin-schema-api.md`](./docs/upstream/plugin-schema-api.md).
+
 ## Code of conduct
 
 This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). Be respectful. Assume good faith. Help newcomers.
