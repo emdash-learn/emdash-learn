@@ -57,7 +57,8 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"prepublishOnly": "node -e \"const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.pnpm?.overrides;fs.writeFileSync('package.json',JSON.stringify(p,null,'\\t')+'\\n')\"",
-		"postpublish": "git checkout -- package.json"
+		"postpublish": "git checkout -- package.json",
+		"publish:npm": "node -e \"const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.pnpm?.overrides;fs.writeFileSync('package.json',JSON.stringify(p,null,'\\t')+'\\n')\" && npm publish --ignore-scripts; git checkout -- package.json"
 	},
 	"peerDependencies": {
 		"@emdash-cms/blocks": ">=0.5.0",
