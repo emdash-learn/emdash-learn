@@ -111,6 +111,11 @@ export function SetupWizardPage(): ReactElement {
 		void refreshAll();
 	}, [refreshAll, refreshBootstrap]);
 
+	const callPluginRoute = useCallback(
+		(route: string, input?: unknown): Promise<unknown> => api.setup.callRoute(route, input),
+		[api],
+	);
+
 	const runStep = useCallback(
 		async (step: WizardStep): Promise<boolean> => {
 			setRows((prev) => ({
@@ -118,7 +123,7 @@ export function SetupWizardPage(): ReactElement {
 				[step.id]: { ...(prev[step.id] ?? initialRow), applying: true, lastApplyError: undefined },
 			}));
 			try {
-				const result = await step.apply({ schema });
+				const result = await step.apply({ schema, callPluginRoute });
 				const probe = await runProbe(step);
 				setRows((prev) => ({
 					...prev,
@@ -145,7 +150,7 @@ export function SetupWizardPage(): ReactElement {
 				return false;
 			}
 		},
-		[runProbe, schema],
+		[callPluginRoute, runProbe, schema],
 	);
 
 	const runAll = useCallback(async () => {

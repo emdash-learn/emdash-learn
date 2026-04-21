@@ -30,8 +30,9 @@ import {
 	TOPICS_COLLECTION_SLUG,
 } from "./constants.js";
 import { commentBeforeCreate } from "./hooks/comment.js";
-import { contentBeforeDelete } from "./hooks/content.js";
+import { contentAfterDelete, contentAfterSave, contentBeforeDelete } from "./hooks/content.js";
 import { cronDispatch } from "./hooks/cron.js";
+import { backfillContentIndexReconciler } from "./reconcilers/backfill-content-index.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
 import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
 import { adminSettingsRoutes } from "./routes/admin-settings.js";
@@ -105,6 +106,7 @@ export function createPlugin() {
 					["userId", "courseId", "stepType"],
 					"completedAt",
 				],
+				uniqueIndexes: [["userId", "stepType", "stepId"]],
 			},
 			quizzes: {
 				indexes: ["updatedAt"],
@@ -130,6 +132,15 @@ export function createPlugin() {
 			course_instructors: {
 				indexes: ["courseId", "userId"],
 				uniqueIndexes: [["courseId", "userId"]],
+			},
+			course_content_index: {
+				indexes: [
+					"courseId",
+					"lessonId",
+					["courseId", "stepType"],
+					["courseId", "stepType", "order"],
+				],
+				uniqueIndexes: [["courseId", "stepType", "stepId"]],
 			},
 		},
 
@@ -192,6 +203,8 @@ export function createPlugin() {
 
 			// Wave 4 hooks — per-file ownership per §17.1.
 			"content:beforeDelete": contentBeforeDelete,
+			"content:afterSave": contentAfterSave,
+			"content:afterDelete": contentAfterDelete,
 			"comment:beforeCreate": commentBeforeCreate,
 			cron: cronDispatch,
 		},
@@ -246,6 +259,22 @@ export function createPlugin() {
 
 			// Wave 6 routes — admin settings (T24 / §16.8).
 			...(adminSettingsRoutes as Record<string, PluginRoute<unknown>>),
+
+			// Backfill route — called by setup wizard step `seed-content-index`
+			// (BOOTSTRAP_VERSION 3 / AUDIT C3).
+			"admin:seed-content-index": {
+				handler: async (ctx) => {
+					const result = await backfillContentIndexReconciler(ctx);
+					if (!result.ok) {
+						throw new Error(`Backfill failed: ${result.error.message}`);
+					}
+					return {
+						lessonsUpserted: result.data.lessonsUpserted,
+						topicsUpserted: result.data.topicsUpserted,
+						errors: result.data.errors,
+					};
+				},
+			} as PluginRoute<unknown>,
 		},
 	});
 }

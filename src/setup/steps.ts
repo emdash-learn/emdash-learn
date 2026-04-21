@@ -33,6 +33,12 @@ export interface StepApplyResult {
 
 export interface StepContext {
 	schema: CoreSchemaClient;
+	/**
+	 * Invoke a plugin route by name (admin session cookie is ambient).
+	 * Injected by SetupWizardPage; undefined when the step runs outside the
+	 * browser (e.g. reconciler tests where schema-only steps are tested).
+	 */
+	callPluginRoute?: (route: string, input?: unknown) => Promise<unknown>;
 }
 
 export interface WizardStep {
@@ -192,6 +198,32 @@ function finalizeStep(): WizardStep {
 	};
 }
 
+function seedContentIndexStep(): WizardStep {
+	return {
+		id: "seed-content-index",
+		title: "Seed curriculum index",
+		description:
+			"Populates the course_content_index projection from existing published lessons and topics. Safe to re-run — rows are upserted, not duplicated.",
+		async probe() {
+			// We can't cheaply query whether the index is populated from the
+			// browser without a dedicated status route. Report `needs-apply`
+			// unconditionally; the apply is idempotent so re-running is safe.
+			return {
+				status: "needs-apply",
+				summary: "Run to seed (or re-seed) the curriculum projection.",
+			};
+		},
+		async apply({ callPluginRoute }) {
+			if (!callPluginRoute) {
+				// Running outside a browser context (e.g. unit tests). Skip silently.
+				return { writes: 0, summary: "Skipped (no plugin route caller available)." };
+			}
+			await callPluginRoute("admin:seed-content-index");
+			return { writes: 1, summary: "Curriculum index seeded." };
+		},
+	};
+}
+
 export const WIZARD_STEPS: readonly WizardStep[] = [
 	collectionStep("courses"),
 	fieldsStep("courses"),
@@ -199,6 +231,7 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 	fieldsStep("lessons"),
 	collectionStep("topics"),
 	fieldsStep("topics"),
+	seedContentIndexStep(),
 	finalizeStep(),
 ];
 

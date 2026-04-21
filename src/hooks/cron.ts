@@ -17,6 +17,7 @@
 
 import type { PluginContext } from "emdash";
 
+import { backfillContentIndexReconciler } from "../reconcilers/backfill-content-index.js";
 import { dripReleaseRemindersReconciler } from "../reconcilers/drip-release-reminders.js";
 import { flushEmailQueueReconciler } from "../reconcilers/flush-email-queue.js";
 import {
@@ -37,6 +38,7 @@ const ROUTES: Record<string, Reconciler> = {
 	"issue-certificates": issueCertificatesReconciler,
 	"drip-release-reminders": dripReleaseRemindersReconciler,
 	"flush-email-queue": flushEmailQueueReconciler,
+	"backfill-content-index": backfillContentIndexReconciler as Reconciler,
 };
 
 export async function cronDispatch(event: CronEvent, ctx: PluginContext): Promise<void> {
