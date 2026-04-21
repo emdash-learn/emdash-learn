@@ -25,7 +25,7 @@
 import type { PluginContext, StorageCollection } from "emdash";
 import { ulid } from "emdash";
 
-import { LEARN_ERRORS } from "../constants.js";
+import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG } from "../constants.js";
 import type {
 	Quiz,
 	QuizAttempt,
@@ -93,15 +93,11 @@ function gradeMulti(q: QuizQuestion, raw: unknown): boolean {
 }
 
 function gradeTrueFalse(q: QuizQuestion, raw: unknown): boolean {
-	const options = q.options ?? [];
-	const truthyId = options.find((o) => /^true$/i.test(o.text))?.id;
-	const falsyId = options.find((o) => /^false$/i.test(o.text))?.id;
-	let submittedId: string | undefined;
-	if (typeof raw === "boolean") submittedId = raw ? truthyId : falsyId;
-	else if (typeof raw === "string") submittedId = raw;
-	if (!submittedId) return false;
-	const correct = options.find((o) => o.correct);
-	return Boolean(correct && correct.id === submittedId);
+	// Match by optionId vs correct flag — same as gradeMcq. Text-based lookup
+	// (/^true$/i) was locale-dependent and broke French-labeled options (M1).
+	if (typeof raw !== "string") return false;
+	const correct = q.options?.find((o) => o.correct);
+	return Boolean(correct && correct.id === raw);
 }
 
 function gradeShortText(q: QuizQuestion, raw: unknown): boolean {
@@ -338,20 +334,44 @@ export async function startAttempt(
 	ctx: PluginContext,
 	userId: string,
 	quizId: string,
-	lessonId?: string,
+	lessonId: string,
 ): Promise<Result<StartAttemptResult>> {
 	const quiz = await quizzesStore(ctx).get(quizId);
 	if (!quiz) return err(LEARN_ERRORS.SETUP_INCOMPLETE, `Quiz ${quizId} not found`);
+
+	// H2: verify the quiz is attached to the requested lesson.
+	if (ctx.content) {
+		const lessonItem = await ctx.content.get(LESSONS_COLLECTION_SLUG, lessonId);
+		if (!lessonItem) {
+			return err(LEARN_ERRORS.SETUP_INCOMPLETE, `Lesson ${lessonId} not found`);
+		}
+		const attachedQuizId = (lessonItem.data as Record<string, unknown>)["quiz"];
+		if (attachedQuizId !== quizId) {
+			return err(LEARN_ERRORS.FORBIDDEN, `Quiz ${quizId} is not attached to lesson ${lessonId}`);
+		}
+
+		// H1: require active enrollment in the course that owns this lesson.
+		const courseId = (lessonItem.data as Record<string, unknown>)["course"];
+		if (typeof courseId === "string") {
+			const enrollment = await (
+				ctx.storage as Record<string, StorageCollection<Record<string, unknown>> | undefined>
+			)["enrollments"]?.query({ where: { userId, courseId }, limit: 1 });
+			const row = enrollment?.items[0];
+			if (!row || (row.data as { revokedAt?: string }).revokedAt) {
+				return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in course ${courseId}`);
+			}
+		}
+	}
 
 	const id = `qa_${ulid()}`;
 	const startedAt = new Date().toISOString();
 	const attempt: QuizAttempt = {
 		userId,
 		quizId,
+		lessonId,
 		startedAt,
 		answers: [],
 	};
-	if (lessonId !== undefined) attempt.lessonId = lessonId;
 	await attemptsStore(ctx).put(id, attempt);
 
 	const out: StartAttemptResult = {
