@@ -143,4 +143,30 @@ describe("engine/cohorts.importFromEmails (D50)", () => {
 		expect(second.data.added).toHaveLength(0);
 		expect(second.data.alreadyMembers).toEqual(["alice@x.com"]);
 	});
+
+	it("surfaces capacity-rejected emails in capacityRejected (AUDIT M4)", async () => {
+		const { ctx } = await newCtx();
+		await seedStudent(ctx, { email: "alice@x.com" });
+		await seedStudent(ctx, { email: "bob@x.com" });
+		await seedStudent(ctx, { email: "carol@x.com" });
+		const created = await cohorts.create(ctx, {
+			slug: "cap-imp",
+			title: "Cap Imp",
+			capacity: 2,
+		});
+		if (!created.ok) throw new Error("setup failed");
+
+		const result = await cohorts.importFromEmails(ctx, created.data.id, [
+			"alice@x.com",
+			"bob@x.com",
+			"carol@x.com",
+		]);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.added).toHaveLength(2);
+		expect(result.data.capacityRejected).toEqual(["carol@x.com"]);
+		expect(result.data.unknownEmails).toEqual([]);
+		expect(result.data.alreadyMembers).toEqual([]);
+	});
 });

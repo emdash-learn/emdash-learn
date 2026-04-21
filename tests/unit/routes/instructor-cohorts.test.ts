@@ -381,11 +381,64 @@ describe("cohort:import route", () => {
 			added: CohortMember[];
 			unknownEmails: string[];
 			alreadyMembers: string[];
-			counts: { added: number; unknown: number; alreadyMembers: number };
+			capacityRejected: string[];
+			counts: {
+				added: number;
+				unknown: number;
+				alreadyMembers: number;
+				capacityRejected: number;
+			};
 		};
 		expect(result.added).toHaveLength(2);
 		expect(result.unknownEmails).toEqual(["ghost@x.com"]);
-		expect(result.counts).toEqual({ added: 2, unknown: 1, alreadyMembers: 0 });
+		expect(result.capacityRejected).toEqual([]);
+		expect(result.counts).toEqual({
+			added: 2,
+			unknown: 1,
+			alreadyMembers: 0,
+			capacityRejected: 0,
+		});
+	});
+
+	it("surfaces capacity-rejected emails in capacityRejected + counts (AUDIT M4)", async () => {
+		const { buildRouteCtx } = makeCtx({
+			users: [
+				{ email: "alice@x.com", id: "u_alice" },
+				{ email: "bob@x.com", id: "u_bob" },
+				{ email: "carol@x.com", id: "u_carol" },
+			],
+		});
+		const createRoute = cohortRoutes["cohort:create"];
+		const created = (await createRoute.handler(
+			buildRouteCtx(
+				createRoute.input!.parse({ slug: "cap-imp", title: "Cap Imp", capacity: 2 }),
+			),
+		)) as { id: string };
+
+		const importRoute = cohortRoutes["cohort:import"];
+		const result = (await importRoute.handler(
+			buildRouteCtx(
+				importRoute.input!.parse({
+					cohortId: created.id,
+					emails: ["alice@x.com", "bob@x.com", "carol@x.com"],
+				}),
+			),
+		)) as {
+			added: CohortMember[];
+			unknownEmails: string[];
+			alreadyMembers: string[];
+			capacityRejected: string[];
+			counts: {
+				added: number;
+				unknown: number;
+				alreadyMembers: number;
+				capacityRejected: number;
+			};
+		};
+		expect(result.added).toHaveLength(2);
+		expect(result.capacityRejected).toEqual(["carol@x.com"]);
+		expect(result.counts.capacityRejected).toBe(1);
+		expect(result.counts.added).toBe(2);
 	});
 
 	it("accepts a csv string with one email per line", async () => {

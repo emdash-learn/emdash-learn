@@ -207,6 +207,7 @@ export interface ImportResult {
 	added: CohortMemberRecord[];
 	unknownEmails: string[];
 	alreadyMembers: string[];
+	capacityRejected: string[];
 }
 
 interface UsersLookup {
@@ -216,7 +217,9 @@ interface UsersLookup {
 /**
  * Resolve emails → userIds via `ctx.users.getByEmail`, then call `addMember`
  * for each resolved user. Unknown emails come back verbatim so the caller
- * (instructor UI) can show them to the admin for follow-up (D50).
+ * (instructor UI) can show them to the admin for follow-up (D50). Capacity
+ * rejections surface separately in `capacityRejected` so bulk imports can
+ * show operators exactly which rows overflowed the seat cap (AUDIT M4).
  */
 export async function importFromEmails(
 	ctx: PluginContext,
@@ -239,6 +242,7 @@ export async function importFromEmails(
 	const added: CohortMemberRecord[] = [];
 	const unknownEmails: string[] = [];
 	const alreadyMembers: string[] = [];
+	const capacityRejected: string[] = [];
 
 	// Sequential: membership add is read-then-write and capacity checks need
 	// to see the state each previous add produced.
@@ -260,11 +264,18 @@ export async function importFromEmails(
 			continue;
 		}
 		const res = await addMember(ctx, cohortId, user.id, "student");
-		if (res.ok) added.push(res.data);
-		// If addMember fails (e.g. capacity), the email neither succeeds nor
-		// is "unknown" — surface via counts.added shortfall.
+		if (res.ok) {
+			added.push(res.data);
+			continue;
+		}
+		if (res.error.code === LEARN_ERRORS.COHORT_AT_CAPACITY) {
+			capacityRejected.push(email);
+			continue;
+		}
+		// Other engine failures (e.g. storage errors) are still dropped here;
+		// the caller can infer them from `counts.added` shortfalls.
 	}
 	/* oxlint-enable no-await-in-loop */
 
-	return ok({ added, unknownEmails, alreadyMembers });
+	return ok({ added, unknownEmails, alreadyMembers, capacityRejected });
 }
