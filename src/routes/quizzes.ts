@@ -77,7 +77,7 @@ export type QuizListInput = z.infer<typeof quizListInput>;
 
 export const quizStartInput = z.object({
 	quizId: z.string().min(1),
-	lessonId: z.string().optional(),
+	lessonId: z.string().min(1),
 });
 export type QuizStartInput = z.infer<typeof quizStartInput>;
 
@@ -90,7 +90,7 @@ export const quizSubmitInput = z.object({
 				answer: z.union([z.string(), z.array(z.string()), z.boolean()]),
 			}),
 		)
-		.min(1),
+		.min(0),
 });
 export type QuizSubmitInput = z.infer<typeof quizSubmitInput>;
 

@@ -114,6 +114,8 @@ export interface SeedLessonInput {
 	isPreview?: boolean;
 	requiresPrevious?: boolean;
 	dripOffsetDays?: number;
+	/** Quiz ID to attach to this lesson (populates the `quiz` field). */
+	quizId?: string;
 }
 
 /**
@@ -133,6 +135,7 @@ export async function seedLesson(ctx: PluginContext, input: SeedLessonInput): Pr
 	if (input.isPreview !== undefined) data.is_preview = input.isPreview;
 	if (input.requiresPrevious !== undefined) data.requires_previous = input.requiresPrevious;
 	if (input.dripOffsetDays !== undefined) data.drip_offset_days = input.dripOffsetDays;
+	if (input.quizId !== undefined) data.quiz = input.quizId;
 	return content.create("lessons", data);
 }
 

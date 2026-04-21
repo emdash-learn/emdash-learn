@@ -77,4 +77,6 @@ export interface LessonRow {
 	summary?: string;
 	body?: PortableTextBlock[];
 	videoUrl?: string;
+	/** Quiz ID attached to this lesson for the terminal-quiz gate (H2). Stored under key `"quiz"`. */
+	quiz?: string;
 }
