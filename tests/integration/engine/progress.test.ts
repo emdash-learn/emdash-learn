@@ -16,7 +16,6 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { handleContentPublish } from "emdash";
 
 import type {
 	CourseCompleted,
@@ -26,13 +25,14 @@ import type {
 import * as eventBus from "../../../src/engine/event-bus.js";
 import * as progress from "../../../src/engine/progress.js";
 import {
+	publishContent,
 	seedCourse,
 	seedEnrollment,
 	seedLesson,
 	seedStudent,
 	seedTopic,
 } from "../../utils/seed.js";
-import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
+import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
 
@@ -54,7 +54,7 @@ async function publishLesson(
 		order: opts.order ?? 0,
 		title: opts.title,
 	});
-	await handleContentPublish(getTestDb(ctx), "lessons", lesson.id);
+	await publishContent(ctx, "lessons", lesson.id);
 	return lesson.id;
 }
 
@@ -72,12 +72,12 @@ async function publishTopic(
 	if (opts.title !== undefined) args.title = opts.title;
 	if (opts.requiresPrevious !== undefined) args.requiresPrevious = opts.requiresPrevious;
 	const topic = await seedTopic(ctx, args);
-	await handleContentPublish(getTestDb(ctx), "topics", topic.id);
+	await publishContent(ctx, "topics", topic.id);
 	return topic.id;
 }
 
 async function publishCourse(ctx: TestCtx["ctx"], courseId: string): Promise<void> {
-	await handleContentPublish(getTestDb(ctx), "courses", courseId);
+	await publishContent(ctx, "courses", courseId);
 }
 
 afterEach(async () => {

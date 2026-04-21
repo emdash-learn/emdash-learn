@@ -9,12 +9,17 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { handleContentPublish } from "emdash";
 
 import { dripReleaseRemindersReconciler } from "../../../src/reconcilers/drip-release-reminders.js";
 import { settingKey } from "../../../src/kv-keys.js";
-import { seedCourse, seedEnrollment, seedLesson, seedStudent } from "../../utils/seed.js";
-import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
+import {
+	publishContent,
+	seedCourse,
+	seedEnrollment,
+	seedLesson,
+	seedStudent,
+} from "../../utils/seed.js";
+import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
 
@@ -31,12 +36,12 @@ async function publishLesson(
 	args: Parameters<typeof seedLesson>[1],
 ): Promise<string> {
 	const lesson = await seedLesson(ctx, args);
-	await handleContentPublish(getTestDb(ctx), "lessons", lesson.id);
+	await publishContent(ctx, "lessons", lesson.id);
 	return lesson.id;
 }
 
 async function publishCourse(ctx: TestCtx["ctx"], courseId: string): Promise<void> {
-	await handleContentPublish(getTestDb(ctx), "courses", courseId);
+	await publishContent(ctx, "courses", courseId);
 }
 
 afterEach(async () => {

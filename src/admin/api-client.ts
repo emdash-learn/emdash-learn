@@ -459,6 +459,7 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 		setup: {
 			state: () => request<SetupStateResponse>("setup:state"),
 			mark: (input: SetupMarkInput) => request<SetupMarkResponse>("setup:mark", input),
+			callRoute: (route: string, input?: unknown) => request<unknown>(route, input),
 		},
 
 		enrollments: {

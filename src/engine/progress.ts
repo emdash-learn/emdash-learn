@@ -31,7 +31,7 @@ import type { PluginContext, StorageCollection } from "emdash";
 
 import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
 import type { CourseCompleted, LessonCompleted, TopicCompleted } from "../types/engine.js";
-import type { Enrollment, StepProgress, StepType } from "../types/storage.js";
+import type { CourseContentIndexRow, Enrollment, StepProgress, StepType } from "../types/storage.js";
 import { emit } from "./event-bus.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -100,22 +100,25 @@ interface PublishedItem {
 	id: string;
 }
 
+const CONTENT_INDEX_COLLECTION = "course_content_index";
+
 async function listPublishedLessonsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "lesson" },
 			limit: 100,
 			cursor,
 		});
-		for (const lesson of page.items) {
-			if (lesson.data["course"] === courseId) matches.push({ id: lesson.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -127,18 +130,19 @@ async function listPublishedTopicsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "topic" },
 			limit: 100,
 			cursor,
 		});
-		for (const topic of page.items) {
-			if (topic.data["course"] === courseId) matches.push({ id: topic.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -150,18 +154,21 @@ async function listPublishedTopicsForLesson(
 	ctx: PluginContext,
 	lessonId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		// Query by lessonId and stepType (both indexed: lessonId is indexed,
+		// stepType is part of the ["courseId","stepType"] compound index).
+		const page = await store.query({
+			where: { lessonId, stepType: "topic" },
 			limit: 100,
 			cursor,
 		});
-		for (const topic of page.items) {
-			if (topic.data["lesson"] === lessonId) matches.push({ id: topic.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);

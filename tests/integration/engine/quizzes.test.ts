@@ -6,13 +6,20 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { handleContentPublish, type PluginContext } from "emdash";
+import type { PluginContext } from "emdash";
 
 import * as eventBus from "../../../src/engine/event-bus.js";
 import * as quizzes from "../../../src/engine/quizzes.js";
 import type { LessonCompleted } from "../../../src/types/engine.js";
-import { seedCourse, seedEnrollment, seedLesson, seedQuiz, seedStudent } from "../../utils/seed.js";
-import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
+import {
+	publishContent,
+	seedCourse,
+	seedEnrollment,
+	seedLesson,
+	seedQuiz,
+	seedStudent,
+} from "../../utils/seed.js";
+import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
 
@@ -190,11 +197,11 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "tq@test.local" });
 		const course = await seedCourse(ctx, { title: "TQ" });
-		await handleContentPublish(getTestDb(ctx), "courses", course.id);
+		await publishContent(ctx, "courses", course.id);
 		// Quiz must be created before the lesson so its id can be attached.
 		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
 		const lesson = await seedLesson(ctx, { courseId: course.id, order: 0, quizId: quiz.id });
-		await handleContentPublish(getTestDb(ctx), "lessons", lesson.id);
+		await publishContent(ctx, "lessons", lesson.id);
 		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
 
 		const received: LessonCompleted["data"][] = [];
