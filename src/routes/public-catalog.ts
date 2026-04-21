@@ -27,6 +27,7 @@ import { PluginRouteError, type PluginContext, type PluginRoute } from "emdash";
 
 import { COURSES_COLLECTION_SLUG, LEARN_ERRORS } from "../constants.js";
 import type { ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 export const catalogInput = z.object({
 	cursor: z.string().optional(),
@@ -157,6 +158,7 @@ const catalogRoute: PluginRoute<CatalogInput> = {
 	// §6.2: catalog is open — theme/demo pages render it without a session.
 	public: true,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const content = ctx.content;
 		if (!content) {
 			throw toRouteError({

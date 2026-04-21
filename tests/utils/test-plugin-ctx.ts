@@ -48,6 +48,8 @@ import {
 } from "emdash";
 
 import { createPlugin } from "../../src/sandbox-entry.js";
+import { BOOTSTRAP_VERSION } from "../../src/constants.js";
+import { BOOTSTRAP_STATE_KEY } from "../../src/kv-keys.js";
 import {
 	COURSES_FIXTURE,
 	LESSONS_FIXTURE,
@@ -77,6 +79,13 @@ export interface CreateTestPluginCtxOptions {
 	 * (tests must declare every outbound request).
 	 */
 	fakeHttp?: Record<string, Response>;
+	/**
+	 * When `true` (default), overwrite the bootstrap KV record to
+	 * `version: BOOTSTRAP_VERSION` after the install hook so that
+	 * `ensureSetupComplete` passes for all route handlers. Set to `false`
+	 * only in tests that explicitly need the pre-wizard (version=0) state.
+	 */
+	bootstrapComplete?: boolean;
 }
 
 /**
@@ -245,6 +254,16 @@ export async function createTestPluginCtx(
 		throw new Error(
 			"test-plugin-ctx: plugin:install hook never fired — the fixture could not capture a PluginContext.",
 		);
+	}
+
+	// Simulate the wizard completing setup so `ensureSetupComplete` passes.
+	// Tests that want the pre-wizard state should pass `bootstrapComplete: false`
+	// and manage the KV record themselves (see setup-gate.test.ts).
+	if (opts.bootstrapComplete !== false) {
+		await captured.kv.set(BOOTSTRAP_STATE_KEY, {
+			version: BOOTSTRAP_VERSION,
+			completedSteps: [],
+		});
 	}
 
 	const outbox: EmailMessage[] = [];

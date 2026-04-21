@@ -27,6 +27,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as cohorts from "../engine/cohorts.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (§23 + D50 import)
@@ -122,6 +123,7 @@ function gate(ctx: unknown): void {
 const createRoute: PluginRoute<CohortCreateInput> = {
 	input: cohortCreateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		const record = unwrap(await cohorts.create(ctx, ctx.input));
 		return { id: record.id, cohort: record.data };
@@ -131,6 +133,7 @@ const createRoute: PluginRoute<CohortCreateInput> = {
 const listRoute: PluginRoute<CohortListInput> = {
 	input: cohortListInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		const opts: cohorts.ListOptions = {};
 		if (ctx.input.cursor !== undefined) opts.cursor = ctx.input.cursor;
@@ -152,6 +155,7 @@ const listRoute: PluginRoute<CohortListInput> = {
 const getRoute: PluginRoute<CohortGetInput> = {
 	input: cohortGetInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		const result = unwrap(await cohorts.get(ctx, ctx.input.cohortId));
 		return {
@@ -165,6 +169,7 @@ const getRoute: PluginRoute<CohortGetInput> = {
 const addMemberRoute: PluginRoute<CohortAddMemberInput> = {
 	input: cohortAddMemberInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		const record = unwrap(
 			await cohorts.addMember(
@@ -181,6 +186,7 @@ const addMemberRoute: PluginRoute<CohortAddMemberInput> = {
 const removeMemberRoute: PluginRoute<CohortRemoveMemberInput> = {
 	input: cohortRemoveMemberInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		unwrap(await cohorts.removeMember(ctx, ctx.input.cohortId, ctx.input.userId));
 		return { ok: true };
@@ -209,6 +215,7 @@ function parseCsvEmails(csv: string): string[] {
 const importRoute: PluginRoute<CohortImportInput> = {
 	input: cohortImportInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gate(ctx);
 		const emails = ctx.input.emails ?? (ctx.input.csv ? parseCsvEmails(ctx.input.csv) : []);
 		if (emails.length === 0) {

@@ -14,11 +14,16 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 
-import { BOOTSTRAP_VERSION } from "../constants.js";
+import {
+	BOOTSTRAP_VERSION,
+	COURSES_COLLECTION_SLUG,
+	LESSONS_COLLECTION_SLUG,
+	TOPICS_COLLECTION_SLUG,
+} from "../constants.js";
 import { CoreSchemaClientError, createCoreSchemaClient } from "../setup/core-schema-client.js";
 import { WIZARD_STEPS, type StepProbe, type WizardStep } from "../setup/steps.js";
 import type { BootstrapState } from "../types/storage.js";
-import { LmsApiError, createApiClient } from "./api-client.js";
+import { LmsApiError, createApiClient, type WhoamiResponse } from "./api-client.js";
 
 interface StepRowState {
 	probe: StepProbe;
@@ -66,6 +71,17 @@ export function SetupWizardPage(): ReactElement {
 	const [runningAll, setRunningAll] = useState(false);
 	const [globalError, setGlobalError] = useState<string | null>(null);
 
+	// Admin role guard (H7): check caller role on mount; show a clear error if not admin.
+	const [whoami, setWhoami] = useState<WhoamiResponse | null>(null);
+	const [whoamiLoading, setWhoamiLoading] = useState(true);
+	const [whoamiError, setWhoamiError] = useState<string | null>(null);
+
+	// Drop data panel state (H7).
+	const [dropConfirm1, setDropConfirm1] = useState(false);
+	const [dropConfirm2, setDropConfirm2] = useState(false);
+	const [dropping, setDropping] = useState(false);
+	const [dropResult, setDropResult] = useState<{ ok: boolean; message: string } | null>(null);
+
 	const runProbe = useCallback(
 		async (step: WizardStep): Promise<StepProbe> => {
 			try {
@@ -106,10 +122,63 @@ export function SetupWizardPage(): ReactElement {
 		}
 	}, [api]);
 
+	// Fetch caller's role on mount (H7).
+	useEffect(() => {
+		setWhoamiLoading(true);
+		void (async () => {
+			try {
+				const w = await api.setup.whoami();
+				setWhoami(w);
+			} catch (err: unknown) {
+				setWhoamiError(formatError(err));
+			} finally {
+				setWhoamiLoading(false);
+			}
+		})();
+	}, [api]);
+
 	useEffect(() => {
 		void refreshBootstrap();
 		void refreshAll();
 	}, [refreshAll, refreshBootstrap]);
+
+	// Drop all plugin content collections via admin session (H7).
+	// Sequential deletion (topics → lessons → courses) ensures reference integrity:
+	// topics reference lessons which reference courses.
+	const dropPluginData = useCallback(async () => {
+		setDropping(true);
+		setDropResult(null);
+		const slugs = [TOPICS_COLLECTION_SLUG, LESSONS_COLLECTION_SLUG, COURSES_COLLECTION_SLUG];
+		const errors: string[] = [];
+
+		// oxlint-disable no-await-in-loop -- sequential deletion order matters
+		for (const slug of slugs) {
+			try {
+				await schema.deleteCollection(slug, { force: true }); // eslint-disable-line no-await-in-loop
+			} catch (err) {
+				if (err instanceof CoreSchemaClientError && err.status === 404) continue;
+				errors.push(`${slug}: ${formatError(err)}`);
+			}
+		}
+		// oxlint-enable no-await-in-loop
+
+		setDropping(false);
+		if (errors.length > 0) {
+			setDropResult({
+				ok: false,
+				message: `Some collections could not be dropped: ${errors.join("; ")}`,
+			});
+		} else {
+			setDropResult({
+				ok: true,
+				message:
+					"All content collections (courses, lessons, topics) have been deleted. " +
+					"You may now uninstall the plugin.",
+			});
+			setDropConfirm1(false);
+			setDropConfirm2(false);
+		}
+	}, [schema]);
 
 	const callPluginRoute = useCallback(
 		(route: string, input?: unknown): Promise<unknown> => api.setup.callRoute(route, input),
@@ -199,6 +268,45 @@ export function SetupWizardPage(): ReactElement {
 	const pendingCount = allSteps.filter((s) => rows[s.id]?.probe.status !== "ok").length;
 	const isComplete = bootstrap !== null && bootstrap.version >= targetVersion && pendingCount === 0;
 
+	// Show loading state while role is being checked.
+	if (whoamiLoading) {
+		return (
+			<section style={pageStyle}>
+				<p style={{ color: "#475569" }}>Checking permissions…</p>
+			</section>
+		);
+	}
+
+	// Show a clear "not admin" state instead of cryptic 403s (H7).
+	if (whoamiError || (whoami !== null && !whoami.isAdmin)) {
+		return (
+			<section style={pageStyle}>
+				<header style={headerStyle}>
+					<h1 style={{ fontSize: "1.5rem", marginBlockEnd: "0.5rem" }}>
+						Emdash Learn · Setup
+					</h1>
+				</header>
+				<div
+					role="alert"
+					style={{
+						paddingBlock: "1rem",
+						paddingInline: "1.25rem",
+						borderRadius: "0.5rem",
+						border: "1px solid #fecaca",
+						backgroundColor: "#fef2f2",
+						color: "#991b1b",
+					}}
+				>
+					<strong>Admin role required.</strong>{" "}
+					{whoamiError
+						? `Could not verify your permissions: ${whoamiError}`
+						: "Only users with the Admin role can run or modify the plugin setup. " +
+							"Ask a site administrator to open this page."}
+				</div>
+			</section>
+		);
+	}
+
 	return (
 		<section style={pageStyle}>
 			<header style={headerStyle}>
@@ -275,7 +383,142 @@ export function SetupWizardPage(): ReactElement {
 					);
 				})}
 			</ol>
+
+			{/* Drop plugin data panel (H7 / AUDIT C4) */}
+			<DropDataPanel
+				dropConfirm1={dropConfirm1}
+				dropConfirm2={dropConfirm2}
+				dropping={dropping}
+				dropResult={dropResult}
+				onConfirm1Change={setDropConfirm1}
+				onConfirm2Change={setDropConfirm2}
+				onDrop={() => void dropPluginData()}
+			/>
 		</section>
+	);
+}
+
+/**
+ * "Drop plugin data" panel (H7 / AUDIT C4).
+ *
+ * Surfaced to admin users who need to delete the authored content collections
+ * (courses, lessons, topics) before uninstalling the plugin. Uses a
+ * double-confirm pattern to prevent accidental deletion. Calls
+ * `schema.deleteCollection` via the admin browser session (which carries the
+ * `schema:manage`-required cookie) — the same session the wizard uses to
+ * create collections.
+ *
+ * This panel is only visible to admin users (whoami check above guards the
+ * whole page). Gate is intentionally redundant: the schema endpoint will
+ * reject non-admin sessions with 403 anyway.
+ */
+function DropDataPanel({
+	dropConfirm1,
+	dropConfirm2,
+	dropping,
+	dropResult,
+	onConfirm1Change,
+	onConfirm2Change,
+	onDrop,
+}: {
+	dropConfirm1: boolean;
+	dropConfirm2: boolean;
+	dropping: boolean;
+	dropResult: { ok: boolean; message: string } | null;
+	onConfirm1Change: (v: boolean) => void;
+	onConfirm2Change: (v: boolean) => void;
+	onDrop: () => void;
+}): ReactElement {
+	const canDrop = dropConfirm1 && dropConfirm2 && !dropping;
+
+	return (
+		<div
+			style={{
+				marginBlockStart: "2.5rem",
+				padding: "1.25rem",
+				border: "1px solid #fecaca",
+				borderRadius: "0.5rem",
+				backgroundColor: "#fef2f2",
+			}}
+		>
+			<h2 style={{ fontSize: "1.1rem", color: "#991b1b", marginBlockEnd: "0.5rem" }}>
+				Drop plugin data
+			</h2>
+			<p style={{ color: "#7f1d1d", fontSize: "0.925rem", marginBlockStart: 0 }}>
+				This action permanently deletes the <code>courses</code>, <code>lessons</code>, and{" "}
+				<code>topics</code> content collections and all content inside them. It cannot be undone.
+				Plugin storage (enrollments, progress, certificates) is dropped separately by emdash when
+				you uninstall.
+			</p>
+			<p style={{ color: "#7f1d1d", fontSize: "0.925rem" }}>
+				<strong>Use this only before uninstalling the plugin</strong> — or when you need to start
+				fresh from an empty slate. After dropping, you must re-run "Run setup" to re-provision the
+				collections before the LMS is usable again.
+			</p>
+
+			<div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+				<label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer" }}>
+					<input
+						type="checkbox"
+						checked={dropConfirm1}
+						onChange={(e) => onConfirm1Change(e.target.checked)}
+						disabled={dropping}
+					/>
+					<span style={{ fontSize: "0.925rem", color: "#991b1b" }}>
+						I understand this will permanently delete all courses, lessons, and topics.
+					</span>
+				</label>
+				<label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer" }}>
+					<input
+						type="checkbox"
+						checked={dropConfirm2}
+						onChange={(e) => onConfirm2Change(e.target.checked)}
+						disabled={dropping}
+					/>
+					<span style={{ fontSize: "0.925rem", color: "#991b1b" }}>
+						I have confirmed there is no content I wish to keep.
+					</span>
+				</label>
+			</div>
+
+			<div style={{ marginBlockStart: "1rem" }}>
+				<button
+					type="button"
+					onClick={onDrop}
+					disabled={!canDrop}
+					style={{
+						paddingBlock: "0.5rem",
+						paddingInline: "1rem",
+						borderRadius: "0.375rem",
+						border: "1px solid transparent",
+						backgroundColor: canDrop ? "#dc2626" : "#f87171",
+						color: "white",
+						cursor: canDrop ? "pointer" : "not-allowed",
+						fontWeight: 600,
+						fontSize: "0.925rem",
+					}}
+				>
+					{dropping ? "Deleting…" : "Drop plugin data"}
+				</button>
+			</div>
+
+			{dropResult !== null ? (
+				<div
+					role="status"
+					style={{
+						marginBlockStart: "0.75rem",
+						padding: "0.75rem",
+						borderRadius: "0.375rem",
+						border: `1px solid ${dropResult.ok ? "#86efac" : "#fca5a5"}`,
+						backgroundColor: dropResult.ok ? "#ecfdf5" : "#fef2f2",
+						color: dropResult.ok ? "#166534" : "#991b1b",
+						fontSize: "0.875rem",
+					}}
+				>
+					{dropResult.message}
+				</div>
+			) : null}
+		</div>
 	);
 }
 

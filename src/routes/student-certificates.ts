@@ -15,6 +15,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as certificates from "../engine/certificates.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 export const certificatesMineInput = z.object({
 	cursor: z.string().optional(),
@@ -40,6 +41,7 @@ function unwrap<T>(result: Result<T>): T {
 const mineRoute: PluginRoute<CertificatesMineInput> = {
 	input: certificatesMineInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);

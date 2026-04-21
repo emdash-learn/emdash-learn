@@ -16,7 +16,7 @@
  */
 
 import { elements } from "@emdash-cms/blocks";
-import { definePlugin } from "emdash";
+import { definePlugin, PluginRouteError } from "emdash";
 import type { PluginContext, PluginRoute } from "emdash";
 import { z } from "astro/zod";
 
@@ -24,6 +24,7 @@ import {
 	BOOTSTRAP_VERSION,
 	COURSES_COLLECTION_SLUG,
 	DEFAULT_SETTINGS,
+	LEARN_ERRORS,
 	LESSONS_COLLECTION_SLUG,
 	PLUGIN_ID,
 	PLUGIN_VERSION,
@@ -34,6 +35,7 @@ import { contentAfterDelete, contentAfterSave, contentBeforeDelete } from "./hoo
 import { cronDispatch } from "./hooks/cron.js";
 import { backfillContentIndexReconciler } from "./reconcilers/backfill-content-index.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
+import { Role, type AuthContext } from "./authz.js";
 import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
 import { adminSettingsRoutes } from "./routes/admin-settings.js";
 import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
@@ -177,28 +179,47 @@ export function createPlugin() {
 					ctx.log.info(`${PLUGIN_ID} uninstalled (data preserved).`);
 					return;
 				}
-				// Emdash core drops plugin storage automatically; we only need
-				// to drop the authored content collections. Topics first
-				// (reference lessons), lessons next (reference courses), then
-				// courses. Reverse-dependency order avoids reference-integrity
-				// blockers on the drop.
-				const dropCollection = async (slug: string): Promise<void> => {
-					try {
-						const res = await fetch(
-							ctx.url(`/_emdash/api/schema/collections/${encodeURIComponent(slug)}?force=true`),
-							{ method: "DELETE" },
+
+				// emdash core drops plugin storage (enrollments, progress, etc.)
+				// automatically when deleteData=true.
+				//
+				// Content collections (courses, lessons, topics) require the
+				// `schema:manage` permission which is only available via the admin
+				// browser session — this hook runs server-side without cookies,
+				// so we CANNOT drop them here (AUDIT C4/H8).
+				//
+				// Instead, we verify whether any content data exists. If it does,
+				// we throw so the admin knows they must use the wizard's
+				// "Drop plugin data" action BEFORE uninstalling. If collections
+				// are empty or absent, uninstall can proceed cleanly.
+				if (ctx.content) {
+					const hasData = await Promise.all(
+						[TOPICS_COLLECTION_SLUG, LESSONS_COLLECTION_SLUG, COURSES_COLLECTION_SLUG].map(
+							async (slug) => {
+								try {
+									const page = await ctx.content!.list(slug, { limit: 1 });
+									return page.items.length > 0;
+								} catch {
+									// Collection doesn't exist or isn't accessible — treat as empty.
+									return false;
+								}
+							},
+						),
+					);
+
+					if (hasData.some(Boolean)) {
+						throw new Error(
+							`${PLUGIN_ID}: uninstall with deleteData=true was requested, but the ` +
+								`courses, lessons, and/or topics content collections still contain data. ` +
+								`Open the setup wizard at /_emdash/admin/plugins/lms-core/setup and use ` +
+								`the "Drop plugin data" action to delete authored content before uninstalling. ` +
+								`Plugin storage (enrollments, progress, certificates, etc.) will be ` +
+								`dropped by emdash automatically when you proceed.`,
 						);
-						if (!res.ok && res.status !== 404) {
-							ctx.log.warn(`Failed to drop collection ${slug}: ${res.status}`);
-						}
-					} catch (err) {
-						ctx.log.error(`Collection drop failed for ${slug}`, err);
 					}
-				};
-				await dropCollection(TOPICS_COLLECTION_SLUG);
-				await dropCollection(LESSONS_COLLECTION_SLUG);
-				await dropCollection(COURSES_COLLECTION_SLUG);
-				ctx.log.info(`${PLUGIN_ID} uninstalled with deleteData=true.`);
+				}
+
+				ctx.log.info(`${PLUGIN_ID} uninstalled with deleteData=true (content collections empty).`);
 			},
 
 			// Wave 4 hooks — per-file ownership per §17.1.
@@ -235,6 +256,28 @@ export function createPlugin() {
 					return { state: next };
 				},
 			},
+
+			// Setup utility routes — lightweight, no bootstrap gate.
+			"admin:whoami": {
+				handler: async (ctx) => {
+					const auth = ctx as unknown as AuthContext;
+					const user = auth.user;
+					if (!user) {
+						throw new PluginRouteError(
+							LEARN_ERRORS.UNAUTHENTICATED,
+							"Authentication required",
+							401,
+						);
+					}
+					return {
+						id: user.id,
+						email: user.email,
+						name: user.name,
+						role: user.role,
+						isAdmin: user.role >= Role.ADMIN,
+					};
+				},
+			} as PluginRoute<unknown>,
 
 			// Wave 3 routes — composed from per-task modules per §26 ownership.
 			// Cast widens each module's `PluginRoute<SpecificInput>` entries to

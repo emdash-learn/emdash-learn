@@ -17,8 +17,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS } from "../../../src/constants.js";
+import { BOOTSTRAP_VERSION, DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS } from "../../../src/constants.js";
 import type { EmailMessage } from "../../../src/engine/email-queue.js";
+import { BOOTSTRAP_STATE_KEY } from "../../../src/kv-keys.js";
 import { adminSettingsRoutes } from "../../../src/routes/admin-settings.js";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,12 @@ interface MakeCtxOpts {
 }
 
 function makeCtx(opts: MakeCtxOpts = {}) {
-	const store = new Map<string, unknown>(Object.entries(opts.kv ?? {}));
+	// Seed the bootstrap state so `ensureSetupComplete` passes in unit tests.
+	// Tests that explicitly want an incomplete state can override this key.
+	const defaultKv: Record<string, unknown> = {
+		[BOOTSTRAP_STATE_KEY]: { version: BOOTSTRAP_VERSION, completedSteps: [] },
+	};
+	const store = new Map<string, unknown>(Object.entries({ ...defaultKv, ...opts.kv }));
 	const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 	const user =
 		opts.roleLevel === undefined

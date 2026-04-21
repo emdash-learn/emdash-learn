@@ -111,6 +111,14 @@ export interface SetupStateResponse {
 	targetVersion: number;
 }
 
+export interface WhoamiResponse {
+	id: string;
+	email: string;
+	name: string | null;
+	role: number;
+	isAdmin: boolean;
+}
+
 export interface SetupMarkInput {
 	completedSteps: string[];
 	lastError?: { stepId: string; message: string; at: string };
@@ -460,6 +468,7 @@ export function createApiClient(opts: CreateApiClientOptions = {}) {
 			state: () => request<SetupStateResponse>("setup:state"),
 			mark: (input: SetupMarkInput) => request<SetupMarkResponse>("setup:mark", input),
 			callRoute: (route: string, input?: unknown) => request<unknown>(route, input),
+			whoami: () => request<WhoamiResponse>("admin:whoami"),
 		},
 
 		enrollments: {

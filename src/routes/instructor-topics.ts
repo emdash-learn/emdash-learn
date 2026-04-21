@@ -26,6 +26,7 @@ import { PluginRouteError, type PluginRoute } from "emdash";
 
 import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS, TOPICS_COLLECTION_SLUG } from "../constants.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -174,6 +175,7 @@ function topicSummary(item: ContentItem): {
 const listRoute: PluginRoute<TopicListInput> = {
 	input: topicListInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const limit = ctx.input.limit ?? 50;
@@ -216,6 +218,7 @@ const listRoute: PluginRoute<TopicListInput> = {
 const getRoute: PluginRoute<TopicGetInput> = {
 	input: topicGetInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const item = await content.get(TOPICS_COLLECTION_SLUG, ctx.input.topicId);
@@ -233,6 +236,7 @@ const getRoute: PluginRoute<TopicGetInput> = {
 const createRoute: PluginRoute<TopicCreateInput> = {
 	input: topicCreateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const data: Record<string, unknown> = {
@@ -262,6 +266,7 @@ const createRoute: PluginRoute<TopicCreateInput> = {
 const updateRoute: PluginRoute<TopicUpdateInput> = {
 	input: topicUpdateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const existing = await content.get(TOPICS_COLLECTION_SLUG, ctx.input.topicId);
@@ -298,6 +303,7 @@ const updateRoute: PluginRoute<TopicUpdateInput> = {
 const deleteRoute: PluginRoute<TopicDeleteInput> = {
 	input: topicDeleteInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		const fn = content.remove ?? content.delete;
@@ -316,6 +322,7 @@ const deleteRoute: PluginRoute<TopicDeleteInput> = {
 const reorderRoute: PluginRoute<TopicReorderInput> = {
 	input: topicReorderInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const content = requireContent(ctx);
 		// Iterate the supplied order. Skip topics that don't belong to the
