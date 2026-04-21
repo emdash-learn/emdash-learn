@@ -9,12 +9,17 @@
  * theme decides paid-gate UI from the emitted `priceCents` / `currency`
  * fields (D22).
  *
- * `difficulty` and `search` are applied client-side after pulling a page from
- * `ctx.content.list` — the content API's `where` clause does not index those
- * fields today. Server-side filters are tracked in §26 as a v1.1
- * optimization. Because filters are applied after pagination, `hasMore` is
- * reported from the underlying page (not from the filtered result): clients
- * keep paging the upstream cursor until `hasMore === false`.
+ * `difficulty` and `search` are applied server-side across multiple upstream
+ * pages so callers always get a full page of filtered results (M3). Upstream
+ * pages are fetched in batches of `limit` until `limit` filtered items are
+ * collected or upstream is exhausted (capped at MAX_UPSTREAM_PAGES to bound
+ * worst-case latency for sparse filters). The cursor is synthetic: it encodes
+ * the upstream position from which the next call should start.
+ *
+ * When filters are extremely sparse and the safety cap triggers, the returned
+ * `hasMore=true` may be optimistic — subsequent pages may return fewer than
+ * `limit` matches. A proper text index (§26, v1.1) will eliminate this edge
+ * case entirely.
  */
 
 import { z } from "astro/zod";
@@ -53,6 +58,23 @@ export interface CatalogPage {
 	items: CatalogCourse[];
 	cursor?: string;
 	hasMore: boolean;
+}
+
+const MAX_UPSTREAM_PAGES = 10;
+
+type SyntheticCursor = { uc?: string };
+
+function decodeCatalogCursor(cursor: string | undefined): SyntheticCursor {
+	if (!cursor) return {};
+	try {
+		return JSON.parse(atob(cursor)) as SyntheticCursor;
+	} catch {
+		return {};
+	}
+}
+
+function encodeCatalogCursor(uc: string): string {
+	return btoa(JSON.stringify({ uc } satisfies SyntheticCursor));
 }
 
 function statusForCode(code: string): number {
@@ -145,21 +167,45 @@ const catalogRoute: PluginRoute<CatalogInput> = {
 		}
 
 		const { cursor, limit, difficulty, search } = ctx.input;
-		const listOpts: { where: { status: "published" }; cursor?: string; limit?: number } = {
-			where: { status: "published" },
-		};
-		if (cursor !== undefined) listOpts.cursor = cursor;
-		if (limit !== undefined) listOpts.limit = limit;
-
-		const page = await content.list(COURSES_COLLECTION_SLUG, listOpts);
+		const effectiveLimit = limit ?? 20;
 		const searchLower = search?.toLowerCase();
 
-		const items = page.items
-			.map(toCatalogCourse)
-			.filter((c) => matchesFilters(c, difficulty, searchLower));
+		// Decode synthetic cursor → upstream cursor position.
+		const { uc: startCursor } = decodeCatalogCursor(cursor);
 
-		const result: CatalogPage = { items, hasMore: page.hasMore };
-		if (page.hasMore && page.cursor !== undefined) result.cursor = page.cursor;
+		const collected: CatalogCourse[] = [];
+		let nextUpstreamCursor: string | undefined = startCursor;
+		let upstreamDone = false;
+
+		// Loop upstream pages, accumulating filtered results up to effectiveLimit.
+		// Upstream page size equals effectiveLimit to avoid over-fetching on the
+		// last page (which would lose buffered matches without a within-page cursor).
+		for (let i = 0; i < MAX_UPSTREAM_PAGES; i++) {
+			const page = await content.list(COURSES_COLLECTION_SLUG, {
+				where: { status: "published" },
+				cursor: nextUpstreamCursor,
+				limit: effectiveLimit,
+			});
+
+			const filtered = page.items
+				.map(toCatalogCourse)
+				.filter((c) => matchesFilters(c, difficulty, searchLower));
+			collected.push(...filtered);
+
+			if (page.cursor) nextUpstreamCursor = page.cursor;
+
+			if (!page.hasMore) {
+				upstreamDone = true;
+				break;
+			}
+			if (collected.length >= effectiveLimit) break;
+		}
+
+		const items = collected.slice(0, effectiveLimit);
+		const hasMore = !upstreamDone;
+
+		const result: CatalogPage = { items, hasMore };
+		if (hasMore && nextUpstreamCursor) result.cursor = encodeCatalogCursor(nextUpstreamCursor);
 		return result;
 	},
 };

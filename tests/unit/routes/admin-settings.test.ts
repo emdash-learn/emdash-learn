@@ -140,6 +140,19 @@ describe("admin:settings:get", () => {
 		expect(result.settings.dripMode).toBe(DEFAULT_SETTINGS.dripMode);
 	});
 
+	it("reverts drifted KV value to default and warns (M10)", async () => {
+		const { buildRouteCtx, log } = makeCtx({
+			kv: { "settings:dripMode": 42 }, // stored as number — invalid shape
+		});
+		const route = adminSettingsRoutes["admin:settings:get"];
+		const result = (await route.handler(buildRouteCtx({}))) as {
+			settings: Record<string, unknown>;
+		};
+		expect(result.settings.dripMode).toBe(DEFAULT_SETTINGS.dripMode);
+		expect(log.warn).toHaveBeenCalledOnce();
+		expect(String(log.warn.mock.calls[0]?.[0])).toMatch(/dripMode/);
+	});
+
 	it("surfaces provider=true when ctx.email is present and counts queued emails", async () => {
 		const { buildRouteCtx } = makeCtx({
 			email: { send: vi.fn(async () => {}) },
