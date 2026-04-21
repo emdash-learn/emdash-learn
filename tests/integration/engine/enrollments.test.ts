@@ -150,6 +150,26 @@ describe("engine/enrollments.grant", () => {
 		if (!second.ok) return;
 		expect(second.data.revokedAt).toBeUndefined();
 	});
+
+	it("concurrent grants: no unhandled exceptions and active enrollment exists (H3)", async () => {
+		// The storage layer's uniqueIndexes are enforced via expression indexes in
+		// production but not as hard unique constraints in the test runtime path.
+		// What we verify here: concurrent grants never throw, and at least one
+		// enrollment is active after the burst. The try/catch in grant() is
+		// defense-in-depth for when the DB DOES enforce uniqueness.
+		const { ctx } = await newCtx();
+		const student = await seedStudent(ctx, { email: "race@test.local" });
+		const course = await seedCourse(ctx, { title: "Race Course" });
+
+		const results = await Promise.all(
+			Array.from({ length: 10 }, () =>
+				enrollments.grant(ctx, student.id, { courseId: course.id, source: "free" }),
+			),
+		);
+		const errors = results.filter((r) => !r.ok && r.error.code !== "LEARN_ALREADY_ENROLLED");
+		expect(errors).toHaveLength(0);
+		expect(await enrollments.isEnrolled(ctx, student.id, course.id)).toBe(true);
+	});
 });
 
 describe("engine/enrollments.revoke", () => {
