@@ -116,6 +116,9 @@ export function createPlugin() {
 				indexes: ["userId", "courseId", "issuedAt"],
 				uniqueIndexes: [["userId", "courseId"], "verificationCode"],
 			},
+			cert_verify_attempts: {
+				indexes: [["ip", "bucket"], "ts"],
+			},
 			cohorts: {
 				indexes: ["slug"],
 				uniqueIndexes: ["slug"],
@@ -132,7 +135,10 @@ export function createPlugin() {
 
 		admin: {
 			entry: "@emdash/lms-core/admin",
-			pages: [{ path: "/setup", label: "Setup", icon: "wand" }],
+			pages: [
+				{ path: "/setup", label: "Setup", icon: "wand" },
+				{ path: "/quizzes", label: "Quizzes", icon: "list-checks" },
+			],
 			portableTextBlocks: [
 				{
 					type: "lmsQuiz",
