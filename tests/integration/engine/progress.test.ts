@@ -6,23 +6,20 @@
  *     `percentComplete >= 90` (§8.2). Lesson + topic both covered.
  *   - `tick` is monotonic on `percentComplete` (never regresses).
  *   - `tick` gates on enrollment — `LEARN_NOT_ENROLLED` otherwise.
- *   - Topic 90% auto-complete triggers `topic:completed`.
+ *   - Topic 90% auto-complete stamps completedAt on the topic row.
  *   - `markStepComplete("lesson", …)` refuses with `LEARN_LESSON_LOCKED`
  *     when child topics are incomplete; succeeds when all topics done.
  *   - Course completion requires every published lesson AND every published
  *     topic to be complete.
- *   - Event-bus idempotency: re-crossing the 90% threshold does not re-fire
- *     handlers for the same key.
+ *   - Idempotency: re-crossing the 90% threshold does not duplicate the
+ *     completion row.
+ *
+ * Note: the event bus has been removed (AUDIT C1, Track C). Completion
+ * assertions now read directly from storage rather than asserting events.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type {
-	CourseCompleted,
-	LessonCompleted,
-	TopicCompleted,
-} from "../../../src/types/engine.js";
-import * as eventBus from "../../../src/engine/event-bus.js";
 import * as progress from "../../../src/engine/progress.js";
 import {
 	publishContent,
@@ -80,10 +77,25 @@ async function publishCourse(ctx: TestCtx["ctx"], courseId: string): Promise<voi
 	await publishContent(ctx, "courses", courseId);
 }
 
+/** Read a step_progress row directly from storage for assertions. */
+async function getStepProgress(
+	ctx: TestCtx["ctx"],
+	userId: string,
+	stepType: "lesson" | "topic",
+	stepId: string,
+): Promise<{ completedAt?: string; percentComplete?: number } | null> {
+	const id = `prog__${userId}__${stepType}__${stepId}`;
+	const store = (
+		ctx.storage as unknown as {
+			step_progress: { get: (id: string) => Promise<unknown> };
+		}
+	).step_progress;
+	return (store.get(id) as Promise<{ completedAt?: string; percentComplete?: number } | null>);
+}
+
 afterEach(async () => {
 	const pending = contexts.splice(0, contexts.length);
 	await Promise.all(pending.map((ctx) => ctx.teardown()));
-	eventBus.__resetHandlersForTests();
 });
 
 describe("engine/progress.tick — lessons", () => {
@@ -137,18 +149,13 @@ describe("engine/progress.tick — lessons", () => {
 		expect(stale.data.positionSeconds).toBe(20);
 	});
 
-	it("auto-completes when percentComplete >= 90 and emits lesson:completed", async () => {
+	it("auto-completes when percentComplete >= 90 and stamps completedAt", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "p3@test.local" });
 		const course = await seedCourse(ctx, { title: "P3" });
 		await publishCourse(ctx, course.id);
 		const lessonId = await publishLesson(ctx, course.id);
 		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
-
-		const received: LessonCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>("lesson:completed", "test-handler", async (event) => {
-			received.push(event.data);
-		});
 
 		const result = await progress.tick(ctx, student.id, {
 			stepType: "lesson",
@@ -160,7 +167,10 @@ describe("engine/progress.tick — lessons", () => {
 		if (!result.ok) return;
 		expect(result.data.completedAt).toBeDefined();
 		expect(result.data.percentComplete).toBe(100);
-		expect(received).toHaveLength(1);
+
+		// Verify storage was stamped — this is the authoritatve fact, not an event.
+		const row = await getStepProgress(ctx, student.id, "lesson", lessonId);
+		expect(row?.completedAt).toBeDefined();
 	});
 
 	it("returns LEARN_NOT_ENROLLED when the user is not enrolled", async () => {
@@ -222,7 +232,7 @@ describe("engine/progress.tick — topics", () => {
 		expect(result.data.percentComplete).toBe(30);
 	});
 
-	it("auto-completes a topic at 90% and emits topic:completed", async () => {
+	it("auto-completes a topic at 90% and stamps completedAt on the topic row", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "tp2@test.local" });
 		const course = await seedCourse(ctx, { title: "TP2" });
@@ -230,11 +240,6 @@ describe("engine/progress.tick — topics", () => {
 		const lessonId = await publishLesson(ctx, course.id);
 		const topicId = await publishTopic(ctx, course.id, lessonId);
 		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
-
-		const received: TopicCompleted["data"][] = [];
-		eventBus.on<TopicCompleted>("topic:completed", "t-h", async (event) => {
-			received.push(event.data);
-		});
 
 		const result = await progress.tick(ctx, student.id, {
 			stepType: "topic",
@@ -245,8 +250,11 @@ describe("engine/progress.tick — topics", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.completedAt).toBeDefined();
-		expect(received).toHaveLength(1);
-		expect(received[0]?.stepType).toBe("topic");
+		expect(result.data.stepType).toBe("topic");
+
+		// Verify storage row was stamped.
+		const row = await getStepProgress(ctx, student.id, "topic", topicId);
+		expect(row?.completedAt).toBeDefined();
 	});
 });
 
@@ -336,7 +344,7 @@ describe("engine/progress.markStepComplete — lesson gating on topics", () => {
 });
 
 describe("engine/progress.markStepComplete — course completion", () => {
-	it("emits course:completed when the final lesson AND all topics complete", async () => {
+	it("stamps completedAt on the enrollment when the final lesson AND all topics complete", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "p6@test.local" });
 		const course = await seedCourse(ctx, { title: "P6" });
@@ -348,34 +356,23 @@ describe("engine/progress.markStepComplete — course completion", () => {
 			courseId: course.id,
 		});
 
-		const lessonEvents: LessonCompleted["data"][] = [];
-		const courseEvents: CourseCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>(
-			"lesson:completed",
-			"t-l",
-			async (e) => void lessonEvents.push(e.data),
-		);
-		eventBus.on<CourseCompleted>(
-			"course:completed",
-			"t-c",
-			async (e) => void courseEvents.push(e.data),
-		);
-
 		const first = await progress.markStepComplete(ctx, student.id, "lesson", lesson1);
 		expect(first.ok).toBe(true);
 		if (!first.ok) return;
 		expect(first.data.courseComplete).toBe(false);
-		expect(courseEvents).toHaveLength(0);
+
+		// Verify enrollment.completedAt is NOT yet set after first lesson.
+		const enrollments = ctx.storage.enrollments;
+		if (!enrollments) throw new Error("enrollments collection missing");
+		const rowBefore = await enrollments.get(enrollment.id);
+		expect((rowBefore as { completedAt?: string } | null)?.completedAt).toBeUndefined();
 
 		const second = await progress.markStepComplete(ctx, student.id, "lesson", lesson2);
 		expect(second.ok).toBe(true);
 		if (!second.ok) return;
 		expect(second.data.courseComplete).toBe(true);
-		expect(lessonEvents).toHaveLength(2);
-		expect(courseEvents).toHaveLength(1);
 
-		const enrollments = ctx.storage.enrollments;
-		if (!enrollments) throw new Error("enrollments collection missing");
+		// Verify enrollment.completedAt IS stamped after final lesson.
 		const row = await enrollments.get(enrollment.id);
 		expect(row).toBeDefined();
 		if (!row) return;
@@ -390,11 +387,6 @@ describe("engine/progress.markStepComplete — course completion", () => {
 		const lessonId = await publishLesson(ctx, course.id);
 		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
 
-		const received: LessonCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>("lesson:completed", "test-handler", async (event) => {
-			received.push(event.data);
-		});
-
 		await progress.tick(ctx, student.id, {
 			stepType: "lesson",
 			stepId: lessonId,
@@ -408,7 +400,19 @@ describe("engine/progress.markStepComplete — course completion", () => {
 			percentComplete: 98,
 		});
 
-		expect(received).toHaveLength(1);
+		// The lesson row should have exactly one completedAt (idempotent).
+		const row = await getStepProgress(ctx, student.id, "lesson", lessonId);
+		expect(row?.completedAt).toBeDefined();
+		// And the result of the second tick should still report the row complete.
+		const third = await progress.tick(ctx, student.id, {
+			stepType: "lesson",
+			stepId: lessonId,
+			positionSeconds: 120,
+			percentComplete: 99,
+		});
+		expect(third.ok).toBe(true);
+		if (!third.ok) return;
+		expect(third.data.completedAt).toBeDefined();
 	});
 });
 

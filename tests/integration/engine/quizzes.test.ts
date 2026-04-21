@@ -3,14 +3,16 @@
  *
  * Covers CRUD, startAttempt/submitAttempt lifecycle, the hard time-limit
  * rejection, and the terminal-quiz-passed → lesson:completed rule.
+ *
+ * Note: the event bus has been removed (AUDIT C1, Track C). The
+ * terminal-quiz-passed test now reads the step_progress row directly from
+ * storage rather than asserting a lesson:completed event.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 import type { PluginContext } from "emdash";
 
-import * as eventBus from "../../../src/engine/event-bus.js";
 import * as quizzes from "../../../src/engine/quizzes.js";
-import type { LessonCompleted } from "../../../src/types/engine.js";
 import {
 	publishContent,
 	seedCourse,
@@ -34,7 +36,6 @@ async function newCtx(): Promise<TestCtx> {
 afterEach(async () => {
 	const pending = contexts.splice(0, contexts.length);
 	await Promise.all(pending.map((ctx) => ctx.teardown()));
-	eventBus.__resetHandlersForTests();
 });
 
 const mcqCorrect = {
@@ -193,7 +194,7 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		expect(after.overtime).toBe(true);
 	});
 
-	it("terminal-quiz-passed emits lesson:completed when attempt is bound to a lesson", async () => {
+	it("terminal-quiz-passed marks lesson complete in storage when attempt is bound to a lesson", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "tq@test.local" });
 		const course = await seedCourse(ctx, { title: "TQ" });
@@ -204,11 +205,6 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		await publishContent(ctx, "lessons", lesson.id);
 		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
 
-		const received: LessonCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>("lesson:completed", "test-handler", async (event) => {
-			received.push(event.data);
-		});
-
 		const started = await quizzes.startAttempt(ctx, student.id, quiz.id, lesson.id);
 		if (!started.ok) throw new Error("setup failed");
 		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, [
@@ -216,11 +212,20 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		]);
 
 		expect(submitted.ok && submitted.data.passed).toBe(true);
-		expect(received).toHaveLength(1);
-		// Post-ADR 0001: LessonCompleted carries StepProgress; the lesson id is
-		// `stepId` (with `stepType === "lesson"`).
-		expect(received[0]?.stepType).toBe("lesson");
-		expect(received[0]?.stepId).toBe(lesson.id);
+
+		// Verify lesson was marked complete in storage (authoritative fact).
+		// Post-ADR 0001: step_progress rows use deterministic id prog__userId__lesson__lessonId.
+		const stepProg = (
+			ctx.storage as unknown as {
+				step_progress: { get: (id: string) => Promise<unknown> };
+			}
+		).step_progress;
+		const lessonRow = (await stepProg.get(
+			`prog__${student.id}__lesson__${lesson.id}`,
+		)) as { completedAt?: string; stepType?: string; stepId?: string } | null;
+		expect(lessonRow?.completedAt).toBeDefined();
+		expect(lessonRow?.stepType).toBe("lesson");
+		expect(lessonRow?.stepId).toBe(lesson.id);
 	});
 
 	it("rejects startAttempt when quiz is not attached to the lesson (H2)", async () => {
