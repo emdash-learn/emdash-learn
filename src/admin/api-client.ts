@@ -261,7 +261,8 @@ export interface CohortImportResponse {
 	added: Array<{ id: string } & CohortMember>;
 	unknownEmails: string[];
 	alreadyMembers: string[];
-	counts: { added: number; unknown: number; alreadyMembers: number };
+	capacityRejected: string[];
+	counts: { added: number; unknown: number; alreadyMembers: number; capacityRejected: number };
 }
 
 export interface InstructorSetResponse {

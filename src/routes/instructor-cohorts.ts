@@ -219,10 +219,12 @@ const importRoute: PluginRoute<CohortImportInput> = {
 			added: result.added.map((r) => ({ id: r.id, ...r.data })),
 			unknownEmails: result.unknownEmails,
 			alreadyMembers: result.alreadyMembers,
+			capacityRejected: result.capacityRejected,
 			counts: {
 				added: result.added.length,
 				unknown: result.unknownEmails.length,
 				alreadyMembers: result.alreadyMembers.length,
+				capacityRejected: result.capacityRejected.length,
 			},
 		};
 	},
