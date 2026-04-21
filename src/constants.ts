@@ -5,7 +5,10 @@
  */
 
 export const PLUGIN_ID = "lms-core";
-export const PLUGIN_VERSION = "0.0.0";
+// Replaced at build time by tsdown's `define` to match package.json version.
+declare const __PLUGIN_VERSION__: string;
+export const PLUGIN_VERSION: string =
+	typeof __PLUGIN_VERSION__ !== "undefined" ? __PLUGIN_VERSION__ : "0.0.0";
 
 /**
  * Incremented whenever the setup wizard's frozen schema set or seeded default
