@@ -163,6 +163,13 @@ The demo's `src/pages/` includes `catalog`, `my-learning`, `courses/[slug]`, `co
 | `pnpm format`           | Format with Prettier.                       |
 | `pnpm format:check`     | Check formatting without writing.           |
 
+## Internationalization
+
+The README and feature list mention i18n in two distinct senses:
+
+- **Content-item translation** — `courses`, `lessons`, and `topics` are stored in emdash's content collections, which ship draft/revision/scheduling/SEO and full locale support out of the box. This works in v1.
+- **Admin UI strings** — Every string in the React admin pages is hard-coded in English in v1. Lingui is configured in the repo but string extraction and compiled catalogs are deferred to v1.1. If you need localized admin UI today, fork the admin pages.
+
 ## License
 
 MIT — see [`LICENSE`](./LICENSE).

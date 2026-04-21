@@ -27,8 +27,9 @@ coverage/
 .env.local
 *.log
 
-# private planning docs (kept local)
-PRD.md
-VIABILITY.md
-prd-plugin.md
-emdash-learn-viability.md
+# private planning docs (archived to docs/internal/ — committed there, not at root)
+/PRD.md
+/VIABILITY.md
+/prd-plugin.md
+/emdash-learn-viability.md
+/prompt-topics-refactor.md
