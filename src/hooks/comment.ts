@@ -54,9 +54,13 @@ export async function commentBeforeCreate(
 		return false;
 	}
 
-	// Without content access we can't resolve the lesson's parent course,
-	// so allow — emdash will still enforce its own collection-level gates.
-	if (!ctx.content) return;
+	// Gate is ON but content access is unavailable — fail closed (H5).
+	// Failing open here would let unenrolled users comment whenever content
+	// resolution is misconfigured.
+	if (!ctx.content) {
+		ctx.log.warn("comment gate: ctx.content unavailable — refusing comment to fail closed");
+		return false;
+	}
 	const lesson = await ctx.content.get(LESSONS_COLLECTION_SLUG, event.comment.contentId);
 	const courseId = (lesson?.data as Record<string, unknown> | undefined)?.["course"] as
 		| string

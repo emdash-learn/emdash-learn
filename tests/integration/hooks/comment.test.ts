@@ -111,6 +111,18 @@ describe("hooks/commentBeforeCreate", () => {
 		expect(result).toBe(false);
 	});
 
+	it("gate on, ctx.content missing: refuses (fail-closed, H5)", async () => {
+		const { ctx: base } = await newCtx();
+		await base.kv.set(settingKey("commentGateRequiresEnrollment"), true);
+		// Simulate a ctx where content access was not granted.
+		const ctxNoContent = { ...base, content: undefined };
+		const result = await commentBeforeCreate(
+			evt({ authorUserId: "u_any" }),
+			ctxNoContent as typeof base,
+		);
+		expect(result).toBe(false);
+	});
+
 	it("gate on, revoked enrollment: refuses", async () => {
 		const { ctx } = await newCtx();
 		await ctx.kv.set(settingKey("commentGateRequiresEnrollment"), true);

@@ -219,7 +219,22 @@ export async function grant(
 	if (input.orderId !== undefined) data.orderId = input.orderId;
 	if (input.cohortId !== undefined) data.cohortId = input.cohortId;
 
-	await enrollmentsStore(ctx).put(id, data);
+	try {
+		await enrollmentsStore(ctx).put(id, data);
+	} catch (_writeErr) {
+		// Unique-index violation: a concurrent grant beat us to the write.
+		// Re-query to determine the winner's intent rather than matching error strings.
+		const race = await findEnrollment(ctx, userId, input.courseId);
+		if (!race) throw _writeErr; // unexpected write failure; let it surface
+		if (!race.data.revokedAt) {
+			return err(
+				LEARN_ERRORS.ALREADY_ENROLLED,
+				`User ${userId} is already enrolled in course ${input.courseId}`,
+			);
+		}
+		// The winning concurrent grant was a re-enrollment; its row is active.
+		return ok(race.data);
+	}
 
 	// §8.3: row is the source of truth, emit second. `critical: true` so a
 	// downstream sync handler failure surfaces to the route boundary.
