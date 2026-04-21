@@ -24,6 +24,7 @@ import {
 	issueCertificatesReconciler,
 	type ReconcilerSummary,
 } from "../reconcilers/issue-certificates.js";
+import { sendLifecycleEmailsReconciler } from "../reconcilers/send-lifecycle-emails.js";
 import type { Result } from "../engine/result.js";
 
 export interface CronEvent {
@@ -39,6 +40,7 @@ const ROUTES: Record<string, Reconciler> = {
 	"drip-release-reminders": dripReleaseRemindersReconciler,
 	"flush-email-queue": flushEmailQueueReconciler,
 	"backfill-content-index": backfillContentIndexReconciler as Reconciler,
+	"send-lifecycle-emails": sendLifecycleEmailsReconciler,
 };
 
 export async function cronDispatch(event: CronEvent, ctx: PluginContext): Promise<void> {

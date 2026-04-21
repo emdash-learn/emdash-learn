@@ -2,8 +2,8 @@
  * Integration tests for `engine/enrollments.ts` (T05).
  *
  * Covers:
- *   - `grant` creates a row, stamps enrollment:created event, dedupes on
- *     the `(userId,courseId)` unique index (LEARN_ALREADY_ENROLLED).
+ *   - `grant` creates a row and dedupes on the `(userId,courseId)` unique
+ *     index (LEARN_ALREADY_ENROLLED).
  *   - Enrollment-window closed paths: `enrollment_open=false`,
  *     `enrollment_closes_at` in the past.
  *   - Re-enroll after revocation clears `revokedAt` and reuses the row id
@@ -11,12 +11,16 @@
  *   - `revoke` stamps `revokedAt`, re-revoke returns LEARN_NOT_ENROLLED.
  *   - `listByUser` / `listByCourse` apply the active/completed/all filter.
  *   - `isEnrolled` is true only when there is an un-revoked row.
+ *
+ * Note: the event bus has been removed (AUDIT C1, Track C). Tests that
+ * previously asserted enrollment:created / enrollment:revoked events now
+ * verify storage state directly. Welcome / completion email delivery is
+ * asserted in the send-lifecycle-emails reconciler tests.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import * as enrollments from "../../../src/engine/enrollments.js";
-import * as eventBus from "../../../src/engine/event-bus.js";
 import { seedCourse, seedEnrollment, seedStudent } from "../../utils/seed.js";
 import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
@@ -33,19 +37,13 @@ async function newCtx(): Promise<TestCtx> {
 afterEach(async () => {
 	const pending = contexts.splice(0, contexts.length);
 	await Promise.all(pending.map((ctx) => ctx.teardown()));
-	eventBus.__resetHandlersForTests();
 });
 
 describe("engine/enrollments.grant", () => {
-	it("creates a row and emits enrollment:created", async () => {
+	it("creates a row with correct userId, courseId, source", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "s1@test.local" });
 		const course = await seedCourse(ctx, { title: "Course A" });
-
-		const received: unknown[] = [];
-		eventBus.on("enrollment:created", "test-handler", async (event) => {
-			received.push(event.data);
-		});
 
 		const result = await enrollments.grant(ctx, student.id, {
 			courseId: course.id,
@@ -57,7 +55,22 @@ describe("engine/enrollments.grant", () => {
 		expect(result.data.userId).toBe(student.id);
 		expect(result.data.courseId).toBe(course.id);
 		expect(result.data.source).toBe("free");
-		expect(received).toHaveLength(1);
+		expect(result.data.enrolledAt).toBeDefined();
+	});
+
+	it("persists the enrollment row in storage", async () => {
+		const { ctx } = await newCtx();
+		const student = await seedStudent(ctx, { email: "s1b@test.local" });
+		const course = await seedCourse(ctx, { title: "Course A-persist" });
+
+		const result = await enrollments.grant(ctx, student.id, {
+			courseId: course.id,
+			source: "free",
+		});
+		expect(result.ok).toBe(true);
+
+		// Verify the enrollment row is actually in storage (not just returned in-memory).
+		expect(await enrollments.isEnrolled(ctx, student.id, course.id)).toBe(true);
 	});
 
 	it("returns LEARN_ALREADY_ENROLLED for a duplicate", async () => {
@@ -173,23 +186,20 @@ describe("engine/enrollments.grant", () => {
 });
 
 describe("engine/enrollments.revoke", () => {
-	it("stamps revokedAt and emits enrollment:revoked", async () => {
+	it("stamps revokedAt on the storage row", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "s7@test.local" });
 		const course = await seedCourse(ctx, { title: "Revoke" });
 		const seeded = await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
-
-		const received: unknown[] = [];
-		eventBus.on("enrollment:revoked", "test-handler", async (event) => {
-			received.push(event.data);
-		});
 
 		const result = await enrollments.revoke(ctx, seeded.id, "violation");
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.revokedAt).toBeDefined();
 		expect(result.data.revokedReason).toBe("violation");
-		expect(received).toHaveLength(1);
+
+		// Verify storage row was actually updated.
+		expect(await enrollments.isEnrolled(ctx, student.id, course.id)).toBe(false);
 	});
 
 	it("returns LEARN_NOT_ENROLLED for a missing row", async () => {

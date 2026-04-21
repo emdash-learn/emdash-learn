@@ -15,10 +15,9 @@
  *     lessonId — triggers lesson completion (terminal-quiz-passed rule,
  *     T08 acceptance).
  *
- * Event semantics (§8.2):
- *   - `quiz:attempted` — emitted on every submitAttempt, contains the graded
- *     attempt so analytics / notifications can consume it.
- *   - `lesson:completed` — emitted via `progress.markLessonComplete` when
+ * Side-effects on submit:
+ *   - The graded attempt row is persisted regardless of pass/fail.
+ *   - `lesson:completed` cascades via `progress.markStepComplete` when
  *     a passed attempt is bound to a lesson.
  */
 
@@ -33,7 +32,6 @@ import type {
 	QuizQuestion,
 	QuizTimeLimitPolicy,
 } from "../types/storage.js";
-import { emit } from "./event-bus.js";
 import { markStepComplete } from "./progress.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -433,15 +431,6 @@ export async function submitAttempt(
 	finalized.passed = persistedPassed;
 	finalized.overtime = graded.overtime;
 	await attemptsStore(ctx).put(attemptId, finalized);
-
-	await emit(
-		{
-			name: "quiz:attempted",
-			key: `qa:${attemptId}`,
-			data: finalized,
-		},
-		ctx,
-	);
 
 	if (hardTimeout) {
 		return err(LEARN_ERRORS.QUIZ_TIMEOUT, "quiz submitted past the hard time limit");

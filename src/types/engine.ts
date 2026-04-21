@@ -1,10 +1,14 @@
 /**
- * Engine-event catalog (§8.1). Every event carries an idempotency `key` so the
- * event bus (T02) can dedupe re-drives via KV markers.
+ * Engine-event catalog (§8.1).
  *
- * `critical` is a routing hint the dispatcher consults (§8.2):
- *   - `true`  — handler throw propagates to the route and fails the request.
- *   - `false` — handler throw is swallowed; reconciler sweeps will retry.
+ * The event bus has been removed (AUDIT C1, Track C — Decision: Rip).
+ * This file is retained as a reference for the event shapes that were
+ * previously emitted; they are kept here for documentation purposes only
+ * and are not used at runtime. If an event-bus model is reintroduced in
+ * a future version, these types provide the shape contract.
+ *
+ * Production fan-out (welcome email, completion email) is now handled by
+ * the `send-lifecycle-emails` reconciler in `src/reconcilers/`.
  */
 
 import type { Certificate, Enrollment, QuizAttempt, StepProgress } from "./storage.js";
@@ -33,16 +37,3 @@ export type LessonReleased = BaseEvent<
 	{ lessonId: string; scheduledAt: string }
 >;
 export type CoursePublished = BaseEvent<"course:published", `cp:${string}`, { courseId: string }>;
-
-export type EngineEvent =
-	| EnrollmentCreated
-	| EnrollmentRevoked
-	| LessonCompleted
-	| TopicCompleted
-	| CourseCompleted
-	| QuizAttempted
-	| CertificateIssued
-	| LessonReleased
-	| CoursePublished;
-
-export type EngineEventName = EngineEvent["name"];

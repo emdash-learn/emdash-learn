@@ -7,19 +7,19 @@
  *   - `grant`  — creates an enrollment row for `(userId, courseId)` after
  *     validating that the course exists, enrollment is open (per
  *     `enrollment_open` + `enrollment_opens_at` / `enrollment_closes_at` from
- *     §5.1), and the user is not already enrolled. On success, emits
- *     `enrollment:created` (critical) so downstream handlers can fan out
- *     welcome email / instructor notify per §8.2.
+ *     §5.1), and the user is not already enrolled. On success, the
+ *     `send-lifecycle-emails` reconciler will pick up the enrollment on the
+ *     next cron tick and send the welcome email (Track C, AUDIT C1).
  *   - `revoke` — flips `revokedAt` (+ optional `revokedReason`) on an existing
- *     row by `enrollmentId`. Emits `enrollment:revoked` on success.
+ *     row by `enrollmentId`.
  *   - `listByUser` / `listByCourse` — paginated reads against the
  *     `(userId,…)` / `(courseId,…)` indexes declared in the descriptor.
  *   - `isEnrolled` — point-lookup convenience used by other engine modules
  *     and `authz.requireEnrolled`.
  *
- * §8.3 atomicity: the engine writes the authoritative row first, then emits.
- * Handlers are idempotent (event-bus dedupes on `event.key`), so re-driving
- * an event after a partial failure is safe.
+ * §8.3 atomicity: the engine write is the authoritative action. Welcome/completion
+ * emails are delivered via the `send-lifecycle-emails` reconciler which stamps
+ * `welcomeSentAt` / `completionSentAt` for idempotency (Track C, AUDIT C1).
  *
  * Error taxonomy (§17.6):
  *   - `LEARN_ALREADY_ENROLLED` (409) — duplicate `(userId, courseId)`.
@@ -39,7 +39,6 @@ import { ulid } from "emdash";
 
 import { LEARN_ERRORS } from "../constants.js";
 import type { Enrollment, EnrollmentSource } from "../types/storage.js";
-import { emit } from "./event-bus.js";
 import { err, ok, type Result } from "./result.js";
 
 // ---------------------------------------------------------------------------
@@ -236,18 +235,6 @@ export async function grant(
 		return ok(race.data);
 	}
 
-	// §8.3: row is the source of truth, emit second. `critical: true` so a
-	// downstream sync handler failure surfaces to the route boundary.
-	await emit(
-		{
-			name: "enrollment:created",
-			key: `enroll:${id}`,
-			data,
-			critical: true,
-		},
-		ctx,
-	);
-
 	return ok(data);
 }
 
@@ -278,17 +265,6 @@ export async function revoke(
 	};
 	if (reason !== undefined) updated.revokedReason = reason;
 	await store.put(enrollmentId, updated);
-
-	const eventData: { enrollmentId: string; reason?: string } = { enrollmentId };
-	if (reason !== undefined) eventData.reason = reason;
-	await emit(
-		{
-			name: "enrollment:revoked",
-			key: `revoke:${enrollmentId}`,
-			data: eventData,
-		},
-		ctx,
-	);
 
 	return ok(updated);
 }
