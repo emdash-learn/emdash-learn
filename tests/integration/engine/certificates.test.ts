@@ -154,22 +154,21 @@ describe("engine/certificates.checkVerifyRateLimit", () => {
 		expect(a1.ok && b1.ok).toBe(true);
 	});
 
-	it("bounds concurrent calls — successes <= maxPerBucket + in-flight slack", async () => {
-		// Insert-first-then-count: under a pure concurrent burst all inserts may
-		// land before any count runs, so every request sees the full batch and
-		// rejects. That is conservative-correct behavior. The only invariant that
-		// must hold is the upper bound: no more than maxPerBucket + N_inflight
-		// successes (here N=50 is the theoretical max slack).
+	it("concurrent burst: successes never exceed maxPerBucket (H6)", async () => {
+		// Insert-first-then-count: regardless of interleaving, a request that sees
+		// count > maxPerBucket rejects. In the fully-concurrent case (all inserts
+		// complete before any count runs) all requests may reject. In the
+		// sequential case exactly maxPerBucket succeed. The invariant is:
+		//   successes <= maxPerBucket
 		const { ctx } = await newCtx();
 		const opts = { bucketSeconds: 60, maxPerBucket: 10 };
-		const N = 50;
 		const results = await Promise.all(
-			Array.from({ length: N }, () =>
+			Array.from({ length: 50 }, () =>
 				certificates.checkVerifyRateLimit(ctx, "3.3.3.3", opts),
 			),
 		);
 		const successes = results.filter((r) => r.ok).length;
-		expect(successes).toBeLessThanOrEqual(opts.maxPerBucket + N);
+		expect(successes).toBeLessThanOrEqual(opts.maxPerBucket);
 	});
 });
 
