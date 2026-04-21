@@ -352,14 +352,18 @@ export async function startAttempt(
 
 		// H1: require active enrollment in the course that owns this lesson.
 		const courseId = (lessonItem.data as Record<string, unknown>)["course"];
-		if (typeof courseId === "string") {
-			const enrollment = await (
-				ctx.storage as Record<string, StorageCollection<Record<string, unknown>> | undefined>
-			)["enrollments"]?.query({ where: { userId, courseId }, limit: 1 });
-			const row = enrollment?.items[0];
-			if (!row || (row.data as { revokedAt?: string }).revokedAt) {
-				return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in course ${courseId}`);
-			}
+		if (typeof courseId !== "string") {
+			// Lesson is missing its `course` back-reference — this is a schema
+			// violation. Fail closed rather than silently skipping the gate.
+			ctx.log?.warn(`startAttempt: lesson ${lessonId} has no course field — denying attempt`);
+			return err(LEARN_ERRORS.SETUP_INCOMPLETE, `Lesson ${lessonId} is missing its course reference`);
+		}
+		const enrollment = await (
+			ctx.storage as Record<string, StorageCollection<Record<string, unknown>> | undefined>
+		)["enrollments"]?.query({ where: { userId, courseId }, limit: 1 });
+		const row = enrollment?.items[0];
+		if (!row || (row.data as { revokedAt?: string }).revokedAt) {
+			return err(LEARN_ERRORS.NOT_ENROLLED, `User ${userId} is not enrolled in course ${courseId}`);
 		}
 	}
 
