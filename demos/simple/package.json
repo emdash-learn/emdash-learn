@@ -22,6 +22,7 @@
 		"react-dom": "^19.2.0"
 	},
 	"devDependencies": {
+		"@lingui/babel-plugin-lingui-macro": "^5.9.5",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^24.10.0",
 		"tsx": "^4.20.1"

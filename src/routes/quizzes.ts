@@ -23,6 +23,7 @@ import { type AuthContext, Role, requireOwner, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as quizzes from "../engine/quizzes.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (§23)
@@ -77,7 +78,7 @@ export type QuizListInput = z.infer<typeof quizListInput>;
 
 export const quizStartInput = z.object({
 	quizId: z.string().min(1),
-	lessonId: z.string().optional(),
+	lessonId: z.string().min(1),
 });
 export type QuizStartInput = z.infer<typeof quizStartInput>;
 
@@ -90,7 +91,7 @@ export const quizSubmitInput = z.object({
 				answer: z.union([z.string(), z.array(z.string()), z.boolean()]),
 			}),
 		)
-		.min(1),
+		.min(0),
 });
 export type QuizSubmitInput = z.infer<typeof quizSubmitInput>;
 
@@ -144,6 +145,7 @@ function gateStudent(ctx: unknown): { id: string } {
 const startRoute: PluginRoute<QuizStartInput> = {
 	input: quizStartInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 		const result = unwrap(
 			await quizzes.startAttempt(ctx, user.id, ctx.input.quizId, ctx.input.lessonId),
@@ -155,6 +157,7 @@ const startRoute: PluginRoute<QuizStartInput> = {
 const submitRoute: PluginRoute<QuizSubmitInput> = {
 	input: quizSubmitInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 
 		// Owner scope: load attempt, verify caller owns it.
@@ -189,6 +192,7 @@ const submitRoute: PluginRoute<QuizSubmitInput> = {
 const createRoute: PluginRoute<QuizCreateInput> = {
 	input: quizCreateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const record = unwrap(await quizzes.create(ctx, ctx.input));
 		return { id: record.id, quiz: record.data };
@@ -198,6 +202,7 @@ const createRoute: PluginRoute<QuizCreateInput> = {
 const updateRoute: PluginRoute<QuizUpdateInput> = {
 	input: quizUpdateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const { quizId, ...patch } = ctx.input;
 		const record = unwrap(await quizzes.update(ctx, quizId, patch));
@@ -208,6 +213,7 @@ const updateRoute: PluginRoute<QuizUpdateInput> = {
 const listRoute: PluginRoute<QuizListInput> = {
 	input: quizListInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		const opts: quizzes.ListOptions = {};
 		if (ctx.input.cursor !== undefined) opts.cursor = ctx.input.cursor;
@@ -224,6 +230,7 @@ const listRoute: PluginRoute<QuizListInput> = {
 const deleteRoute: PluginRoute<QuizDeleteInput> = {
 	input: quizDeleteInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		gateInstructor(ctx);
 		unwrap(await quizzes.remove(ctx, ctx.input.quizId));
 		return { ok: true };

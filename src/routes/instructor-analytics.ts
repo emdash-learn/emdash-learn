@@ -17,6 +17,7 @@ import { type AuthContext, Role, requireInstructor, requireRole } from "../authz
 import { LEARN_ERRORS } from "../constants.js";
 import * as analytics from "../engine/analytics.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -106,6 +107,7 @@ function progressMatrixToCsv(matrix: {
 const dashboardStatsRoute: PluginRoute<EmptyInput> = {
 	input: emptyInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -116,6 +118,7 @@ const dashboardStatsRoute: PluginRoute<EmptyInput> = {
 const dashboardCoursesRoute: PluginRoute<EmptyInput> = {
 	input: emptyInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -126,6 +129,7 @@ const dashboardCoursesRoute: PluginRoute<EmptyInput> = {
 const recentActivityRoute: PluginRoute<RecentActivityInput> = {
 	input: recentActivityInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -137,6 +141,7 @@ const recentActivityRoute: PluginRoute<RecentActivityInput> = {
 const courseOverviewRoute: PluginRoute<CourseIdInput> = {
 	input: courseIdInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -149,6 +154,7 @@ const courseOverviewRoute: PluginRoute<CourseIdInput> = {
 const courseEnrollmentsTimelineRoute: PluginRoute<TimelineInput> = {
 	input: timelineInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -162,6 +168,7 @@ const courseEnrollmentsTimelineRoute: PluginRoute<TimelineInput> = {
 const courseCompletionFunnelRoute: PluginRoute<CourseIdInput> = {
 	input: courseIdInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -174,6 +181,7 @@ const courseCompletionFunnelRoute: PluginRoute<CourseIdInput> = {
 const courseProgressMatrixRoute: PluginRoute<ProgressMatrixInput> = {
 	input: progressMatrixInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -189,6 +197,7 @@ const courseProgressMatrixRoute: PluginRoute<ProgressMatrixInput> = {
 const courseQuizStatsRoute: PluginRoute<CourseIdInput> = {
 	input: courseIdInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -201,6 +210,7 @@ const courseQuizStatsRoute: PluginRoute<CourseIdInput> = {
 const studentProgressRoute: PluginRoute<StudentProgressInput> = {
 	input: studentProgressInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -213,6 +223,7 @@ const studentProgressRoute: PluginRoute<StudentProgressInput> = {
 const enrollmentsExportRoute: PluginRoute<CourseIdInput> = {
 	input: courseIdInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);
@@ -228,6 +239,7 @@ const enrollmentsExportRoute: PluginRoute<CourseIdInput> = {
 const progressExportRoute: PluginRoute<CourseIdInput> = {
 	input: courseIdInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.EDITOR);
 		if (!user.ok) throw toRouteError(user.error);

@@ -79,7 +79,7 @@ describe("engine/certificates.verify", () => {
 		expect(result.ok && result.data.valid).toBe(false);
 	});
 
-	it("returns valid=false with revokedAt set after revoke", async () => {
+	it("returns exactly { valid: false } after revoke — no data leakage (M9)", async () => {
 		const { ctx } = await newCtx();
 		const issued = await certificates.issue(ctx, "u_rev", "c_rev");
 		if (!issued.ok) throw new Error("setup failed");
@@ -88,7 +88,17 @@ describe("engine/certificates.verify", () => {
 		expect(verified.ok).toBe(true);
 		if (!verified.ok) return;
 		expect(verified.data.valid).toBe(false);
-		expect(verified.data.revokedAt).toBeDefined();
+		expect(Object.keys(verified.data).length).toBe(1);
+	});
+
+	it("stamps revokedAt on the stored certificate row after revoke", async () => {
+		const { ctx } = await newCtx();
+		const issued = await certificates.issue(ctx, "u_rev2", "c_rev2");
+		if (!issued.ok) throw new Error("setup failed");
+		const revoked = await certificates.revoke(ctx, issued.data.id, "fraud");
+		expect(revoked.ok).toBe(true);
+		if (!revoked.ok) return;
+		expect(revoked.data.data.revokedAt).toBeDefined();
 	});
 });
 
@@ -142,5 +152,33 @@ describe("engine/certificates.checkVerifyRateLimit", () => {
 		const a1 = await certificates.checkVerifyRateLimit(ctx, "1.1.1.1", opts);
 		const b1 = await certificates.checkVerifyRateLimit(ctx, "2.2.2.2", opts);
 		expect(a1.ok && b1.ok).toBe(true);
+	});
+
+	it("concurrent burst: successes never exceed maxPerBucket (H6)", async () => {
+		// Insert-first-then-count: regardless of interleaving, a request that sees
+		// count > maxPerBucket rejects. In the fully-concurrent case (all inserts
+		// complete before any count runs) all requests may reject. In the
+		// sequential case exactly maxPerBucket succeed. The invariant is:
+		//   successes <= maxPerBucket
+		const { ctx } = await newCtx();
+		const opts = { bucketSeconds: 60, maxPerBucket: 10 };
+		const results = await Promise.all(
+			Array.from({ length: 50 }, () =>
+				certificates.checkVerifyRateLimit(ctx, "3.3.3.3", opts),
+			),
+		);
+		const successes = results.filter((r) => r.ok).length;
+		expect(successes).toBeLessThanOrEqual(opts.maxPerBucket);
+	});
+});
+
+describe("engine/certificates.verify — shape invariants", () => {
+	it("returns exactly { valid: false } for an unknown code (no data leakage)", async () => {
+		const { ctx } = await newCtx();
+		const result = await certificates.verify(ctx, "UNKNOWN12345");
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.valid).toBe(false);
+		expect(Object.keys(result.data).length).toBe(1);
 	});
 });

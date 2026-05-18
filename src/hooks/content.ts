@@ -24,7 +24,12 @@
  * the orchestrator after merge). This file only owns the handler body.
  */
 
-import type { ContentDeleteEvent, PluginContext, StorageCollection } from "emdash";
+import type {
+	ContentDeleteEvent,
+	ContentHookEvent,
+	PluginContext,
+	StorageCollection,
+} from "emdash";
 
 import {
 	COURSES_COLLECTION_SLUG,
@@ -32,7 +37,7 @@ import {
 	LESSONS_COLLECTION_SLUG,
 	TOPICS_COLLECTION_SLUG,
 } from "../constants.js";
-import type { Enrollment, StepProgress } from "../types/storage.js";
+import type { CourseContentIndexRow, Enrollment, StepProgress } from "../types/storage.js";
 
 /**
  * Typed access to a named plugin-storage collection. Mirrors the pattern
@@ -120,6 +125,206 @@ async function hasContentReferencingCourse(ctx: PluginContext, courseId: string)
 		/* oxlint-enable no-await-in-loop */
 	}
 	return false;
+}
+
+// ---------------------------------------------------------------------------
+// course_content_index projection sync (AUDIT C3)
+// ---------------------------------------------------------------------------
+
+const CONTENT_INDEX_COLLECTION = "course_content_index";
+
+/**
+ * Deterministic storage id for a projection row. Encoding all three key
+ * fields prevents collisions across courses and step types.
+ */
+function contentIndexId(courseId: string, stepType: "lesson" | "topic", stepId: string): string {
+	return `idx__${courseId}__${stepType}__${stepId}`;
+}
+
+function contentIndexStore(ctx: PluginContext): StorageCollection<CourseContentIndexRow> {
+	return storageFor<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
+}
+
+function fieldStr(data: Record<string, unknown>, key: string): string | undefined {
+	const v = data[key];
+	return typeof v === "string" && v ? v : undefined;
+}
+
+function fieldNum(data: Record<string, unknown>, key: string): number | undefined {
+	const v = data[key];
+	return typeof v === "number" ? v : undefined;
+}
+
+function fieldBool(data: Record<string, unknown>, key: string): boolean | undefined {
+	const v = data[key];
+	if (typeof v === "boolean") return v;
+	if (v === 1) return true;
+	if (v === 0) return false;
+	return undefined;
+}
+
+function resolveStatus(
+	rawStatus: unknown,
+): "published" | "draft" | "scheduled" {
+	if (rawStatus === "published") return "published";
+	if (rawStatus === "scheduled") return "scheduled";
+	return "draft";
+}
+
+/**
+ * Upsert a lesson row into `course_content_index`. Called from
+ * `contentAfterSave` when a lesson's status is `published`.
+ */
+async function upsertLessonIndexRow(
+	ctx: PluginContext,
+	content: Record<string, unknown>,
+): Promise<void> {
+	const id = typeof content["id"] === "string" ? content["id"] : undefined;
+	if (!id) return;
+	const data = (content["data"] ?? {}) as Record<string, unknown>;
+	const courseId = fieldStr(data, "course");
+	if (!courseId) return;
+
+	const row: CourseContentIndexRow = {
+		courseId,
+		stepType: "lesson",
+		stepId: id,
+		order: fieldNum(data, "order") ?? 0,
+		status: resolveStatus(content["status"]),
+	};
+	const publishedAt = content["publishedAt"];
+	if (typeof publishedAt === "string") row.publishedAt = publishedAt;
+	const scheduledAt = content["scheduledAt"];
+	if (typeof scheduledAt === "string") row.scheduledAt = scheduledAt;
+	const dur = fieldNum(data, "duration_seconds");
+	if (dur !== undefined) row.durationSeconds = dur;
+	const isPreview = fieldBool(data, "is_preview");
+	if (isPreview !== undefined) row.isPreview = isPreview;
+	const requiresPrevious = fieldBool(data, "requires_previous");
+	if (requiresPrevious !== undefined) row.requiresPrevious = requiresPrevious;
+	const dripOffsetDays = fieldNum(data, "drip_offset_days");
+	if (dripOffsetDays !== undefined) row.dripOffsetDays = dripOffsetDays;
+
+	const rowId = contentIndexId(courseId, "lesson", id);
+	await contentIndexStore(ctx).put(rowId, row);
+}
+
+/**
+ * Upsert a topic row into `course_content_index`. Called from
+ * `contentAfterSave` when a topic's status is `published`.
+ */
+async function upsertTopicIndexRow(
+	ctx: PluginContext,
+	content: Record<string, unknown>,
+): Promise<void> {
+	const id = typeof content["id"] === "string" ? content["id"] : undefined;
+	if (!id) return;
+	const data = (content["data"] ?? {}) as Record<string, unknown>;
+	const courseId = fieldStr(data, "course");
+	if (!courseId) return;
+
+	const row: CourseContentIndexRow = {
+		courseId,
+		stepType: "topic",
+		stepId: id,
+		order: fieldNum(data, "order") ?? 0,
+		status: resolveStatus(content["status"]),
+	};
+	const lessonId = fieldStr(data, "lesson");
+	if (lessonId) row.lessonId = lessonId;
+	const publishedAt = content["publishedAt"];
+	if (typeof publishedAt === "string") row.publishedAt = publishedAt;
+	const scheduledAt = content["scheduledAt"];
+	if (typeof scheduledAt === "string") row.scheduledAt = scheduledAt;
+	const dur = fieldNum(data, "duration_seconds");
+	if (dur !== undefined) row.durationSeconds = dur;
+	const requiresPrevious = fieldBool(data, "requires_previous");
+	if (requiresPrevious !== undefined) row.requiresPrevious = requiresPrevious;
+
+	const rowId = contentIndexId(courseId, "topic", id);
+	await contentIndexStore(ctx).put(rowId, row);
+}
+
+/**
+ * Remove a lesson row from `course_content_index` when a lesson is
+ * deleted or moved to draft/trashed status.
+ *
+ * We must look up the existing row first to get courseId (not in the
+ * delete event). Falls back to a query against the stepId index when
+ * the deterministic id is unknown.
+ */
+async function deleteIndexRowById(
+	ctx: PluginContext,
+	stepType: "lesson" | "topic",
+	stepId: string,
+): Promise<void> {
+	const store = contentIndexStore(ctx);
+	// Try a query to find all matching rows for this stepId — necessary because
+	// we don't know courseId at delete time.
+	const page = await store.query({ where: { stepType, stepId }, limit: 10 });
+	for (const row of page.items) {
+		try {
+			await store.delete(row.id);
+		} catch {
+			// Best-effort; log nothing — the beforeDelete guard already vetoed
+			// deletes that would leave progress orphans.
+		}
+	}
+}
+
+/**
+ * `content:afterSave` handler — keeps `course_content_index` in sync.
+ *
+ * - Lessons/topics in `published` status: upsert the projection row.
+ * - Lessons/topics in any other status (draft, trashed, scheduled): remove
+ *   the row from the projection so stale data never leaks into curriculum reads.
+ */
+export async function contentAfterSave(
+	event: ContentHookEvent,
+	ctx: PluginContext,
+): Promise<void> {
+	const { collection, content } = event;
+	const status = resolveStatus(content["status"]);
+
+	if (collection === LESSONS_COLLECTION_SLUG) {
+		if (status === "published") {
+			await upsertLessonIndexRow(ctx, content);
+		} else {
+			const id = typeof content["id"] === "string" ? content["id"] : undefined;
+			if (id) await deleteIndexRowById(ctx, "lesson", id);
+		}
+		return;
+	}
+
+	if (collection === TOPICS_COLLECTION_SLUG) {
+		if (status === "published") {
+			await upsertTopicIndexRow(ctx, content);
+		} else {
+			const id = typeof content["id"] === "string" ? content["id"] : undefined;
+			if (id) await deleteIndexRowById(ctx, "topic", id);
+		}
+		return;
+	}
+
+	// Other collections are not owned by this projection.
+}
+
+/**
+ * `content:afterDelete` handler — removes projection rows when content is
+ * permanently deleted or trashed.
+ */
+export async function contentAfterDelete(
+	event: ContentDeleteEvent,
+	ctx: PluginContext,
+): Promise<void> {
+	if (event.collection === LESSONS_COLLECTION_SLUG) {
+		await deleteIndexRowById(ctx, "lesson", event.id);
+		return;
+	}
+	if (event.collection === TOPICS_COLLECTION_SLUG) {
+		await deleteIndexRowById(ctx, "topic", event.id);
+		return;
+	}
 }
 
 /**

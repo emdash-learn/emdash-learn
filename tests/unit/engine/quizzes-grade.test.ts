@@ -324,18 +324,18 @@ describe("grade() — true/false", () => {
 		expect(result.feedback[0]?.correct).toBe(true);
 	});
 
-	test("submitting literal boolean `true` (coerced to string) → graded correct", () => {
+	test("submitting the correct option id directly → graded correct (id-based, M1 fix)", () => {
 		const result = grade(
-			attempt({}, [{ questionId: "q1", answer: true }]),
+			attempt({}, [{ questionId: "q1", answer: "t" }]),
 			quiz({}, [tfQuestion]),
 			NOW,
 		);
 		expect(result.feedback[0]?.correct).toBe(true);
 	});
 
-	test("submitting literal boolean `false` against True → graded wrong", () => {
+	test("submitting literal boolean true → graded wrong (non-string input rejected, M1)", () => {
 		const result = grade(
-			attempt({}, [{ questionId: "q1", answer: false }]),
+			attempt({}, [{ questionId: "q1", answer: true }]),
 			quiz({}, [tfQuestion]),
 			NOW,
 		);
@@ -587,7 +587,7 @@ describe("grade() — mixed-type quiz", () => {
 			attempt({}, [
 				{ questionId: "mcq", answer: "a" },
 				{ questionId: "multi", answer: ["x", "y"] },
-				{ questionId: "tf", answer: true },
+				{ questionId: "tf", answer: "t" },
 				{ questionId: "st", answer: "paris" },
 			]),
 			quiz({ passingScore: 80 }, q),

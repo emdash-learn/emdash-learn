@@ -48,6 +48,32 @@ export interface Lesson {
   bylines?: ContentBylineCredit[];
 }
 
+export interface Page {
+  id: string;
+  slug: string | null;
+  status: string;
+  title: string;
+  content?: PortableTextBlock[];
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  bylines?: ContentBylineCredit[];
+}
+
+export interface Post {
+  id: string;
+  slug: string | null;
+  status: string;
+  title: string;
+  featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number };
+  content?: PortableTextBlock[];
+  excerpt?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  bylines?: ContentBylineCredit[];
+}
+
 export interface Topic {
   id: string;
   slug: string | null;
@@ -71,6 +97,8 @@ declare module "emdash" {
   interface EmDashCollections {
     courses: Course;
     lessons: Lesson;
+    pages: Page;
+    posts: Post;
     topics: Topic;
   }
 }

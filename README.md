@@ -20,7 +20,12 @@ Peer deps (provided by your emdash site):
 
 ## Quick start
 
-Register the plugin in your site's `astro.config`:
+> **Two steps are required before the LMS is usable.** `pnpm add` alone does
+> not provision the content collections the engine depends on. If you skip
+> Step 2, every student-facing and admin route will return
+> `LEARN_SETUP_INCOMPLETE` (HTTP 409) with a pointer to the wizard URL.
+
+### Step 1 — Install and register the plugin
 
 ```ts
 // astro.config.mjs
@@ -44,8 +49,22 @@ export default defineConfig({
 });
 ```
 
-Start the site, then open the one-click setup wizard at
-`/_emdash/admin/plugins/lms-core/setup` — it provisions the `courses`, `lessons`, and `topics` content collections, seeds defaults, and drops you on the teaching dashboard.
+### Step 2 — Run the setup wizard (required)
+
+Start the site, then **open the setup wizard** at
+`/_emdash/admin/plugins/lms-core/setup` as an admin user. The wizard:
+
+1. Provisions the `courses`, `lessons`, and `topics` content collections.
+2. Seeds default plugin settings.
+3. Stamps the bootstrap version marker.
+
+Until the wizard completes, all data routes return `LEARN_SETUP_INCOMPLETE`
+(409) with `{ setupPath: "/_emdash/admin/plugins/lms-core/setup" }` in the
+error `details` field, so your theme can redirect users to the wizard
+automatically.
+
+The wizard is idempotent — safe to re-run after a plugin upgrade that bumps
+the bootstrap version.
 
 ## What's in the box
 
@@ -162,6 +181,13 @@ The demo's `src/pages/` includes `catalog`, `my-learning`, `courses/[slug]`, `co
 | `pnpm lint:quick`       | Run `oxlint -f json` (CI gate).             |
 | `pnpm format`           | Format with Prettier.                       |
 | `pnpm format:check`     | Check formatting without writing.           |
+
+## Internationalization
+
+The README and feature list mention i18n in two distinct senses:
+
+- **Content-item translation** — `courses`, `lessons`, and `topics` are stored in emdash's content collections, which ship draft/revision/scheduling/SEO and full locale support out of the box. This works in v1.
+- **Admin UI strings** — Every string in the React admin pages is hard-coded in English in v1. Lingui is configured in the repo but string extraction and compiled catalogs are deferred to v1.1. If you need localized admin UI today, fork the admin pages.
 
 ## License
 

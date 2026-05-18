@@ -14,6 +14,7 @@ import { PluginRouteError, type PluginRoute } from "emdash";
 import { LEARN_ERRORS } from "../constants.js";
 import * as certificates from "../engine/certificates.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 export const certificateVerifyInput = z.object({
 	code: z.string().min(1).max(64),
@@ -39,6 +40,7 @@ const verifyRoute: PluginRoute<CertificateVerifyInput> = {
 	// §6.2: cert verification is open (rate-limited in-handler via KV).
 	public: true,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const requestMeta = (ctx as { requestMeta?: { ip?: string | null } }).requestMeta;
 		const ip = requestMeta?.ip ?? "unknown";
 		unwrap(await certificates.checkVerifyRateLimit(ctx, ip));

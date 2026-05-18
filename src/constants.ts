@@ -5,7 +5,10 @@
  */
 
 export const PLUGIN_ID = "lms-core";
-export const PLUGIN_VERSION = "0.0.0";
+// Replaced at build time by tsdown's `define` to match package.json version.
+declare const __PLUGIN_VERSION__: string;
+export const PLUGIN_VERSION: string =
+	typeof __PLUGIN_VERSION__ !== "undefined" ? __PLUGIN_VERSION__ : "0.0.0";
 
 /**
  * Incremented whenever the setup wizard's frozen schema set or seeded default
@@ -14,8 +17,10 @@ export const PLUGIN_VERSION = "0.0.0";
  *
  * v2 bumps this for the topics primitive (ADR 0001) — adds the `topics`
  * collection alongside `courses` and `lessons`.
+ * v3 bumps this for the curriculum projection (AUDIT C3) — seeds the
+ * `course_content_index` storage collection via the backfill reconciler.
  */
-export const BOOTSTRAP_VERSION = 2;
+export const BOOTSTRAP_VERSION = 3;
 
 /**
  * Default KV values seeded on plugin:install. Admin settings UI (T24) lets

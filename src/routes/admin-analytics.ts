@@ -13,6 +13,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as analytics from "../engine/analytics.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -54,6 +55,7 @@ function unwrap<T>(r: Result<T>): T {
 const overviewRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
@@ -64,6 +66,7 @@ const overviewRoute: PluginRoute<DateRangeInput> = {
 const comparisonRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
@@ -77,6 +80,7 @@ const comparisonRoute: PluginRoute<DateRangeInput> = {
 const engagementRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);

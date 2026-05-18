@@ -20,7 +20,6 @@
  */
 
 import type { PluginContext } from "emdash";
-import { randomUUID } from "node:crypto";
 
 import { emailQueueKey } from "../kv-keys.js";
 import type { Result } from "./result.js";
@@ -49,7 +48,7 @@ function isEmailMessage(value: unknown): value is EmailMessage {
 }
 
 function newQueueId(): string {
-	return `${Date.now().toString().padStart(14, "0")}-${randomUUID()}`;
+	return `${Date.now().toString().padStart(14, "0")}-${globalThis.crypto.randomUUID()}`;
 }
 
 async function enqueue(ctx: PluginContext, message: EmailMessage): Promise<void> {

@@ -30,10 +30,25 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS, type SettingsShape } from "../constants.js";
 import { send as sendEmail } from "../engine/email-queue.js";
 import { settingKey } from "../kv-keys.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
+
+/**
+ * Per-key schemas used for read-time validation in `readSettings`. Any value
+ * that was written under a previous schema version and no longer parses
+ * triggers a `log.warn` + fallback to `DEFAULT_SETTINGS[key]` (M10).
+ */
+const SETTINGS_VALUE_SCHEMAS: Record<keyof SettingsShape, z.ZodTypeAny> = {
+	siteName: z.string().max(200),
+	supportEmail: z.string().email().or(z.literal("")),
+	defaultPassingScore: z.number().int().min(0).max(100),
+	certificateExpiryDays: z.number().int().positive().nullable(),
+	dripMode: z.enum(["immediate", "relative"]),
+	commentGateRequiresEnrollment: z.boolean(),
+};
 
 /**
  * Every key in `SettingsShape` is optional on write so admins can PATCH one
@@ -113,7 +128,15 @@ async function readSettings(ctx: AuthContext): Promise<SettingsShape> {
 	const pairs = await Promise.all(
 		SETTING_KEYS.map(async (name) => {
 			const stored = await ctx.kv.get(settingKey(name));
-			return [name, stored === null ? DEFAULT_SETTINGS[name] : stored] as const;
+			if (stored === null) return [name, DEFAULT_SETTINGS[name]] as const;
+			const parsed = SETTINGS_VALUE_SCHEMAS[name].safeParse(stored);
+			if (!parsed.success) {
+				ctx.log.warn(
+					`settings: stored value for "${name}" failed validation; reverting to default`,
+				);
+				return [name, DEFAULT_SETTINGS[name]] as const;
+			}
+			return [name, parsed.data as SettingsShape[typeof name]] as const;
 		}),
 	);
 	return Object.fromEntries(pairs) as SettingsShape;
@@ -130,6 +153,7 @@ async function countQueuedEmails(ctx: AuthContext): Promise<number> {
 
 const getRoute: PluginRoute<unknown> = {
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
@@ -146,6 +170,7 @@ const getRoute: PluginRoute<unknown> = {
 const updateRoute: PluginRoute<SettingsUpdateInput> = {
 	input: settingsUpdateInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
@@ -169,6 +194,7 @@ const updateRoute: PluginRoute<SettingsUpdateInput> = {
 const testEmailRoute: PluginRoute<TestEmailInput> = {
 	input: testEmailInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);

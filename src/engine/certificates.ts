@@ -43,12 +43,12 @@ export interface CertificateRecord {
  * paper certificate without ambiguity.
  */
 function generateVerificationCode(): string {
+	// 32 chars divides 256 evenly — no modulo bias when mapping bytes[i] % 32.
 	const alpha = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+	const bytes = new Uint8Array(12);
+	crypto.getRandomValues(bytes);
 	let out = "";
-	for (let i = 0; i < 12; i++) {
-		const r = Math.floor(Math.random() * alpha.length);
-		out += alpha[r];
-	}
+	for (const byte of bytes) out += alpha[byte % 32]!;
 	return out;
 }
 
@@ -134,21 +134,14 @@ export async function listForUser(
 	return ok(out);
 }
 
-export interface VerificationResult {
-	valid: boolean;
-	issuedAt?: string;
-	userName?: string;
-	courseTitle?: string;
-	revokedAt?: string;
-	expiresAt?: string;
-}
+export type VerificationResult =
+	| { valid: false }
+	| { valid: true; issuedAt: string; userName?: string; courseTitle?: string; expiresAt?: string };
 
 /**
- * Public verification. Only returns truthy data if the code resolves to a
- * row. Cross-references the `users` core table + `courses` content
- * collection for human-readable output. Revoked / expired certs return
- * `valid=false` but include the `revokedAt` / `expiresAt` so the public page
- * can surface the reason.
+ * Public verification. Resolves to `{ valid: true, ... }` only for
+ * active certs; revoked or expired certs return exactly `{ valid: false }`
+ * with no additional fields (M9 — no data leakage on invalid codes).
  */
 export async function verify(
 	ctx: PluginContext,
@@ -165,6 +158,10 @@ export async function verify(
 	if (!row) return ok({ valid: false });
 
 	const cert = row.data;
+
+	const expired = cert.expiresAt ? Date.parse(cert.expiresAt) < Date.now() : false;
+	if (cert.revokedAt || expired) return ok({ valid: false });
+
 	let userName: string | undefined;
 	if (ctx.users?.get) {
 		const user = await ctx.users.get(cert.userId);
@@ -181,14 +178,9 @@ export async function verify(
 		}
 	}
 
-	const expired = cert.expiresAt ? Date.parse(cert.expiresAt) < Date.now() : false;
-	const valid = !cert.revokedAt && !expired;
-
-	const result: VerificationResult = { valid };
-	if (cert.issuedAt) result.issuedAt = cert.issuedAt;
+	const result: VerificationResult = { valid: true, issuedAt: cert.issuedAt ?? "" };
 	if (userName) result.userName = userName;
 	if (courseTitle) result.courseTitle = courseTitle;
-	if (cert.revokedAt) result.revokedAt = cert.revokedAt;
 	if (cert.expiresAt) result.expiresAt = cert.expiresAt;
 	return ok(result);
 }
@@ -215,13 +207,32 @@ export async function revoke(
 }
 
 // ---------------------------------------------------------------------------
-// Rate limiting for public verify (stored in KV — shared-origin prevents
-// brute-force code enumeration; see §6.2)
+// Rate limiting for public verify (stored in plugin storage — insert-first-
+// then-count pattern; see §6.2 and AUDIT H6)
 // ---------------------------------------------------------------------------
 
+interface CertVerifyAttemptRow {
+	ip: string;
+	bucket: number;
+	ts: number;
+}
+
+function certVerifyAttemptsStore(ctx: PluginContext): StorageCollection<CertVerifyAttemptRow> {
+	const s = (ctx.storage as Record<string, StorageCollection | undefined>)[
+		"cert_verify_attempts"
+	];
+	if (!s) throw new Error('Plugin storage collection "cert_verify_attempts" is not declared.');
+	return s as StorageCollection<CertVerifyAttemptRow>;
+}
+
 /**
- * Bucketed per-IP rate limit. Window size and max both tuneable via KV so
+ * Bucketed per-IP rate limit. Window size and max both tuneable via opts so
  * an operator can raise the ceiling without a redeploy.
+ *
+ * Uses insert-first-then-count: each call writes one row then counts. Under
+ * concurrency the count may exceed maxPerBucket by at most the number of
+ * in-flight requests; the limit is bounded, not strictly exact. Old bucket
+ * rows are dead weight (no GC in v1 — follow-up task).
  */
 export interface RateLimitOpts {
 	bucketSeconds: number;
@@ -238,16 +249,15 @@ export async function checkVerifyRateLimit(
 	ip: string,
 	opts: RateLimitOpts = DEFAULT_VERIFY_RATE_LIMIT,
 ): Promise<Result<{ remaining: number }>> {
-	const now = Math.floor(Date.now() / 1000);
-	const bucket = Math.floor(now / opts.bucketSeconds);
-	const key = `ratelimit:cert-verify:${ip}:${bucket}`;
-	const current = (await ctx.kv.get<number>(key)) ?? 0;
-	if (current >= opts.maxPerBucket) {
+	const bucket = Math.floor(Date.now() / 1000 / opts.bucketSeconds);
+	const store = certVerifyAttemptsStore(ctx);
+	await store.put(`rl_${ulid()}`, { ip, bucket, ts: Date.now() });
+	const current = await store.count({ ip, bucket });
+	if (current > opts.maxPerBucket) {
 		return err(
 			LEARN_ERRORS.FORBIDDEN,
 			"Too many certificate verification requests — try again shortly",
 		);
 	}
-	await ctx.kv.set(key, current + 1);
-	return ok({ remaining: Math.max(opts.maxPerBucket - current - 1, 0) });
+	return ok({ remaining: Math.max(opts.maxPerBucket - current, 0) });
 }

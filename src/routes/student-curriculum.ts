@@ -16,6 +16,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as curriculum from "../engine/curriculum.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -80,6 +81,7 @@ function gateStudent(ctx: unknown): { id: string } {
 const curriculumRoute: PluginRoute<CurriculumInput> = {
 	input: curriculumInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 		const items = unwrap(await curriculum.forUser(ctx, user.id, ctx.input.courseId));
 		return { items };
@@ -89,6 +91,7 @@ const curriculumRoute: PluginRoute<CurriculumInput> = {
 const lessonRoute: PluginRoute<LessonInput> = {
 	input: lessonInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 		const item = unwrap(await curriculum.getLesson(ctx, user.id, ctx.input.lessonId));
 		return { lesson: item };
@@ -98,6 +101,7 @@ const lessonRoute: PluginRoute<LessonInput> = {
 const topicRoute: PluginRoute<TopicInput> = {
 	input: topicInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 		const item = unwrap(await curriculum.getTopic(ctx, user.id, ctx.input.topicId));
 		return { topic: item };
@@ -107,6 +111,7 @@ const topicRoute: PluginRoute<TopicInput> = {
 const myLearningRoute: PluginRoute<MyLearningInput> = {
 	input: myLearningInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const user = gateStudent(ctx);
 		const opts: curriculum.MyLearningOptions = {};
 		if (ctx.input.status !== undefined) opts.status = ctx.input.status;

@@ -20,7 +20,7 @@ type RuntimeContentItem = NonNullable<
 
 import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
 import { settingKey } from "../kv-keys.js";
-import type { Enrollment, StepProgress } from "../types/storage.js";
+import type { CourseContentIndexRow, Enrollment, StepProgress } from "../types/storage.js";
 import { isUnlocked, unlocksAt, type DripMode } from "./drip.js";
 import { err, ok, type Result } from "./result.js";
 
@@ -83,22 +83,61 @@ async function getEnrollment(
 	return row.data;
 }
 
+const CONTENT_INDEX_COLLECTION = "course_content_index";
+
+/**
+ * Synthesize a `RuntimeContentItem`-compatible object from a projection row so
+ * callers that use `contentField` / `contentOrder` continue to work unchanged.
+ * Only the subset of fields that the curriculum engine reads is populated; body
+ * text is intentionally absent (callers that need body text use `ctx.content.get`).
+ */
+function indexRowToContentItem(
+	stepId: string,
+	row: CourseContentIndexRow,
+): RuntimeContentItem {
+	const data: Record<string, unknown> = {
+		course: row.courseId,
+		order: row.order,
+	};
+	if (row.lessonId !== undefined) data["lesson"] = row.lessonId;
+	if (row.durationSeconds !== undefined) data["duration_seconds"] = row.durationSeconds;
+	if (row.isPreview !== undefined) data["is_preview"] = row.isPreview;
+	if (row.requiresPrevious !== undefined) data["requires_previous"] = row.requiresPrevious;
+	if (row.dripOffsetDays !== undefined) data["drip_offset_days"] = row.dripOffsetDays;
+
+	return {
+		id: stepId,
+		type: row.stepType === "lesson" ? LESSONS_COLLECTION_SLUG : TOPICS_COLLECTION_SLUG,
+		slug: null,
+		status: row.status,
+		locale: null,
+		data,
+		createdAt: row.publishedAt ?? new Date(0).toISOString(),
+		updatedAt: row.publishedAt ?? new Date(0).toISOString(),
+		publishedAt: row.publishedAt ?? null,
+		// Cast: `scheduledAt` is used via a cast in forUser; include it here.
+		...(row.scheduledAt !== undefined ? { scheduledAt: row.scheduledAt } : {}),
+	} as RuntimeContentItem;
+}
+
 async function listLessonsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<RuntimeContentItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const out: RuntimeContentItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "lesson" },
 			limit: 100,
 			cursor,
 		});
-		for (const item of page.items) {
-			if (item.data["course"] === courseId) out.push(item);
+		for (const { id, data } of page.items) {
+			out.push(indexRowToContentItem(data.stepId, data));
+			void id; // row id is not needed; stepId carries identity
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -112,18 +151,20 @@ async function listTopicsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<RuntimeContentItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const out: RuntimeContentItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "topic" },
 			limit: 100,
 			cursor,
 		});
-		for (const item of page.items) {
-			if (item.data["course"] === courseId) out.push(item);
+		for (const { id, data } of page.items) {
+			out.push(indexRowToContentItem(data.stepId, data));
+			void id;
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);

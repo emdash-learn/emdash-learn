@@ -20,9 +20,10 @@
  * anyway. Future refactors can tighten these without changing call sites.
  */
 
-import { ulid } from "emdash";
+import { handleContentPublish, ulid } from "emdash";
 import type { ContentItem, PluginContext } from "emdash";
 
+import { contentAfterSave, contentAfterDelete } from "../../src/hooks/content.js";
 import { getTestDb } from "./test-plugin-ctx.js";
 
 // ---------------------------------------------------------------------------
@@ -114,6 +115,8 @@ export interface SeedLessonInput {
 	isPreview?: boolean;
 	requiresPrevious?: boolean;
 	dripOffsetDays?: number;
+	/** Quiz ID to attach to this lesson (populates the `quiz` field). */
+	quizId?: string;
 }
 
 /**
@@ -133,6 +136,7 @@ export async function seedLesson(ctx: PluginContext, input: SeedLessonInput): Pr
 	if (input.isPreview !== undefined) data.is_preview = input.isPreview;
 	if (input.requiresPrevious !== undefined) data.requires_previous = input.requiresPrevious;
 	if (input.dripOffsetDays !== undefined) data.drip_offset_days = input.dripOffsetDays;
+	if (input.quizId !== undefined) data.quiz = input.quizId;
 	return content.create("lessons", data);
 }
 
@@ -371,4 +375,52 @@ export async function seedQuiz(ctx: PluginContext, input: SeedQuizInput): Promis
 	};
 	await collection(ctx, "quizzes").put(id, data);
 	return { id, title, passingScore };
+}
+
+// ---------------------------------------------------------------------------
+// Content publish wrapper — fires content:afterSave hook so the
+// course_content_index projection is populated (AUDIT C3).
+//
+// Integration tests that need to publish content should call this function
+// instead of importing `handleContentPublish` from emdash directly.
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish a content item and fire the `content:afterSave` hook so the
+ * `course_content_index` projection is updated. Safe for courses, lessons,
+ * and topics; a no-op for collections that the hook doesn't own.
+ */
+export async function publishContent(
+	ctx: PluginContext,
+	collection: string,
+	id: string,
+): Promise<void> {
+	const db = getTestDb(ctx);
+	const result = await handleContentPublish(db, collection, id);
+	if (!result.success || !result.data) return;
+	const item = result.data.item;
+	// Fire the content:afterSave hook so the projection picks up the change.
+	await contentAfterSave(
+		{
+			collection,
+			// Spread the full ContentItem (which includes id, status, data, publishedAt, etc.)
+			content: item as unknown as Record<string, unknown>,
+			isNew: false,
+		},
+		ctx,
+	);
+}
+
+/**
+ * Delete a content item and fire the `content:afterDelete` hook so the
+ * `course_content_index` projection is cleaned up.
+ */
+export async function deleteContent(
+	ctx: PluginContext,
+	collectionSlug: string,
+	id: string,
+): Promise<void> {
+	if (!ctx.content?.delete) return;
+	await ctx.content.delete(collectionSlug, id);
+	await contentAfterDelete({ collection: collectionSlug, id, permanent: true }, ctx);
 }

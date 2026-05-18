@@ -168,6 +168,26 @@ describe("routes/public-catalog", () => {
 		for (const id of seen) expect(ids.has(id)).toBe(true);
 	});
 
+	it("cross-page: filter matches on later upstream pages are collected (M3)", async () => {
+		const fixture = await newCtx();
+		// 6 published courses; only positions 1 and 4 (0-indexed) match difficulty=beginner.
+		// With limit=2 (= upstream page size), "Course D" falls on the 2nd upstream page.
+		// The old single-page implementation would return only "Course A" and report
+		// hasMore=true, leaving "Course D" unreachable without multiple empty-filtered pages.
+		await seedPublishedCourse(fixture, { title: "Course A", difficulty: "beginner" });
+		await seedPublishedCourse(fixture, { title: "Course B", difficulty: "advanced" });
+		await seedPublishedCourse(fixture, { title: "Course C", difficulty: "advanced" });
+		await seedPublishedCourse(fixture, { title: "Course D", difficulty: "beginner" });
+		await seedPublishedCourse(fixture, { title: "Course E", difficulty: "advanced" });
+		await seedPublishedCourse(fixture, { title: "Course F", difficulty: "advanced" });
+
+		const result = await runCatalog(fixture, { difficulty: "beginner", limit: 2 });
+		expect(result.items).toHaveLength(2);
+		const titles = result.items.map((i) => i.title).sort();
+		expect(titles).toContain("Course A");
+		expect(titles).toContain("Course D");
+	});
+
 	it("returns LEARN_SETUP_INCOMPLETE (status 500) when ctx.content is unavailable", async () => {
 		const fixture = await newCtx();
 		const stripped: PluginContext = { ...fixture.ctx };

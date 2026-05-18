@@ -13,10 +13,10 @@
  *     auto-completes the engine checks whether the parent lesson now
  *     qualifies for completion (lesson body 100% AND all sibling topics
  *     complete) and cascades.
- *   - `markStepComplete`   — explicit "I'm done" entrypoint. Emits
- *     `lesson:completed` for lesson rows and `topic:completed` for topic
- *     rows. Marking a lesson complete while topics remain incomplete
- *     returns `LEARN_LESSON_LOCKED` ("topics incomplete").
+ *   - `markStepComplete`   — explicit "I'm done" entrypoint. For lesson
+ *     rows, cascades to course completion if all steps are done and stamps
+ *     `completedAt` on the enrollment. Marking a lesson complete while
+ *     topics remain incomplete returns `LEARN_LESSON_LOCKED`.
  *   - `getForUser`         — paginated read of `step_progress` rows for one
  *     `(userId, courseId)`.
  *   - `evaluateCourseComplete` — true iff every published lesson AND every
@@ -30,9 +30,7 @@
 import type { PluginContext, StorageCollection } from "emdash";
 
 import { LEARN_ERRORS, LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
-import type { CourseCompleted, LessonCompleted, TopicCompleted } from "../types/engine.js";
-import type { Enrollment, StepProgress, StepType } from "../types/storage.js";
-import { emit } from "./event-bus.js";
+import type { CourseContentIndexRow, Enrollment, StepProgress, StepType } from "../types/storage.js";
 import { err, ok, type Result } from "./result.js";
 
 // ---------------------------------------------------------------------------
@@ -100,22 +98,25 @@ interface PublishedItem {
 	id: string;
 }
 
+const CONTENT_INDEX_COLLECTION = "course_content_index";
+
 async function listPublishedLessonsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "lesson" },
 			limit: 100,
 			cursor,
 		});
-		for (const lesson of page.items) {
-			if (lesson.data["course"] === courseId) matches.push({ id: lesson.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -127,18 +128,19 @@ async function listPublishedTopicsForCourse(
 	ctx: PluginContext,
 	courseId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		const page = await store.query({
+			where: { courseId, stepType: "topic" },
 			limit: 100,
 			cursor,
 		});
-		for (const topic of page.items) {
-			if (topic.data["course"] === courseId) matches.push({ id: topic.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -150,18 +152,21 @@ async function listPublishedTopicsForLesson(
 	ctx: PluginContext,
 	lessonId: string,
 ): Promise<PublishedItem[]> {
-	if (!ctx.content) return [];
+	const store = getCollection<CourseContentIndexRow>(ctx, CONTENT_INDEX_COLLECTION);
 	const matches: PublishedItem[] = [];
 	let cursor: string | undefined;
 	/* oxlint-disable no-await-in-loop */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
+		// The projection only contains published rows — status filter is implicit.
+		// Query by lessonId and stepType (both indexed: lessonId is indexed,
+		// stepType is part of the ["courseId","stepType"] compound index).
+		const page = await store.query({
+			where: { lessonId, stepType: "topic" },
 			limit: 100,
 			cursor,
 		});
-		for (const topic of page.items) {
-			if (topic.data["lesson"] === lessonId) matches.push({ id: topic.id });
+		for (const row of page.items) {
+			matches.push({ id: row.data.stepId });
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
@@ -369,14 +374,6 @@ async function markTopicCompleteInternal(
 	const id = existing?.id ?? progressId(userId, "topic", topicId);
 	await collection.put(id, completedRow);
 
-	const event: TopicCompleted = {
-		name: "topic:completed",
-		key: `tc:${userId}:${topicId}`,
-		data: completedRow,
-		critical: true,
-	};
-	await emit(event, ctx);
-
 	// Try to cascade lesson completion. Only succeeds when every other
 	// published topic on the lesson is complete AND the lesson's own body
 	// progress row is complete (per the lesson-completion rule). When the
@@ -470,14 +467,6 @@ async function markLessonCompleteInternal(
 	const id = existing?.id ?? progressId(userId, "lesson", lessonId);
 	await stepProgress.put(id, completedRow);
 
-	const lessonEvent: LessonCompleted = {
-		name: "lesson:completed",
-		key: `lc:${userId}:${lessonId}`,
-		data: completedRow,
-		critical: true,
-	};
-	await emit(lessonEvent, ctx);
-
 	const courseDone = await evaluateCourseComplete(ctx, userId, lessonCtx.courseId);
 	if (!courseDone.ok) return courseDone as Result<{ courseComplete: boolean }>;
 	if (!courseDone.data) return ok({ courseComplete: false });
@@ -488,14 +477,6 @@ async function markLessonCompleteInternal(
 		completedAt: enrollment.row.completedAt ?? now,
 	};
 	await enrollments.put(enrollment.id, completedEnrollment);
-
-	const courseEvent: CourseCompleted = {
-		name: "course:completed",
-		key: `cc:${userId}:${lessonCtx.courseId}`,
-		data: completedEnrollment,
-		critical: true,
-	};
-	await emit(courseEvent, ctx);
 
 	return ok({ courseComplete: true });
 }

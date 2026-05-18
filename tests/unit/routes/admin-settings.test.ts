@@ -17,8 +17,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS } from "../../../src/constants.js";
+import { BOOTSTRAP_VERSION, DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS } from "../../../src/constants.js";
 import type { EmailMessage } from "../../../src/engine/email-queue.js";
+import { BOOTSTRAP_STATE_KEY } from "../../../src/kv-keys.js";
 import { adminSettingsRoutes } from "../../../src/routes/admin-settings.js";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,12 @@ interface MakeCtxOpts {
 }
 
 function makeCtx(opts: MakeCtxOpts = {}) {
-	const store = new Map<string, unknown>(Object.entries(opts.kv ?? {}));
+	// Seed the bootstrap state so `ensureSetupComplete` passes in unit tests.
+	// Tests that explicitly want an incomplete state can override this key.
+	const defaultKv: Record<string, unknown> = {
+		[BOOTSTRAP_STATE_KEY]: { version: BOOTSTRAP_VERSION, completedSteps: [] },
+	};
+	const store = new Map<string, unknown>(Object.entries({ ...defaultKv, ...opts.kv }));
 	const log = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 	const user =
 		opts.roleLevel === undefined
@@ -138,6 +144,19 @@ describe("admin:settings:get", () => {
 		expect(result.settings.certificateExpiryDays).toBe(365);
 		// A key that wasn't overridden still returns the default.
 		expect(result.settings.dripMode).toBe(DEFAULT_SETTINGS.dripMode);
+	});
+
+	it("reverts drifted KV value to default and warns (M10)", async () => {
+		const { buildRouteCtx, log } = makeCtx({
+			kv: { "settings:dripMode": 42 }, // stored as number — invalid shape
+		});
+		const route = adminSettingsRoutes["admin:settings:get"];
+		const result = (await route.handler(buildRouteCtx({}))) as {
+			settings: Record<string, unknown>;
+		};
+		expect(result.settings.dripMode).toBe(DEFAULT_SETTINGS.dripMode);
+		expect(log.warn).toHaveBeenCalledOnce();
+		expect(String(log.warn.mock.calls[0]?.[0])).toMatch(/dripMode/);
 	});
 
 	it("surfaces provider=true when ctx.email is present and counts queued emails", async () => {

@@ -3,16 +3,25 @@
  *
  * Covers CRUD, startAttempt/submitAttempt lifecycle, the hard time-limit
  * rejection, and the terminal-quiz-passed → lesson:completed rule.
+ *
+ * Note: the event bus has been removed (AUDIT C1, Track C). The
+ * terminal-quiz-passed test now reads the step_progress row directly from
+ * storage rather than asserting a lesson:completed event.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { handleContentPublish } from "emdash";
+import type { PluginContext } from "emdash";
 
-import * as eventBus from "../../../src/engine/event-bus.js";
 import * as quizzes from "../../../src/engine/quizzes.js";
-import type { LessonCompleted } from "../../../src/types/engine.js";
-import { seedCourse, seedEnrollment, seedLesson, seedQuiz, seedStudent } from "../../utils/seed.js";
-import { createTestPluginCtx, getTestDb } from "../../utils/test-plugin-ctx.js";
+import {
+	publishContent,
+	seedCourse,
+	seedEnrollment,
+	seedLesson,
+	seedQuiz,
+	seedStudent,
+} from "../../utils/seed.js";
+import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
 type TestCtx = Awaited<ReturnType<typeof createTestPluginCtx>>;
 
@@ -27,7 +36,6 @@ async function newCtx(): Promise<TestCtx> {
 afterEach(async () => {
 	const pending = contexts.splice(0, contexts.length);
 	await Promise.all(pending.map((ctx) => ctx.teardown()));
-	eventBus.__resetHandlersForTests();
 });
 
 const mcqCorrect = {
@@ -88,11 +96,25 @@ describe("engine/quizzes.create / update / list / remove", () => {
 	});
 });
 
+// Helper: seed the full context needed for startAttempt (quiz + lesson attachment + enrollment).
+async function seedQuizCtx(
+	ctx: PluginContext,
+	questions: typeof mcqCorrect[],
+	email: string,
+) {
+	const quizRecord = await seedQuiz(ctx, { questions });
+	const student = await seedStudent(ctx, { email });
+	const course = await seedCourse(ctx, { title: "Quiz Course" });
+	const lesson = await seedLesson(ctx, { courseId: course.id, quizId: quizRecord.id });
+	await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
+	return { quizRecord, student, course, lesson };
+}
+
 describe("engine/quizzes.startAttempt + submitAttempt", () => {
 	it("starts an attempt and returns sanitized questions (no `correct` flag)", async () => {
 		const { ctx } = await newCtx();
-		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
-		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		const { quizRecord, student, lesson } = await seedQuizCtx(ctx, [mcqCorrect], "s1@x.com");
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		const opts = started.data.questions[0]?.options ?? [];
@@ -101,8 +123,8 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 
 	it("submits an attempt, grades it, and persists score + passed", async () => {
 		const { ctx } = await newCtx();
-		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
-		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		const { quizRecord, student, lesson } = await seedQuizCtx(ctx, [mcqCorrect], "s2@x.com");
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
 		if (!started.ok) throw new Error("setup failed");
 
 		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, [
@@ -117,8 +139,8 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 
 	it("rejects a duplicate submit with LEARN_QUIZ_NOT_STARTED", async () => {
 		const { ctx } = await newCtx();
-		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
-		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		const { quizRecord, student, lesson } = await seedQuizCtx(ctx, [mcqCorrect], "s3@x.com");
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
 		if (!started.ok) throw new Error("setup failed");
 		await quizzes.submitAttempt(ctx, started.data.attemptId, [{ questionId: "q1", answer: "red" }]);
 		const again = await quizzes.submitAttempt(ctx, started.data.attemptId, [
@@ -131,12 +153,17 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 
 	it("hard-timeout policy: submit past the limit returns LEARN_QUIZ_TIMEOUT and persists passed=false", async () => {
 		const { ctx } = await newCtx();
-		const quiz = await seedQuiz(ctx, {
+		const quizRecord = await seedQuiz(ctx, {
 			timeLimit: 1, // 1 second
 			timeLimitPolicy: "hard",
 			questions: [mcqCorrect],
 		});
-		const started = await quizzes.startAttempt(ctx, "user_x", quiz.id);
+		const student = await seedStudent(ctx, { email: "s4@x.com" });
+		const course = await seedCourse(ctx, { title: "Timeout Course" });
+		const lesson = await seedLesson(ctx, { courseId: course.id, quizId: quizRecord.id });
+		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
+
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
 		if (!started.ok) throw new Error("setup failed");
 
 		// Backdate the attempt by rewriting startedAt well beyond the limit.
@@ -167,20 +194,16 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		expect(after.overtime).toBe(true);
 	});
 
-	it("terminal-quiz-passed emits lesson:completed when attempt is bound to a lesson", async () => {
+	it("terminal-quiz-passed marks lesson complete in storage when attempt is bound to a lesson", async () => {
 		const { ctx } = await newCtx();
 		const student = await seedStudent(ctx, { email: "tq@test.local" });
 		const course = await seedCourse(ctx, { title: "TQ" });
-		await handleContentPublish(getTestDb(ctx), "courses", course.id);
-		const lesson = await seedLesson(ctx, { courseId: course.id, order: 0 });
-		await handleContentPublish(getTestDb(ctx), "lessons", lesson.id);
-		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
+		await publishContent(ctx, "courses", course.id);
+		// Quiz must be created before the lesson so its id can be attached.
 		const quiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
-
-		const received: LessonCompleted["data"][] = [];
-		eventBus.on<LessonCompleted>("lesson:completed", "test-handler", async (event) => {
-			received.push(event.data);
-		});
+		const lesson = await seedLesson(ctx, { courseId: course.id, order: 0, quizId: quiz.id });
+		await publishContent(ctx, "lessons", lesson.id);
+		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
 
 		const started = await quizzes.startAttempt(ctx, student.id, quiz.id, lesson.id);
 		if (!started.ok) throw new Error("setup failed");
@@ -189,10 +212,88 @@ describe("engine/quizzes.startAttempt + submitAttempt", () => {
 		]);
 
 		expect(submitted.ok && submitted.data.passed).toBe(true);
-		expect(received).toHaveLength(1);
-		// Post-ADR 0001: LessonCompleted carries StepProgress; the lesson id is
-		// `stepId` (with `stepType === "lesson"`).
-		expect(received[0]?.stepType).toBe("lesson");
-		expect(received[0]?.stepId).toBe(lesson.id);
+
+		// Verify lesson was marked complete in storage (authoritative fact).
+		// Post-ADR 0001: step_progress rows use deterministic id prog__userId__lesson__lessonId.
+		const stepProg = (
+			ctx.storage as unknown as {
+				step_progress: { get: (id: string) => Promise<unknown> };
+			}
+		).step_progress;
+		const lessonRow = (await stepProg.get(
+			`prog__${student.id}__lesson__${lesson.id}`,
+		)) as { completedAt?: string; stepType?: string; stepId?: string } | null;
+		expect(lessonRow?.completedAt).toBeDefined();
+		expect(lessonRow?.stepType).toBe("lesson");
+		expect(lessonRow?.stepId).toBe(lesson.id);
+	});
+
+	it("rejects startAttempt when quiz is not attached to the lesson (H2)", async () => {
+		const { ctx } = await newCtx();
+		const otherQuiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const targetQuiz = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const student = await seedStudent(ctx, { email: "h2@x.com" });
+		const course = await seedCourse(ctx, { title: "H2 Course" });
+		// Lesson is attached to otherQuiz, not targetQuiz.
+		const lesson = await seedLesson(ctx, { courseId: course.id, quizId: otherQuiz.id });
+		await seedEnrollment(ctx, { userId: student.id, courseId: course.id });
+
+		const started = await quizzes.startAttempt(ctx, student.id, targetQuiz.id, lesson.id);
+		expect(started.ok).toBe(false);
+		if (started.ok) return;
+		expect(started.error.code).toBe("LEARN_FORBIDDEN");
+	});
+
+	it("rejects startAttempt when user is not enrolled in the course (H1)", async () => {
+		const { ctx } = await newCtx();
+		const quizRecord = await seedQuiz(ctx, { questions: [mcqCorrect] });
+		const student = await seedStudent(ctx, { email: "h1@x.com" });
+		const course = await seedCourse(ctx, { title: "H1 Course" });
+		const lesson = await seedLesson(ctx, { courseId: course.id, quizId: quizRecord.id });
+		// No enrollment created.
+
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
+		expect(started.ok).toBe(false);
+		if (started.ok) return;
+		expect(started.error.code).toBe("LEARN_NOT_ENROLLED");
+	});
+
+	it("accepts submit with empty answers array (M8)", async () => {
+		const { ctx } = await newCtx();
+		const { quizRecord, student, lesson } = await seedQuizCtx(ctx, [mcqCorrect], "m8@x.com");
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
+		if (!started.ok) throw new Error("setup failed");
+		const submitted = await quizzes.submitAttempt(ctx, started.data.attemptId, []);
+		expect(submitted.ok).toBe(true);
+		if (!submitted.ok) return;
+		expect(submitted.data.score).toBe(0);
+		expect(submitted.data.passed).toBe(false);
+	});
+
+	it("grades French-labeled true/false by option id (M1 — no text-matching)", async () => {
+		const vraiId = "vrai";
+		const fauxId = "faux";
+		const frTf = {
+			id: "q1",
+			type: "true_false" as const,
+			prompt: "Le ciel est bleu.",
+			points: 1,
+			// Correct option is labeled "Vrai" — text-based lookup would fail for French.
+			options: [
+				{ id: vraiId, text: "Vrai", correct: true },
+				{ id: fauxId, text: "Faux", correct: false },
+			],
+		};
+		const { ctx } = await newCtx();
+		const { quizRecord, student, lesson } = await seedQuizCtx(ctx, [frTf], "fr@x.com");
+		const started = await quizzes.startAttempt(ctx, student.id, quizRecord.id, lesson.id);
+		if (!started.ok) throw new Error("setup failed");
+
+		const correct = await quizzes.submitAttempt(ctx, started.data.attemptId, [
+			{ questionId: "q1", answer: vraiId },
+		]);
+		expect(correct.ok).toBe(true);
+		if (!correct.ok) return;
+		expect(correct.data.passed).toBe(true);
 	});
 });

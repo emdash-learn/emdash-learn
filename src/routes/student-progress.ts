@@ -38,6 +38,7 @@ import { type AuthContext, Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as progress from "../engine/progress.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (§23)
@@ -123,6 +124,7 @@ function unwrap<T>(result: Result<T>): T {
 const tickRoute: PluginRoute<ProgressTickInput> = {
 	input: progressTickInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
@@ -146,6 +148,7 @@ const tickRoute: PluginRoute<ProgressTickInput> = {
 const completeRoute: PluginRoute<ProgressCompleteInput> = {
 	input: progressCompleteInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);

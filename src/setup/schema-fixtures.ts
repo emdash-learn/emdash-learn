@@ -205,6 +205,12 @@ const lessonsFields: FieldSpec[] = [
 		defaultValue: 0,
 		locked: true,
 	},
+	{
+		slug: "quiz",
+		label: "Quiz",
+		type: "string",
+		locked: false,
+	},
 ];
 
 export const COURSES_FIXTURE: CollectionFixture = {

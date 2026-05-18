@@ -16,6 +16,10 @@ export interface Enrollment {
 	completedAt?: string;
 	revokedAt?: string;
 	revokedReason?: string;
+	/** Timestamp when the welcome email was sent; set by send-lifecycle-emails reconciler (Track C). */
+	welcomeSentAt?: string;
+	/** Timestamp when the course-completion email was sent; set by send-lifecycle-emails reconciler (Track C). */
+	completionSentAt?: string;
 }
 
 /**
@@ -120,6 +124,31 @@ export interface CourseInstructor {
 	userId: string;
 	role: InstructorRole;
 	bioOverride?: string;
+}
+
+/**
+ * Denormalized projection of lessons and topics for indexed curriculum reads
+ * (AUDIT C3). One row per `(courseId, stepType, stepId)`. Maintained by
+ * `content:afterSave` / `content:afterDelete` hooks; backfilled on first run
+ * by the `backfill-content-index` reconciler.
+ */
+export interface CourseContentIndexRow {
+	courseId: string;
+	stepType: "lesson" | "topic";
+	/** lessonId for lessons, topicId for topics */
+	stepId: string;
+	/** parent lesson id for topics */
+	lessonId?: string;
+	order: number;
+	status: "published" | "draft" | "scheduled";
+	publishedAt?: string;
+	scheduledAt?: string;
+	durationSeconds?: number;
+	/** lessons only */
+	isPreview?: boolean;
+	requiresPrevious?: boolean;
+	/** lessons only */
+	dripOffsetDays?: number;
 }
 
 /**

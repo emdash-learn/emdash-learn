@@ -22,6 +22,7 @@ import { type AuthContext, Role, requireOwner, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as enrollments from "../engine/enrollments.js";
 import type { Result, ResultError } from "../engine/result.js";
+import { ensureSetupComplete } from "../setup-gate.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas (§23)
@@ -79,6 +80,7 @@ function unwrap<T>(result: Result<T>): T {
 const enrollRoute: PluginRoute<EnrollInput> = {
 	input: enrollInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
@@ -110,6 +112,7 @@ const enrollRoute: PluginRoute<EnrollInput> = {
 const unenrollRoute: PluginRoute<UnenrollInput> = {
 	input: unenrollInput,
 	handler: async (ctx) => {
+		await ensureSetupComplete(ctx);
 		const auth = ctx as unknown as AuthContext;
 		const user = requireRole(auth, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);

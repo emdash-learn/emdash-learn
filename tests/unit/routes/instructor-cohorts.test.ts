@@ -17,9 +17,22 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Role } from "../../../src/authz.js";
-import { LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_VERSION, LEARN_ERRORS } from "../../../src/constants.js";
+import { BOOTSTRAP_STATE_KEY } from "../../../src/kv-keys.js";
 import { cohortRoutes } from "../../../src/routes/instructor-cohorts.js";
 import type { Cohort, CohortMember } from "../../../src/types/storage.js";
+
+/** Minimal KV stub with bootstrap state pre-seeded so `ensureSetupComplete` passes. */
+function makeKvStub() {
+	const store = new Map<string, unknown>([
+		[BOOTSTRAP_STATE_KEY, { version: BOOTSTRAP_VERSION, completedSteps: [] }],
+	]);
+	return {
+		async get<T>(key: string): Promise<T | null> {
+			return (store.get(key) as T | undefined) ?? null;
+		},
+	};
+}
 
 interface StoredRow<T> {
 	id: string;
@@ -118,6 +131,7 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 		opts.roleLevel === undefined
 			? { id: "u_editor", email: "ed@x.com", name: "Ed", role: Role.EDITOR, createdAt: "" }
 			: { id: "u_test", email: "t@x.com", name: "T", role: opts.roleLevel, createdAt: "" };
+	const kv = makeKvStub();
 
 	function buildRouteCtx(input: unknown) {
 		return {
@@ -125,6 +139,7 @@ function makeCtx(opts: MakeCtxOpts = {}) {
 			storage: { cohorts, cohort_members: cohortMembers },
 			log,
 			user,
+			kv,
 			users: {
 				async getByEmail(email: string) {
 					return userMap.get(email.toLowerCase()) ?? null;
@@ -381,11 +396,64 @@ describe("cohort:import route", () => {
 			added: CohortMember[];
 			unknownEmails: string[];
 			alreadyMembers: string[];
-			counts: { added: number; unknown: number; alreadyMembers: number };
+			capacityRejected: string[];
+			counts: {
+				added: number;
+				unknown: number;
+				alreadyMembers: number;
+				capacityRejected: number;
+			};
 		};
 		expect(result.added).toHaveLength(2);
 		expect(result.unknownEmails).toEqual(["ghost@x.com"]);
-		expect(result.counts).toEqual({ added: 2, unknown: 1, alreadyMembers: 0 });
+		expect(result.capacityRejected).toEqual([]);
+		expect(result.counts).toEqual({
+			added: 2,
+			unknown: 1,
+			alreadyMembers: 0,
+			capacityRejected: 0,
+		});
+	});
+
+	it("surfaces capacity-rejected emails in capacityRejected + counts (AUDIT M4)", async () => {
+		const { buildRouteCtx } = makeCtx({
+			users: [
+				{ email: "alice@x.com", id: "u_alice" },
+				{ email: "bob@x.com", id: "u_bob" },
+				{ email: "carol@x.com", id: "u_carol" },
+			],
+		});
+		const createRoute = cohortRoutes["cohort:create"];
+		const created = (await createRoute.handler(
+			buildRouteCtx(
+				createRoute.input!.parse({ slug: "cap-imp", title: "Cap Imp", capacity: 2 }),
+			),
+		)) as { id: string };
+
+		const importRoute = cohortRoutes["cohort:import"];
+		const result = (await importRoute.handler(
+			buildRouteCtx(
+				importRoute.input!.parse({
+					cohortId: created.id,
+					emails: ["alice@x.com", "bob@x.com", "carol@x.com"],
+				}),
+			),
+		)) as {
+			added: CohortMember[];
+			unknownEmails: string[];
+			alreadyMembers: string[];
+			capacityRejected: string[];
+			counts: {
+				added: number;
+				unknown: number;
+				alreadyMembers: number;
+				capacityRejected: number;
+			};
+		};
+		expect(result.added).toHaveLength(2);
+		expect(result.capacityRejected).toEqual(["carol@x.com"]);
+		expect(result.counts.capacityRejected).toBe(1);
+		expect(result.counts.added).toBe(2);
 	});
 
 	it("accepts a csv string with one email per line", async () => {
