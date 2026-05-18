@@ -22,9 +22,9 @@
  */
 
 import { z } from "astro/zod";
-import { PluginRouteError, type PluginRoute } from "emdash";
+import { PluginRouteError, type PluginRoute, type RouteContext } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS, TOPICS_COLLECTION_SLUG } from "../constants.js";
 import { ensureSetupComplete } from "../setup-gate.js";
 
@@ -97,9 +97,8 @@ export type TopicReorderInput = z.infer<typeof topicReorderInput>;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function gateInstructor(ctx: unknown): void {
-	const auth = ctx as AuthContext;
-	const user = requireRole(auth, Role.EDITOR);
+function gateInstructor(ctx: RouteContext): void {
+	const user = requireRole(ctx, Role.EDITOR);
 	if (!user.ok) {
 		throw new PluginRouteError(
 			user.error.code,

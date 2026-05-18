@@ -26,7 +26,7 @@
 
 import type {
 	ContentDeleteEvent,
-	ContentHookEvent,
+	ContentPublishStateChangeEvent,
 	PluginContext,
 	StorageCollection,
 } from "emdash";
@@ -163,17 +163,10 @@ function fieldBool(data: Record<string, unknown>, key: string): boolean | undefi
 	return undefined;
 }
 
-function resolveStatus(
-	rawStatus: unknown,
-): "published" | "draft" | "scheduled" {
-	if (rawStatus === "published") return "published";
-	if (rawStatus === "scheduled") return "scheduled";
-	return "draft";
-}
-
 /**
  * Upsert a lesson row into `course_content_index`. Called from
- * `contentAfterSave` when a lesson's status is `published`.
+ * `contentAfterPublish` (status is implicitly "published") and from the
+ * backfill reconciler.
  */
 async function upsertLessonIndexRow(
 	ctx: PluginContext,
@@ -190,7 +183,7 @@ async function upsertLessonIndexRow(
 		stepType: "lesson",
 		stepId: id,
 		order: fieldNum(data, "order") ?? 0,
-		status: resolveStatus(content["status"]),
+		status: "published",
 	};
 	const publishedAt = content["publishedAt"];
 	if (typeof publishedAt === "string") row.publishedAt = publishedAt;
@@ -211,7 +204,8 @@ async function upsertLessonIndexRow(
 
 /**
  * Upsert a topic row into `course_content_index`. Called from
- * `contentAfterSave` when a topic's status is `published`.
+ * `contentAfterPublish` (status is implicitly "published") and from the
+ * backfill reconciler.
  */
 async function upsertTopicIndexRow(
 	ctx: PluginContext,
@@ -228,7 +222,7 @@ async function upsertTopicIndexRow(
 		stepType: "topic",
 		stepId: id,
 		order: fieldNum(data, "order") ?? 0,
-		status: resolveStatus(content["status"]),
+		status: "published",
 	};
 	const lessonId = fieldStr(data, "lesson");
 	if (lessonId) row.lessonId = lessonId;
@@ -273,40 +267,41 @@ async function deleteIndexRowById(
 }
 
 /**
- * `content:afterSave` handler — keeps `course_content_index` in sync.
- *
- * - Lessons/topics in `published` status: upsert the projection row.
- * - Lessons/topics in any other status (draft, trashed, scheduled): remove
- *   the row from the projection so stale data never leaks into curriculum reads.
+ * `content:afterPublish` handler — upserts the `course_content_index` row
+ * when a lesson or topic transitions into the published state. Other
+ * collections are not owned by this projection.
  */
-export async function contentAfterSave(
-	event: ContentHookEvent,
+export async function contentAfterPublish(
+	event: ContentPublishStateChangeEvent,
 	ctx: PluginContext,
 ): Promise<void> {
-	const { collection, content } = event;
-	const status = resolveStatus(content["status"]);
-
-	if (collection === LESSONS_COLLECTION_SLUG) {
-		if (status === "published") {
-			await upsertLessonIndexRow(ctx, content);
-		} else {
-			const id = typeof content["id"] === "string" ? content["id"] : undefined;
-			if (id) await deleteIndexRowById(ctx, "lesson", id);
-		}
+	if (event.collection === LESSONS_COLLECTION_SLUG) {
+		await upsertLessonIndexRow(ctx, event.content);
 		return;
 	}
+	if (event.collection === TOPICS_COLLECTION_SLUG) {
+		await upsertTopicIndexRow(ctx, event.content);
+	}
+}
 
-	if (collection === TOPICS_COLLECTION_SLUG) {
-		if (status === "published") {
-			await upsertTopicIndexRow(ctx, content);
-		} else {
-			const id = typeof content["id"] === "string" ? content["id"] : undefined;
-			if (id) await deleteIndexRowById(ctx, "topic", id);
-		}
+/**
+ * `content:afterUnpublish` handler — removes the `course_content_index` row
+ * when a lesson or topic leaves the published state, so stale rows never
+ * leak into curriculum reads.
+ */
+export async function contentAfterUnpublish(
+	event: ContentPublishStateChangeEvent,
+	ctx: PluginContext,
+): Promise<void> {
+	const id = typeof event.content["id"] === "string" ? event.content["id"] : undefined;
+	if (!id) return;
+	if (event.collection === LESSONS_COLLECTION_SLUG) {
+		await deleteIndexRowById(ctx, "lesson", id);
 		return;
 	}
-
-	// Other collections are not owned by this projection.
+	if (event.collection === TOPICS_COLLECTION_SLUG) {
+		await deleteIndexRowById(ctx, "topic", id);
+	}
 }
 
 /**

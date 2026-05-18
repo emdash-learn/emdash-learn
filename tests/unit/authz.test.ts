@@ -7,13 +7,15 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { RouteContext } from "emdash";
+
 import {
 	Role,
 	requireEnrolled,
 	requireInstructor,
 	requireOwner,
 	requireRole,
-	type AuthContext,
+	type UserInfo,
 } from "../../src/authz.js";
 import { LEARN_ERRORS } from "../../src/constants.js";
 import type { CourseInstructor, Enrollment } from "../../src/types/storage.js";
@@ -24,7 +26,7 @@ import type { CourseInstructor, Enrollment } from "../../src/types/storage.js";
 // `createTestPluginCtx()`.
 // -----------------------------------------------------------------------------
 
-type StubUser = AuthContext["user"];
+type StubUser = UserInfo | null;
 
 interface StubRow<T> {
 	id: string;
@@ -54,14 +56,14 @@ function stubContext(opts: {
 	user?: StubUser;
 	enrollments?: Array<StubRow<Enrollment>>;
 	courseInstructors?: Array<StubRow<CourseInstructor>>;
-}): AuthContext {
+}): RouteContext {
 	const ctx = {
 		user: opts.user ?? null,
 		storage: {
 			enrollments: stubCollection(opts.enrollments ?? []),
 			course_instructors: stubCollection(opts.courseInstructors ?? []),
 		},
-	} as unknown as AuthContext;
+	} as unknown as RouteContext;
 	return ctx;
 }
 

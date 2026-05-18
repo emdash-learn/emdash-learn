@@ -129,8 +129,8 @@ export interface CourseInstructor {
 /**
  * Denormalized projection of lessons and topics for indexed curriculum reads
  * (AUDIT C3). One row per `(courseId, stepType, stepId)`. Maintained by
- * `content:afterSave` / `content:afterDelete` hooks; backfilled on first run
- * by the `backfill-content-index` reconciler.
+ * `content:afterPublish` / `content:afterUnpublish` / `content:afterDelete`
+ * hooks; backfilled on first run by the `backfill-content-index` reconciler.
  */
 export interface CourseContentIndexRow {
 	courseId: string;

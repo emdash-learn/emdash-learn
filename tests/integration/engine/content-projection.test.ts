@@ -24,6 +24,7 @@ import {
 	seedLesson,
 	seedStudent,
 	seedTopic,
+	unpublishContent,
 } from "../../utils/seed.js";
 import { createTestPluginCtx } from "../../utils/test-plugin-ctx.js";
 
@@ -49,7 +50,7 @@ function indexStore(ctx: TestCtx["ctx"]): StorageCollection<CourseContentIndexRo
 }
 
 // ---------------------------------------------------------------------------
-// Projection sync via content:afterSave hook
+// Projection sync via content:afterPublish / content:afterUnpublish hooks
 // ---------------------------------------------------------------------------
 
 describe("course_content_index projection — lesson lifecycle", () => {
@@ -81,6 +82,29 @@ describe("course_content_index projection — lesson lifecycle", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.map((l) => l.id)).toContain(lesson.id);
+	});
+
+	it("projection row tracks publish → unpublish → republish transitions", async () => {
+		const { ctx } = await newCtx();
+		const course = await seedCourse(ctx, { title: "ProjUnpublish" });
+		const lesson = await seedLesson(ctx, { courseId: course.id, order: 0, title: "Flipper" });
+		const store = indexStore(ctx);
+
+		// Publish — row appears.
+		await publishContent(ctx, "lessons", lesson.id);
+		let rows = await store.query({ where: { courseId: course.id, stepType: "lesson" } });
+		expect(rows.items).toHaveLength(1);
+
+		// Unpublish — row removed.
+		await unpublishContent(ctx, "lessons", lesson.id);
+		rows = await store.query({ where: { courseId: course.id, stepType: "lesson" } });
+		expect(rows.items).toHaveLength(0);
+
+		// Republish — row reappears, still exactly one.
+		await publishContent(ctx, "lessons", lesson.id);
+		rows = await store.query({ where: { courseId: course.id, stepType: "lesson" } });
+		expect(rows.items).toHaveLength(1);
+		expect(rows.items[0]?.data.stepId).toBe(lesson.id);
 	});
 
 	it("projection row is removed and lesson disappears when the lesson is deleted", async () => {

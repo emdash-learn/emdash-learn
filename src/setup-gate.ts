@@ -54,7 +54,7 @@ async function readBootstrapVersion(ctx: PluginContext): Promise<number> {
  * ```ts
  * handler: async (ctx) => {
  *   await ensureSetupComplete(ctx);
- *   const user = requireRole(ctx as AuthContext, Role.SUBSCRIBER);
+ *   const user = requireRole(ctx, Role.SUBSCRIBER);
  *   // … rest of handler
  * }
  * ```

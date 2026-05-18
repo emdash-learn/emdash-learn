@@ -4,7 +4,7 @@
  * Seeds the `course_content_index` projection for existing installs. On a
  * fresh install this runs once via the setup wizard (step `seed-content-index`,
  * BOOTSTRAP_VERSION 3). On daily cron it sweeps for drift and fills any gaps
- * left by missed `content:afterSave` events.
+ * left by missed `content:afterPublish` events.
  *
  * Guarantees:
  *   - Idempotent: the uniqueIndex on `(courseId, stepType, stepId)` means a

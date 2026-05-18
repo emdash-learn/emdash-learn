@@ -31,11 +31,16 @@ import {
 	TOPICS_COLLECTION_SLUG,
 } from "./constants.js";
 import { commentBeforeCreate } from "./hooks/comment.js";
-import { contentAfterDelete, contentAfterSave, contentBeforeDelete } from "./hooks/content.js";
+import {
+	contentAfterDelete,
+	contentAfterPublish,
+	contentAfterUnpublish,
+	contentBeforeDelete,
+} from "./hooks/content.js";
 import { cronDispatch } from "./hooks/cron.js";
 import { backfillContentIndexReconciler } from "./reconcilers/backfill-content-index.js";
 import { BOOTSTRAP_STATE_KEY, settingKey } from "./kv-keys.js";
-import { Role, type AuthContext } from "./authz.js";
+import { Role } from "./authz.js";
 import { adminAnalyticsRoutes } from "./routes/admin-analytics.js";
 import { adminSettingsRoutes } from "./routes/admin-settings.js";
 import { instructorAnalyticsRoutes } from "./routes/instructor-analytics.js";
@@ -224,7 +229,8 @@ export function createPlugin() {
 
 			// Wave 4 hooks — per-file ownership per §17.1.
 			"content:beforeDelete": contentBeforeDelete,
-			"content:afterSave": contentAfterSave,
+			"content:afterPublish": contentAfterPublish,
+			"content:afterUnpublish": contentAfterUnpublish,
 			"content:afterDelete": contentAfterDelete,
 			"comment:beforeCreate": commentBeforeCreate,
 			cron: cronDispatch,
@@ -260,8 +266,7 @@ export function createPlugin() {
 			// Setup utility routes — lightweight, no bootstrap gate.
 			"admin:whoami": {
 				handler: async (ctx) => {
-					const auth = ctx as unknown as AuthContext;
-					const user = auth.user;
+					const user = ctx.user;
 					if (!user) {
 						throw new PluginRouteError(
 							LEARN_ERRORS.UNAUTHENTICATED,

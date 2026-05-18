@@ -24,9 +24,9 @@
  */
 
 import { z } from "astro/zod";
-import { PluginRouteError, type PluginRoute } from "emdash";
+import { PluginRouteError, type PluginContext, type PluginRoute } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { DEFAULT_SETTINGS, LEARN_ERRORS, SETTING_KEYS, type SettingsShape } from "../constants.js";
 import { send as sendEmail } from "../engine/email-queue.js";
 import { settingKey } from "../kv-keys.js";
@@ -124,7 +124,7 @@ function toRouteError(code: string, message: string): PluginRouteError {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function readSettings(ctx: AuthContext): Promise<SettingsShape> {
+async function readSettings(ctx: PluginContext): Promise<SettingsShape> {
 	const pairs = await Promise.all(
 		SETTING_KEYS.map(async (name) => {
 			const stored = await ctx.kv.get(settingKey(name));
@@ -142,7 +142,7 @@ async function readSettings(ctx: AuthContext): Promise<SettingsShape> {
 	return Object.fromEntries(pairs) as SettingsShape;
 }
 
-async function countQueuedEmails(ctx: AuthContext): Promise<number> {
+async function countQueuedEmails(ctx: PluginContext): Promise<number> {
 	const entries = await ctx.kv.list("queue:email:");
 	return entries.length;
 }
@@ -154,14 +154,13 @@ async function countQueuedEmails(ctx: AuthContext): Promise<number> {
 const getRoute: PluginRoute<unknown> = {
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
 
-		const [settings, queued] = await Promise.all([readSettings(auth), countQueuedEmails(auth)]);
+		const [settings, queued] = await Promise.all([readSettings(ctx), countQueuedEmails(ctx)]);
 		const response: SettingsGetResponse = {
 			settings,
-			emailProvider: { configured: Boolean(auth.email), queued },
+			emailProvider: { configured: Boolean(ctx.email), queued },
 		};
 		return response;
 	},
@@ -171,8 +170,7 @@ const updateRoute: PluginRoute<SettingsUpdateInput> = {
 	input: settingsUpdateInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
 
 		const { settings: patch } = ctx.input;
@@ -181,11 +179,11 @@ const updateRoute: PluginRoute<SettingsUpdateInput> = {
 		>;
 		await Promise.all(
 			entries.map(([key, value]) =>
-				value === undefined ? Promise.resolve() : auth.kv.set(settingKey(key), value),
+				value === undefined ? Promise.resolve() : ctx.kv.set(settingKey(key), value),
 			),
 		);
 
-		const settings = await readSettings(auth);
+		const settings = await readSettings(ctx);
 		const response: SettingsUpdateResponse = { settings };
 		return response;
 	},
@@ -195,16 +193,15 @@ const testEmailRoute: PluginRoute<TestEmailInput> = {
 	input: testEmailInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error.code, user.error.message);
 
 		const to = ctx.input.to ?? user.data.email;
-		const settings = await readSettings(auth);
+		const settings = await readSettings(ctx);
 		const from = settings.siteName || "Emdash Learn";
-		const delivered = Boolean(auth.email);
+		const delivered = Boolean(ctx.email);
 
-		await sendEmail(auth, {
+		await sendEmail(ctx, {
 			to,
 			subject: `${from}: test email`,
 			text:

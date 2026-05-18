@@ -21,7 +21,7 @@
  * case uniformly across helpers.
  */
 
-import type { PluginContext, StorageCollection } from "emdash";
+import type { PluginContext, RouteContext, StorageCollection } from "emdash";
 
 import { LEARN_ERRORS } from "./constants.js";
 import { err, ok, type Result } from "./engine/result.js";
@@ -30,9 +30,9 @@ import type { CourseInstructor, Enrollment } from "./types/storage.js";
 /**
  * Numeric role levels mirroring `@emdash-cms/auth`
  * (`packages/auth/src/types.ts:9`). Duplicated here because the `emdash`
- * npm package (v0.5.0) does not re-export `Role` / `RoleLevel`.
- * See §12 Q22 for the follow-up on an upstream re-export. Values MUST stay
- * aligned with the auth package.
+ * npm package does not re-export `Role` / `RoleLevel` from its main entry,
+ * and lms-core has no direct dependency on `@emdash-cms/auth`. Values MUST
+ * stay aligned with the auth package.
  */
 export const Role = {
 	SUBSCRIBER: 10,
@@ -46,8 +46,9 @@ export type RoleLevel = (typeof Role)[keyof typeof Role];
 
 /**
  * Mirror of `UserInfo` (emdash `packages/core/src/plugins/types.ts:364`). The
- * `emdash` package references this shape in `PluginContext['users']` but does
- * not export the type directly — see §12 Q22.
+ * shape is exposed at runtime through `RouteContext['user']` and
+ * `PluginContext['users']`, but the type itself is not re-exported from the
+ * `emdash` main entry. Drop this mirror once upstream re-exports it.
  */
 export interface UserInfo {
 	id: string;
@@ -55,16 +56,6 @@ export interface UserInfo {
 	name: string | null;
 	role: number;
 	createdAt: string;
-}
-
-/**
- * `AuthContext` is the per-request plugin context extended with the resolved
- * session user. Route handlers populate `user` from the emdash session layer
- * (cookie/token) before calling `requireRole` so the authz surface stays
- * agnostic of transport.
- */
-export interface AuthContext extends PluginContext {
-	user: UserInfo | null;
 }
 
 /** Human-readable fallback message for the no-session case. */
@@ -84,7 +75,7 @@ function getCollection<T>(ctx: PluginContext, name: string): StorageCollection<T
 	return collection as StorageCollection<T>;
 }
 
-export function requireRole(ctx: AuthContext, minRole: number): Result<UserInfo> {
+export function requireRole(ctx: RouteContext, minRole: number): Result<UserInfo> {
 	if (!ctx.user) return err(LEARN_ERRORS.UNAUTHENTICATED, UNAUTHENTICATED_MESSAGE);
 	if (ctx.user.role < minRole) {
 		return err(

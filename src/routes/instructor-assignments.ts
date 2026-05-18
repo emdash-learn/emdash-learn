@@ -27,7 +27,7 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as instructors from "../engine/instructors.js";
 import type { Result, ResultError } from "../engine/result.js";
@@ -104,8 +104,7 @@ const setRoute: PluginRoute<InstructorSetInput> = {
 	input: instructorSetInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const { courseId, userId, role } = ctx.input;
@@ -119,8 +118,7 @@ const unsetRoute: PluginRoute<InstructorUnsetInput> = {
 	input: instructorUnsetInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const { courseId, userId } = ctx.input;
@@ -177,8 +175,7 @@ const listRoute: PluginRoute<InstructorListInput> = {
 	input: instructorListInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const rows = await instructors.listAll(ctx);

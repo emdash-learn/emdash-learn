@@ -10,9 +10,9 @@
  */
 
 import { z } from "astro/zod";
-import { PluginRouteError, type PluginRoute } from "emdash";
+import { PluginRouteError, type PluginRoute, type RouteContext } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as curriculum from "../engine/curriculum.js";
 import type { Result, ResultError } from "../engine/result.js";
@@ -67,9 +67,8 @@ function unwrap<T>(result: Result<T>): T {
 	return result.data;
 }
 
-function gateStudent(ctx: unknown): { id: string } {
-	const auth = ctx as AuthContext;
-	const user = requireRole(auth, Role.SUBSCRIBER);
+function gateStudent(ctx: RouteContext): { id: string } {
+	const user = requireRole(ctx, Role.SUBSCRIBER);
 	if (!user.ok) throw toRouteError(user.error);
 	return { id: user.data.id };
 }

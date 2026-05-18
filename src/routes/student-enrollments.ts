@@ -18,7 +18,7 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
-import { type AuthContext, Role, requireOwner, requireRole } from "../authz.js";
+import { Role, requireOwner, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as enrollments from "../engine/enrollments.js";
 import type { Result, ResultError } from "../engine/result.js";
@@ -81,8 +81,7 @@ const enrollRoute: PluginRoute<EnrollInput> = {
 	input: enrollInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.SUBSCRIBER);
+		const user = requireRole(ctx, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const input = ctx.input;
@@ -113,8 +112,7 @@ const unenrollRoute: PluginRoute<UnenrollInput> = {
 	input: unenrollInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.SUBSCRIBER);
+		const user = requireRole(ctx, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
 		// Ownership check — load the row, confirm `user.id === row.userId`

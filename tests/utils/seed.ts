@@ -20,10 +20,14 @@
  * anyway. Future refactors can tighten these without changing call sites.
  */
 
-import { handleContentPublish, ulid } from "emdash";
+import { handleContentPublish, handleContentUnpublish, ulid } from "emdash";
 import type { ContentItem, PluginContext } from "emdash";
 
-import { contentAfterSave, contentAfterDelete } from "../../src/hooks/content.js";
+import {
+	contentAfterDelete,
+	contentAfterPublish,
+	contentAfterUnpublish,
+} from "../../src/hooks/content.js";
 import { getTestDb } from "./test-plugin-ctx.js";
 
 // ---------------------------------------------------------------------------
@@ -378,7 +382,7 @@ export async function seedQuiz(ctx: PluginContext, input: SeedQuizInput): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Content publish wrapper — fires content:afterSave hook so the
+// Content publish wrapper — fires content:afterPublish hook so the
 // course_content_index projection is populated (AUDIT C3).
 //
 // Integration tests that need to publish content should call this function
@@ -386,7 +390,7 @@ export async function seedQuiz(ctx: PluginContext, input: SeedQuizInput): Promis
 // ---------------------------------------------------------------------------
 
 /**
- * Publish a content item and fire the `content:afterSave` hook so the
+ * Publish a content item and fire the `content:afterPublish` hook so the
  * `course_content_index` projection is updated. Safe for courses, lessons,
  * and topics; a no-op for collections that the hook doesn't own.
  */
@@ -399,13 +403,35 @@ export async function publishContent(
 	const result = await handleContentPublish(db, collection, id);
 	if (!result.success || !result.data) return;
 	const item = result.data.item;
-	// Fire the content:afterSave hook so the projection picks up the change.
-	await contentAfterSave(
+	// Fire the content:afterPublish hook so the projection picks up the change.
+	await contentAfterPublish(
 		{
 			collection,
 			// Spread the full ContentItem (which includes id, status, data, publishedAt, etc.)
 			content: item as unknown as Record<string, unknown>,
-			isNew: false,
+		},
+		ctx,
+	);
+}
+
+/**
+ * Unpublish a content item and fire the `content:afterUnpublish` hook so the
+ * `course_content_index` projection is updated. Safe for courses, lessons,
+ * and topics; a no-op for collections that the hook doesn't own.
+ */
+export async function unpublishContent(
+	ctx: PluginContext,
+	collection: string,
+	id: string,
+): Promise<void> {
+	const db = getTestDb(ctx);
+	const result = await handleContentUnpublish(db, collection, id);
+	if (!result.success || !result.data) return;
+	const item = result.data.item;
+	await contentAfterUnpublish(
+		{
+			collection,
+			content: item as unknown as Record<string, unknown>,
 		},
 		ctx,
 	);

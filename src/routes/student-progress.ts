@@ -34,7 +34,7 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as progress from "../engine/progress.js";
 import type { Result, ResultError } from "../engine/result.js";
@@ -125,8 +125,7 @@ const tickRoute: PluginRoute<ProgressTickInput> = {
 	input: progressTickInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.SUBSCRIBER);
+		const user = requireRole(ctx, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const result = await progress.tick(ctx, user.data.id, {
@@ -149,8 +148,7 @@ const completeRoute: PluginRoute<ProgressCompleteInput> = {
 	input: progressCompleteInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.SUBSCRIBER);
+		const user = requireRole(ctx, Role.SUBSCRIBER);
 		if (!user.ok) throw toRouteError(user.error);
 
 		const result = await progress.markStepComplete(

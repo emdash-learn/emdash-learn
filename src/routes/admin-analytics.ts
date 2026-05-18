@@ -9,7 +9,7 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginRoute } from "emdash";
 
-import { type AuthContext, Role, requireRole } from "../authz.js";
+import { Role, requireRole } from "../authz.js";
 import { LEARN_ERRORS } from "../constants.js";
 import * as analytics from "../engine/analytics.js";
 import type { Result, ResultError } from "../engine/result.js";
@@ -56,8 +56,7 @@ const overviewRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 		return unwrap(await analytics.siteAnalytics(ctx, ctx.input.range));
 	},
@@ -67,8 +66,7 @@ const comparisonRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 		const opts: { cursor?: string; limit?: number } = {};
 		if (ctx.input.cursor !== undefined) opts.cursor = ctx.input.cursor;
@@ -81,8 +79,7 @@ const engagementRoute: PluginRoute<DateRangeInput> = {
 	input: dateRangeInput,
 	handler: async (ctx) => {
 		await ensureSetupComplete(ctx);
-		const auth = ctx as unknown as AuthContext;
-		const user = requireRole(auth, Role.ADMIN);
+		const user = requireRole(ctx, Role.ADMIN);
 		if (!user.ok) throw toRouteError(user.error);
 		return unwrap(await analytics.engagementMetrics(ctx, ctx.input.range));
 	},
