@@ -47,7 +47,7 @@ describe("Engagement Reporting routes", () => {
 		).toBe(false);
 	});
 
-	it("derives anonymous or verified-account classification from the core principal", async () => {
+	it("records public observations without an identity field", async () => {
 		const observe = vi.fn(async () => {});
 		const beforePublicObservation = vi.fn(async () => {});
 		const routes = createEngagementReportingRoutes({
@@ -74,13 +74,11 @@ describe("Engagement Reporting routes", () => {
 		expect(observe).toHaveBeenNthCalledWith(1, {
 			type: "course_opened",
 			courseId: "course-typescript",
-			actor: { kind: "anonymous" },
 		});
 		expect(observe).toHaveBeenNthCalledWith(2, {
 			type: "check_opened",
 			courseId: "course-typescript",
 			checkId: "check-types",
-			actor: { kind: "verified", learnerId: "core-user-42" },
 		});
 		expect(beforePublicObservation).toHaveBeenCalledTimes(2);
 		expect(routes["engagement:observe"].public).toBe(true);

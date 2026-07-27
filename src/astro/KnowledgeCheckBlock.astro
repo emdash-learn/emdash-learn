@@ -35,7 +35,6 @@ const { node } = Astro.props;
 
 <script>
 	import { createDeviceProgressStore } from "../browser/device-progress.js";
-	import { createSubmissionRetryState } from "../browser/submission-retry.js";
 
 	interface PublicOption {
 		id: string;
@@ -202,7 +201,6 @@ const { node } = Astro.props;
 	function renderResult(
 		container: HTMLElement,
 		result: GradeResult,
-		savedToAccount: boolean,
 	): void {
 		container.hidden = false;
 		container.dataset.passed = String(result.passed);
@@ -213,9 +211,7 @@ const { node } = Astro.props;
 		container.append(summary);
 
 		const storageNote = document.createElement("p");
-		storageNote.textContent = savedToAccount
-			? "Attempt saved to your EmDash account."
-			: "Self-check saved only on this device.";
+		storageNote.textContent = "Self-check saved only on this device.";
 		container.append(storageNote);
 
 		const explanations = result.questions.filter((item) => item.explanation);
@@ -246,23 +242,7 @@ const { node } = Astro.props;
 		courseId: string,
 		check: PublicCheck,
 		answers: ReturnType<typeof collectAnswers>,
-		submissionId: string,
-	): Promise<{ result: GradeResult; savedToAccount: boolean }> {
-		try {
-			const result = await callRoute<GradeResult>("assessment:submit-attempt", {
-				courseId,
-				checkId: check.checkId,
-				revisionId: check.revisionId,
-				submissionId,
-				answers,
-			});
-			return { result, savedToAccount: true };
-		} catch (error) {
-			if (!(error instanceof LearnRouteError) || ![401, 403].includes(error.status)) {
-				throw error;
-			}
-		}
-
+	): Promise<GradeResult> {
 		const result = await callRoute<GradeResult>("assessment:self-grade", {
 			courseId,
 			checkId: check.checkId,
@@ -270,7 +250,7 @@ const { node } = Astro.props;
 			answers,
 		});
 		rememberDeviceResult(courseId, result);
-		return { result, savedToAccount: false };
+		return result;
 	}
 
 	async function initialize(root: HTMLElement): Promise<void> {
@@ -296,7 +276,6 @@ const { node } = Astro.props;
 				courseId,
 				checkId,
 			});
-			const submissionRetry = createSubmissionRetryState();
 			title.textContent = check.title;
 			if (check.description) {
 				description.textContent = check.description;
@@ -316,25 +295,14 @@ const { node } = Astro.props;
 			form.addEventListener("submit", (event) => {
 				event.preventDefault();
 				const answers = collectAnswers(form);
-				const submissionId = submissionRetry.idFor(answers);
 				const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
 				if (submit) submit.disabled = true;
 				result.hidden = false;
 				delete result.dataset.passed;
 				result.textContent = "Checking answers…";
-				void grade(courseId, check, answers, submissionId)
-					.then((graded) => {
-						submissionRetry.settle();
-						return renderResult(result, graded.result, graded.savedToAccount);
-					})
+				void grade(courseId, check, answers)
+					.then((graded) => renderResult(result, graded))
 					.catch((error: unknown) => {
-						if (
-							error instanceof LearnRouteError &&
-							error.status >= 400 &&
-							error.status < 500
-						) {
-							submissionRetry.settle();
-						}
 						result.dataset.passed = "error";
 						result.textContent =
 							error instanceof Error ? error.message : "Answers could not be checked.";

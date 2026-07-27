@@ -1,7 +1,7 @@
 {
 	"name": "@emdash/lms-core",
 	"version": "0.0.0",
-	"description": "EmDash course publishing, account-linked progress, knowledge checks, and engagement reporting.",
+	"description": "EmDash course publishing, browser-local progress, knowledge checks, and anonymous engagement reporting.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Emdash Learn contributors",
@@ -44,7 +44,8 @@
 	},
 	"files": [
 		"dist",
-		"src"
+		"src/astro",
+		"src/browser/device-progress.ts"
 	],
 	"scripts": {
 		"build": "tsdown",
@@ -66,7 +67,7 @@
 	"peerDependencies": {
 		"@emdash-cms/blocks": "^0.31.1",
 		"astro": "^6.0.0",
-		"emdash": "^0.32.0",
+		"emdash": "^0.31.1",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0"
 	},

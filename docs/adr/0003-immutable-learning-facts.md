@@ -1,9 +1,14 @@
 ---
-status: accepted
+status: partially-accepted
 date: 2026-07-26
 ---
 
 # Use immutable learning facts and separate reporting
+
+> Version 0.1 applies this decision to immutable Knowledge Check revisions and
+> retained anonymous observations. Account Completion Facts, Attempts,
+> attributable reporting, and privacy erasure belong to the deferred account
+> track.
 
 ## Context
 
@@ -44,12 +49,9 @@ create a new durable fact. Stored observations use redacted resource/outcome
 fields and day-scoped keyed account pseudonyms. Reports aggregate the retained
 observations exactly at query time, and daily maintenance removes expired rows.
 
-`verifiedAccountDays` counts distinct authenticated account pseudonyms per UTC
-day and sums those daily counts. It is neither a cross-day unique-account count
-nor a unique-person count.
-
-Privacy erasure removes the principal's Completion Facts, Attempts, and
-attributable raw observations, removing them from subsequent reports.
+The deferred account design proposed day-scoped actor pseudonyms and
+account-owned privacy erasure. Neither mechanism is part of the anonymous 0.1
+reporting contract.
 
 ## Consequences
 

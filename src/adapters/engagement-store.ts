@@ -16,7 +16,6 @@ type StorageWhere = NonNullable<StorageQuery["where"]>;
 const OBSERVATION_TYPES = new Set([
 	"course_opened",
 	"lesson_opened",
-	"lesson_completed",
 	"check_opened",
 	"check_submitted",
 ]);
@@ -28,8 +27,6 @@ function isStoredObservation(value: unknown): value is StoredEngagementObservati
 		typeof Reflect.get(value, "id") === "string" &&
 		OBSERVATION_TYPES.has(String(Reflect.get(value, "type"))) &&
 		typeof Reflect.get(value, "courseId") === "string" &&
-		(Reflect.get(value, "actorKind") === "anonymous" ||
-			Reflect.get(value, "actorKind") === "verified") &&
 		typeof Reflect.get(value, "observedAt") === "string" &&
 		typeof Reflect.get(value, "day") === "string"
 	);

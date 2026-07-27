@@ -21,7 +21,7 @@ const links = [
 	},
 	{
 		title: "Reports",
-		description: "Review aggregate course engagement, completions, attempts, and score bands.",
+		description: "Review aggregate anonymous course engagement and self-check score bands.",
 		href: "/_emdash/admin/plugins/lms-core/reports",
 		action: "View reports",
 	},
@@ -41,8 +41,7 @@ export function OverviewPage(): ReactElement {
 				<h1 style={titleStyle}>Publish structured learning content</h1>
 				<p style={introStyle}>
 					EmDash owns course and lesson content. Learn adds a public course-reading API and
-					Knowledge Checks, account-linked progress, private device progress, and aggregate
-					engagement reporting.
+					Knowledge Checks, browser-local progress, and aggregate anonymous reporting.
 				</p>
 			</header>
 
@@ -59,8 +58,8 @@ export function OverviewPage(): ReactElement {
 			</div>
 
 			<aside style={noteStyle}>
-				<strong>EmDash owns identity.</strong> Learn uses the verified EmDash session for progress
-				and attempts; it never collects passwords, phone numbers, or a separate learner profile.
+				<strong>No learner accounts.</strong> This release stores lesson progress and self-check
+				results only in each visitor&apos;s browser and never collects profile information.
 			</aside>
 		</section>
 	);

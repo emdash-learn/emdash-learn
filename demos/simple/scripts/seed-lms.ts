@@ -9,7 +9,6 @@
  */
 
 import { existsSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,9 +25,6 @@ const DIGEST_SECRET_KEY = `plugin:${PLUGIN_ID}:state:digest-secret:v1`;
 const DEMO_DIGEST_SECRET = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 const KNOWLEDGE_CHECK_ID = "check_demo_publishing_basics";
 const KNOWLEDGE_CHECK_REVISION_ID = "revision_demo_publishing_basics_v1";
-const E2E_SECONDARY_USER_ID = "e2e-secondary-learner";
-const E2E_SECONDARY_TOKEN_ID = "e2e-secondary-token";
-const E2E_SECONDARY_TOKEN_NAME = "emdash-learn-e2e-secondary";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEMO_ROOT = resolve(SCRIPT_DIR, "..");
@@ -237,53 +233,6 @@ function upsertOption(sqlite: BetterSqlite3.Database, name: string, value: unkno
 			 ON CONFLICT(name) DO UPDATE SET value = excluded.value`,
 		)
 		.run(name, JSON.stringify(value));
-}
-
-function seedSecondaryCorePrincipal(sqlite: BetterSqlite3.Database, rawToken: string): void {
-	if (!/^ec_pat_[A-Za-z0-9_-]{43}$/u.test(rawToken)) {
-		throw new Error("EMDASH_LEARN_E2E_SECONDARY_TOKEN must be a 256-bit EmDash PAT.");
-	}
-	const now = new Date().toISOString();
-	sqlite
-		.prepare(
-			`INSERT INTO users (
-				id, email, name, role, email_verified, disabled, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(id) DO UPDATE SET
-				email = excluded.email,
-				name = excluded.name,
-				role = excluded.role,
-				email_verified = excluded.email_verified,
-				disabled = excluded.disabled,
-				updated_at = excluded.updated_at`,
-		)
-		.run(
-			E2E_SECONDARY_USER_ID,
-			"secondary-learner@emdash.local",
-			"Secondary learner",
-			50,
-			1,
-			0,
-			now,
-			now,
-		);
-	sqlite.prepare("DELETE FROM _emdash_api_tokens WHERE name = ?").run(E2E_SECONDARY_TOKEN_NAME);
-	const tokenHash = createHash("sha256").update(rawToken).digest("base64url");
-	sqlite
-		.prepare(
-			`INSERT INTO _emdash_api_tokens (
-				id, name, token_hash, prefix, user_id, scopes, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		)
-		.run(
-			E2E_SECONDARY_TOKEN_ID,
-			E2E_SECONDARY_TOKEN_NAME,
-			tokenHash,
-			rawToken.slice(0, 11),
-			E2E_SECONDARY_USER_ID,
-			JSON.stringify(["admin"]),
-			now,
-		);
 }
 
 function portableParagraph(key: string, text: string): Record<string, unknown> {
@@ -503,27 +452,21 @@ async function main(): Promise<void> {
 		});
 
 		upsertOption(sqlite, DIGEST_SECRET_KEY, DEMO_DIGEST_SECRET);
-		if (process.env.EMDASH_LEARN_E2E_START_UNCONFIGURED !== "1") {
-			upsertOption(sqlite, SETUP_STATE_KEY, {
-				version: BOOTSTRAP_VERSION,
-				completedSteps: [
-					"collection:courses",
-					"fields:courses",
-					"collection:lessons",
-					"fields:lessons",
-				],
-				lastRunAt: now,
-				verification: {
-					contractVersion: BOOTSTRAP_VERSION,
-					schema: "compatible",
-					projection: "repaired",
-				},
-			});
-		} else {
-			sqlite.prepare("DELETE FROM options WHERE name = ?").run(SETUP_STATE_KEY);
-		}
-		const secondaryToken = process.env.EMDASH_LEARN_E2E_SECONDARY_TOKEN;
-		if (secondaryToken) seedSecondaryCorePrincipal(sqlite, secondaryToken);
+		upsertOption(sqlite, SETUP_STATE_KEY, {
+			version: BOOTSTRAP_VERSION,
+			completedSteps: [
+				"collection:courses",
+				"fields:courses",
+				"collection:lessons",
+				"fields:lessons",
+			],
+			lastRunAt: now,
+			verification: {
+				contractVersion: BOOTSTRAP_VERSION,
+				schema: "compatible",
+				projection: "repaired",
+			},
+		});
 	} finally {
 		await db.destroy();
 	}

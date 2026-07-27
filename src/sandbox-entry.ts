@@ -15,8 +15,6 @@ import { LEARN_PLUGIN_CONTRACT } from "./plugin-contract.js";
 import { backfillContentIndex } from "./reconcilers/backfill-content-index.js";
 import { createAssessmentRoutes } from "./routes/assessment.js";
 import { createEngagementReportingRoutes } from "./routes/engagement-reporting.js";
-import { createLearningRecordRoutes } from "./routes/learning-record.js";
-import { createPrivacyErasureRoutes } from "./routes/privacy-erasure.js";
 import { publishedCourseRoutes } from "./routes/published-courses.js";
 import { createSetupRoutes } from "./routes/setup.js";
 import { withSetupGate } from "./routes/setup-gated.js";
@@ -56,8 +54,6 @@ export function createPlugin() {
 	const gatedRoutes = withSetupGate({
 		...runtimeRoutes(publishedCourseRoutes),
 		...runtimeRoutes(createAssessmentRoutes(services)),
-		...runtimeRoutes(createLearningRecordRoutes(services)),
-		...runtimeRoutes(createPrivacyErasureRoutes(services)),
 		...runtimeRoutes(createEngagementReportingRoutes(services)),
 	});
 

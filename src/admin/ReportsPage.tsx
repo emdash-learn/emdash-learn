@@ -16,7 +16,6 @@ import {
 	type ReportingQueryInput,
 	type ReportingQueryResponse,
 } from "./api-client.js";
-import type { ActorCount } from "../modules/engagement-reporting/index.js";
 
 export interface ReportFilters {
 	startDate: string;
@@ -136,17 +135,6 @@ function passRate(passed: number, attempts: number): string {
 	return `${Number.isInteger(percentage) ? percentage : percentage.toFixed(1)}%`;
 }
 
-function actorBreakdown(count: ActorCount): string {
-	return `${count.anonymous} anonymous · ${count.verified} verified`;
-}
-
-function actorPassRate(passed: ActorCount, attempts: ActorCount): string {
-	return `${passRate(passed.anonymous, attempts.anonymous)} anonymous · ${passRate(
-		passed.verified,
-		attempts.verified,
-	)} verified`;
-}
-
 function scoreBandLabel(minimum: number, maximum: number): string {
 	return minimum === maximum ? `${minimum}%` : `${minimum}–${maximum}%`;
 }
@@ -186,9 +174,7 @@ export function ReportsView({
 			<header>
 				<p style={eyebrowStyle}>EmDash Learn</p>
 				<h1 style={titleStyle}>Engagement reporting</h1>
-				<p style={introStyle}>
-					Review directional engagement and verified-account activity for an exact date range.
-				</p>
+				<p style={introStyle}>Review anonymous directional engagement for an exact date range.</p>
 			</header>
 
 			<form onSubmit={submit} style={filterStyle}>
@@ -229,8 +215,7 @@ export function ReportsView({
 			</form>
 
 			<aside style={noteStyle}>
-				<p>Anonymous metrics are directional browser observations, not unique visitors.</p>
-				<p>Verified account-days sum daily active verified accounts; they are not unique people.</p>
+				<p>Metrics are anonymous directional browser observations, not unique visitors.</p>
 				<p>Calculated through is the report snapshot time, not the latest visitor activity.</p>
 			</aside>
 
@@ -282,47 +267,17 @@ export function ReportsView({
 								<article key={course.courseId} style={courseStyle}>
 									<h2 style={courseTitleStyle}>Course {course.courseId}</h2>
 									<dl style={metricGridStyle}>
+										<Metric label="Course opens" value={String(course.opens)} />
+										<Metric label="Lesson opens" value={String(course.lessonOpens)} />
+										<Metric label="Check opens" value={String(course.checkOpens)} />
 										<Metric
-											label="Course opens"
-											value={String(course.opens.total)}
-											detail={actorBreakdown(course.opens)}
+											label="Self-check submissions"
+											value={String(course.checkSubmissions)}
 										/>
-										<Metric
-											label="Lesson opens"
-											value={String(course.lessonOpens.total)}
-											detail={actorBreakdown(course.lessonOpens)}
-										/>
-										<Metric
-											label="Lesson completions"
-											value={String(course.lessonCompletions.total)}
-											detail={actorBreakdown(course.lessonCompletions)}
-										/>
-										<Metric
-											label="Check opens"
-											value={String(course.checkOpens.total)}
-											detail={actorBreakdown(course.checkOpens)}
-										/>
-										<Metric
-											label="Check attempts"
-											value={String(course.checkSubmissions.total)}
-											detail={actorBreakdown(course.checkSubmissions)}
-										/>
-										<Metric
-											label="Passed attempts"
-											value={String(course.passedSubmissions.total)}
-											detail={actorBreakdown(course.passedSubmissions)}
-										/>
+										<Metric label="Passed self-checks" value={String(course.passedSubmissions)} />
 										<Metric
 											label="Pass rate"
-											value={passRate(
-												course.passedSubmissions.total,
-												course.checkSubmissions.total,
-											)}
-											detail={actorPassRate(course.passedSubmissions, course.checkSubmissions)}
-										/>
-										<Metric
-											label="Verified account-days"
-											value={String(course.verifiedAccountDays)}
+											value={passRate(course.passedSubmissions, course.checkSubmissions)}
 										/>
 									</dl>
 									<div>
@@ -331,8 +286,7 @@ export function ReportsView({
 											<ul>
 												{course.scoreBands.map((band) => (
 													<li key={`${band.minimum}-${band.maximum}`}>
-														{scoreBandLabel(band.minimum, band.maximum)}: {band.count.total} total ·{" "}
-														{band.count.anonymous} anonymous · {band.count.verified} verified
+														{scoreBandLabel(band.minimum, band.maximum)}: {band.count}
 													</li>
 												))}
 											</ul>
@@ -350,20 +304,11 @@ export function ReportsView({
 	);
 }
 
-function Metric({
-	label,
-	value,
-	detail,
-}: {
-	label: string;
-	value: string;
-	detail?: string;
-}): ReactElement {
+function Metric({ label, value }: { label: string; value: string }): ReactElement {
 	return (
 		<div style={metricStyle}>
 			<dt>{label}</dt>
 			<dd style={metricValueStyle}>{value}</dd>
-			{detail ? <dd style={metricDetailStyle}>{detail}</dd> : null}
 		</div>
 	);
 }
@@ -451,12 +396,6 @@ const metricValueStyle: CSSProperties = {
 	margin: "0.25rem 0 0",
 	fontSize: "1.5rem",
 	fontWeight: 700,
-};
-
-const metricDetailStyle: CSSProperties = {
-	margin: "0.25rem 0 0",
-	color: "#64748b",
-	fontSize: "0.8rem",
 };
 
 export default ReportsPage;

@@ -1,51 +1,42 @@
 # EmDash Learn (`@emdash/lms-core`)
 
-Course publishing, knowledge checks, learning progress, and
-privacy-preserving engagement reporting for
+Course publishing, browser-local learning progress, knowledge checks, and
+anonymous engagement reporting for
 [EmDash](https://github.com/emdash-cms/emdash).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 > [!IMPORTANT]
-> EmDash Learn is pre-release. Its compatibility target is EmDash 0.32.0,
-> which must publish the authenticated plugin-route principal before Learn can
-> release. EmDash core ships first; Learn then updates its development lockfile,
-> passes the clean-consumer release gates, and publishes.
+> EmDash Learn is pre-release. Version 0.1 targets the currently published
+> EmDash 0.31 plugin API and deliberately does not provide learner accounts or
+> server-side learner records.
 
 ## What Learn provides
 
 - additive Course → Lesson setup using EmDash content collections;
-- published-only catalog, course, and lesson projections;
-- editor-authored knowledge checks with immutable published revisions;
-- browser-local lesson progress and self-check results for anonymous visitors;
-- immutable, concurrency-safe completion facts and server-graded Attempts for
-  authenticated learners;
-- engagement reporting whose event metrics preserve total, anonymous, and
-  verified-account counts; and
-- a canonical Astro Portable Text component for embedded knowledge checks.
+- published-only catalog, Course, and Lesson projections;
+- editor-authored Knowledge Checks with immutable published revisions;
+- deterministic, anonymous self-grading;
+- browser-local Lesson completion and self-check summaries;
+- anonymous aggregate engagement reporting; and
+- a canonical Astro Portable Text component for embedded Knowledge Checks.
 
-EmDash core owns registration, account recovery, email verification, resend
-flows, credentials, sessions, users, and roles. Learn never asks for a name,
-email address, phone number, password, verification code, or caller-supplied
-learner ID. Personalized routes derive an opaque learner identity only from
-the authenticated principal supplied by EmDash.
+Learn does not create or manage users, roles, registration, verification,
+credentials, or sessions. It does not collect names, email addresses, phone
+numbers, passwords, or verification codes.
 
-## Progress and attempts
+## Progress and self-checks
 
-Anonymous and authenticated activity deliberately use different stores:
+Lesson progress and Knowledge Check results are saved in the visitor's browser.
+They are useful for a self-guided experience but are not durable account
+records: they do not follow the visitor to another browser, and clearing site
+storage removes them.
 
-| Visitor state | Lesson progress                                           | Knowledge-check result                                   |
-| ------------- | --------------------------------------------------------- | -------------------------------------------------------- |
-| Anonymous     | Saved in that browser through the device progress store   | Self-graded and saved on that device; no account Attempt |
-| Authenticated | Monotonic completion facts linked to the EmDash principal | Server-graded, immutable, concurrency-safe Attempt       |
+Public grading is deterministic and returns the result to the browser. Version
+0.1 does not create server-side Attempts, import device progress, expose
+learner history, or issue completion credentials.
 
-Device progress can be reset, exported, and imported. After sign-in, completed
-lesson IDs may be imported as account-linked `device_import` facts. Anonymous
-self-check scores are never promoted to verified Attempts. Concurrent
-completion and submission retries converge on one durable fact rather than
-creating duplicate learning records.
-
-## Knowledge-check block
+## Knowledge Check block
 
 The canonical Portable Text block is `learnKnowledgeCheck` and requires both
 the containing Course and Knowledge Check identifiers:
@@ -60,9 +51,9 @@ the containing Course and Knowledge Check identifiers:
 
 `checkId` is the stable authored identity. Presentation resolves its current
 published head and returns the exact immutable `revisionId` used for grading.
-`courseId` supplies the authored learning/reporting context, and public
-operations verify that it identifies a published Course and matches the
-authored Knowledge Check.
+`courseId` supplies the authored learning and reporting context. Public
+operations verify that the Course is published and matches the authored
+Knowledge Check.
 
 Astro sites can use the canonical component directly:
 
@@ -76,22 +67,17 @@ import { KnowledgeCheckBlock } from "@emdash/lms-core/astro";
 
 ## Setup
 
-The setup page calls the no-input `setup:run` route. The server—not the
-browser—converges and verifies the Course/Lesson schema, repairs the published
-content projection, and persists completion evidence. `setup:state` reports
-that evidence. Setup preserves compatible unknown fields and never deletes
+The setup page calls the no-input `setup:run` route. The server converges and
+verifies the Course and Lesson schema, repairs the published-content
+projection, and persists setup evidence. `setup:state` reports that evidence.
+Setup preserves compatible unknown fields and never deletes
 administrator-authored Course or Lesson content.
 
 ## Reporting and privacy
 
-Reporting is best-effort: telemetry failure cannot fail content delivery,
-grading, or progress writes. Public opens are directional browser
-observations. Every successful self-grade request emits one submission
-observation classified from the optional Core principal; authenticated retries
-emit only for the newly durable Attempt. Completion observations likewise emit
-only for newly durable facts.
-
-Sites record Course and Lesson visits once when the corresponding page loads:
+Reporting is best-effort: telemetry failure cannot fail content delivery or
+grading. Sites may record Course and Lesson visits once when a corresponding
+page loads:
 
 ```ts
 import { createLearnBrowserClient } from "@emdash/lms-core/browser";
@@ -102,36 +88,23 @@ void learn.observeCourseOpened(courseId);
 void learn.observeLessonOpened({ courseId, lessonId });
 ```
 
-Call only the method for the page being rendered. Both observation methods are
-deliberately fail-open: they always resolve, including when reporting is
-rate-limited or unavailable, so analytics cannot interrupt navigation.
+These methods deliberately fail open, including when reporting is rate-limited
+or unavailable, so analytics cannot interrupt navigation.
 
-Every event metric and score band uses an `ActorCount` with `total`,
-`anonymous`, and `verified` counts. `verifiedAccountDays` is separately the
-sum of distinct authenticated accounts active within each UTC day. It is
-additive across days and must not be interpreted as unique people.
+Reports contain aggregate event totals, not unique visitors. Observations use
+a fixed vocabulary and omit profile or contact data, raw answers, free text,
+raw IP addresses, and full user agents. They are retained for at most 90 days
+and aggregated exactly at query time. Daily best-effort maintenance deletes
+rows strictly older than that window.
 
-Reporting aggregates exact retained observations at query time. Observations
-use a fixed vocabulary, omit copied profile/contact data, and are retained for
-90 days. Daily best-effort maintenance deletes only rows strictly older than
-that window; no lossy or non-transactional rollup step is used.
 `calculatedThrough` is the report snapshot time captured after the storage
 read, not the latest visitor-activity timestamp.
-
-The authenticated `privacy:erase-my-data` route removes that principal's
-lesson completions, assessment Attempts, and attributable raw engagement
-observations, so subsequent reports no longer include that attributable
-activity. Site code can expose this through
-`createLearnBrowserClient(...).eraseMyData()`; the host site owns the
-learner-facing confirmation and recovery experience. Partial failures preserve
-the route's `failedCategories` and per-category `deleted` counts on
-`LearnBrowserApiError.details`.
 
 ## Compatibility
 
 | Dependency        | Target      |
 | ----------------- | ----------- |
-| EmDash            | `^0.32.0`   |
+| EmDash            | `^0.31.1`   |
 | Astro             | `^6.0.0`    |
 | React / React DOM | `^19.0.0`   |
 | Node.js           | `>=22.12.0` |
@@ -139,8 +112,8 @@ the route's `failedCategories` and per-category `deleted` counts on
 
 Learn runs as a native/trusted plugin because it contributes React admin pages
 and an Astro renderer. The authoritative product boundary is in
-[docs/product-scope.md](./docs/product-scope.md); the exact remaining release
-work is tracked in
+[docs/product-scope.md](./docs/product-scope.md); the current release gates
+are tracked in
 [docs/internal/release-readiness-2026-07-26.md](./docs/internal/release-readiness-2026-07-26.md).
 
 ## Development
@@ -156,12 +129,12 @@ pnpm test:e2e
 ```
 
 The demo under `demos/simple` exercises the canonical block and anonymous
-browser journey. It is development scaffolding, not authenticated release
-evidence; the verified-account and privacy journeys must run through a native
-host using the published EmDash 0.32.0 contract.
+browser journey.
 
-No stable Learn package has been published. See the release-readiness document
-before treating the current worktree as consumable.
+Account-linked progress is a future track. It must use the official EmDash
+authenticated route context after
+[emdash-cms/emdash#812](https://github.com/emdash-cms/emdash/issues/812)
+lands; it is not emulated in version 0.1.
 
 ## License
 

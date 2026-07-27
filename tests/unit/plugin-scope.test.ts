@@ -12,15 +12,6 @@ const PUBLIC_ROUTES = [
 	"engagement:observe",
 ] as const;
 
-const LEARNER_ROUTES = [
-	"assessment:submit-attempt",
-	"assessment:attempts",
-	"learning:complete-lesson",
-	"learning:progress",
-	"learning:import-device-progress",
-	"privacy:erase-my-data",
-] as const;
-
 const EDITOR_ROUTES = [
 	"assessment:draft-list",
 	"assessment:draft-create",
@@ -51,37 +42,31 @@ describe("Learn plugin scope", () => {
 		expect(paths.every((path) => !path.includes(":"))).toBe(true);
 	});
 
-	it("owns only assessment, progress, reporting, and content-projection data", () => {
+	it("owns only assessment authoring, anonymous reporting, and content-projection data", () => {
 		const runtime = createPlugin();
 
 		expect(new Set(Object.keys(runtime.storage))).toEqual(
 			new Set([
-				"assessment_attempts",
 				"assessment_drafts",
 				"assessment_heads",
 				"assessment_revisions",
 				"course_content_index",
 				"engagement_observations",
-				"lesson_completions",
 			]),
 		);
 	});
 
-	it("exposes the exact publishing, learning, assessment, reporting, and setup routes", () => {
+	it("exposes the exact publishing, self-check, reporting, and setup routes", () => {
 		const runtime = createPlugin();
 		const routes = runtime.routes;
 
 		expect(new Set(Object.keys(routes))).toEqual(
-			new Set([...PUBLIC_ROUTES, ...LEARNER_ROUTES, ...EDITOR_ROUTES, ...ADMIN_ROUTES]),
+			new Set([...PUBLIC_ROUTES, ...EDITOR_ROUTES, ...ADMIN_ROUTES]),
 		);
 
 		for (const name of PUBLIC_ROUTES) {
 			expect(routes[name]?.public).toBe(true);
 			expect(routes[name]?.permission).toBeUndefined();
-		}
-		for (const name of LEARNER_ROUTES) {
-			expect(routes[name]?.public).not.toBe(true);
-			expect(routes[name]?.permission).toBe("content:read");
 		}
 		for (const name of EDITOR_ROUTES) {
 			expect(routes[name]?.public).not.toBe(true);

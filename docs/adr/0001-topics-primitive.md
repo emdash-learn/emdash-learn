@@ -4,7 +4,7 @@
 > Historical. The current product scope is Course → Lesson and is defined in
 > [`../product-scope.md`](../product-scope.md). Topics were removed when the
 > plugin was narrowed to the contracts available in EmDash core; the current
-> compatibility target is EmDash 0.32.0.
+> compatibility target is published EmDash 0.31.
 
 - **Status:** Superseded
 - **Date:** 2026-04-18

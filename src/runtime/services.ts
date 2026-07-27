@@ -9,13 +9,10 @@ import {
 	createAssessmentStorageAdapter,
 	type AssessmentHeadRecord,
 } from "../adapters/assessment-storage.js";
-import { createCompletionFactStoreAdapter } from "../adapters/completion-fact-store.js";
 import { createEngagementStoreAdapter } from "../adapters/engagement-store.js";
-import { createRawEngagementErasureAdapter } from "../adapters/raw-engagement-erasure.js";
 import {
 	createAssessment,
 	type Assessment,
-	type AssessmentAttemptRecord,
 	type AssessmentRevisionRecord,
 	type DraftCheck,
 } from "../modules/assessment/index.js";
@@ -24,15 +21,6 @@ import {
 	type EngagementReporting,
 	type StoredEngagementObservation,
 } from "../modules/engagement-reporting/index.js";
-import {
-	createLearningRecord,
-	type CompletionFact,
-	type LearningRecord,
-} from "../modules/learning-record/index.js";
-import {
-	createPrivacyErasure as createPrivacyErasureDomain,
-	type PrivacyErasure,
-} from "../modules/privacy-erasure.js";
 import { getPublishedCourse, getPublishedLesson } from "../modules/published-courses.js";
 import { requireInstallationDigest } from "../security/installation-digest.js";
 import { createPublicRateLimiter, type PublicRateLimiter } from "../security/public-rate-limit.js";
@@ -44,9 +32,7 @@ export interface LearnRuntimeDependencies {
 
 export interface LearnRuntimeServices {
 	createAssessment(ctx: PluginContext): Promise<Assessment>;
-	createLearningRecord(ctx: PluginContext): Promise<LearningRecord>;
 	createReporting(ctx: PluginContext): Promise<EngagementReporting>;
-	createPrivacyErasure(ctx: PluginContext): Promise<PrivacyErasure>;
 	beforePublicAssessment(ctx: RouteContext): Promise<void>;
 	requirePublishedAssessmentCourse(ctx: RouteContext, courseId: string): Promise<void>;
 	beforePublicObservation(ctx: RouteContext): Promise<void>;
@@ -67,10 +53,7 @@ function requireCollection<T>(ctx: PluginContext, name: string): StorageCollecti
 	return collection as StorageCollection<T>;
 }
 
-function opaqueId(
-	kind: "check" | "revision" | "attempt" | "observation" | "completion",
-	uuid: string,
-): string {
+function opaqueId(kind: "check" | "revision" | "attempt" | "observation", uuid: string): string {
 	return `${kind}_${uuid.replaceAll("-", "")}`;
 }
 
@@ -124,7 +107,6 @@ export function createLearnRuntimeServices(
 				drafts: requireCollection<DraftCheck>(ctx, "assessment_drafts"),
 				revisions: requireCollection<AssessmentRevisionRecord>(ctx, "assessment_revisions"),
 				heads: requireCollection<AssessmentHeadRecord>(ctx, "assessment_heads"),
-				attempts: requireCollection<AssessmentAttemptRecord>(ctx, "assessment_attempts"),
 			}),
 			clock: {
 				now: () => dependencies.now().toISOString(),
@@ -139,83 +121,18 @@ export function createLearnRuntimeServices(
 	}
 
 	async function createReportingService(ctx: PluginContext): Promise<EngagementReporting> {
-		const digest = await requireInstallationDigest(ctx.kv);
 		return createEngagementReporting({
 			store: createEngagementStoreAdapter(
 				requireCollection<StoredEngagementObservation>(ctx, "engagement_observations"),
 			),
 			clock: dependencies.now,
 			nextId: () => opaqueId("observation", dependencies.nextUuid()),
-			pseudonymize: (learnerId, day) =>
-				digest("engagement-actor", JSON.stringify([day, learnerId])),
-		});
-	}
-
-	async function createLearningRecordService(ctx: PluginContext): Promise<LearningRecord> {
-		const digest = await requireInstallationDigest(ctx.kv);
-		return createLearningRecord({
-			completions: createCompletionFactStoreAdapter(
-				requireCollection<CompletionFact>(ctx, "lesson_completions"),
-				{
-					nextId: () => opaqueId("completion", dependencies.nextUuid()),
-				},
-			),
-			content: {
-				async getPublishedLesson(lessonId) {
-					const lesson = await getPublishedLesson(ctx, lessonId);
-					return lesson ? { lessonId: lesson.id, courseId: lesson.courseId } : null;
-				},
-				async listPublishedLessons(courseId) {
-					const detail = await getPublishedCourse(ctx, { courseId });
-					return detail
-						? {
-								courseId,
-								lessonIds: detail.lessons.map((lesson) => lesson.id),
-							}
-						: null;
-				},
-			},
-			clock: dependencies.now,
-			hash: {
-				digest: (value) => digest("learning-owner", value),
-			},
 		});
 	}
 
 	return {
 		createAssessment: createAssessmentService,
-		createLearningRecord: createLearningRecordService,
 		createReporting: createReportingService,
-		async createPrivacyErasure(ctx) {
-			const [assessment, digest] = await Promise.all([
-				createAssessmentService(ctx),
-				requireInstallationDigest(ctx.kv),
-			]);
-			const learning = await createLearningRecordService(ctx);
-			const observations = requireCollection<StoredEngagementObservation>(
-				ctx,
-				"engagement_observations",
-			);
-			const engagementStore = createEngagementStoreAdapter(observations);
-			return createPrivacyErasureDomain({
-				lessonCompletions: {
-					async erase(learner) {
-						const result = await learning.eraseLearner(learner);
-						return result.deletedCompletions;
-					},
-				},
-				assessmentAttempts: {
-					erase: (learner) => assessment.eraseLearnerAttempts(learner),
-				},
-				rawEngagementObservations: createRawEngagementErasureAdapter({
-					observations,
-					pseudonymize: (learnerId, day) =>
-						digest("engagement-actor", JSON.stringify([day, learnerId])),
-					clock: dependencies.now,
-					pruneExpiredBefore: (cutoff) => engagementStore.deleteObservationsBefore(cutoff),
-				}),
-			});
-		},
 		async beforePublicAssessment(ctx) {
 			await applyPublicLimit(ctx);
 		},

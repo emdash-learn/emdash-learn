@@ -57,8 +57,9 @@ test.describe("anonymous Knowledge Check", () => {
 		await expect(result).toHaveAttribute("data-passed", "true");
 		await expect(result).toContainText("100% — Passed");
 		await expect(result).toContainText("Self-check saved only on this device.");
-		expect(assessmentRequests).toContain("assessment:submit-attempt");
-		expect(assessmentRequests).toContain("assessment:self-grade");
+		expect(assessmentRequests).toContain("assessment:present");
+		expect(assessmentRequests.filter((route) => route === "assessment:self-grade")).toHaveLength(1);
+		expect(assessmentRequests).not.toContain("assessment:submit-attempt");
 
 		const saved = await page.evaluate((storageKey) => {
 			const value = localStorage.getItem(storageKey);

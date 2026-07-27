@@ -52,7 +52,7 @@ describe("ReportsPage filters", () => {
 });
 
 describe("ReportsView", () => {
-	it("presents engagement, assessment, freshness, and privacy semantics", () => {
+	it("presents anonymous engagement, self-check, and freshness semantics", () => {
 		const markup = renderToStaticMarkup(
 			createElement(ReportsView, {
 				filters: {
@@ -71,23 +71,21 @@ describe("ReportsView", () => {
 						courses: [
 							{
 								courseId: "course-1",
-								opens: { total: 18, anonymous: 12, verified: 6 },
-								verifiedAccountDays: 5,
-								lessonOpens: { total: 14, anonymous: 8, verified: 6 },
-								lessonCompletions: { total: 9, anonymous: 2, verified: 7 },
-								checkOpens: { total: 8, anonymous: 5, verified: 3 },
-								checkSubmissions: { total: 4, anonymous: 1, verified: 3 },
-								passedSubmissions: { total: 3, anonymous: 1, verified: 2 },
+								opens: 18,
+								lessonOpens: 14,
+								checkOpens: 8,
+								checkSubmissions: 4,
+								passedSubmissions: 3,
 								scoreBands: [
 									{
 										minimum: 80,
 										maximum: 89,
-										count: { total: 3, anonymous: 1, verified: 2 },
+										count: 3,
 									},
 									{
 										minimum: 100,
 										maximum: 100,
-										count: { total: 1, anonymous: 0, verified: 1 },
+										count: 1,
 									},
 								],
 							},
@@ -104,29 +102,19 @@ describe("ReportsView", () => {
 		expect(markup).toContain("Course course-1");
 		expect(markup).toContain("Course opens");
 		expect(markup).toContain("18");
-		expect(markup).toContain("12 anonymous · 6 verified");
 		expect(markup).toContain("Lesson opens");
-		expect(markup).toContain("8 anonymous · 6 verified");
-		expect(markup).toContain("Lesson completions");
-		expect(markup).toContain("2 anonymous · 7 verified");
 		expect(markup).toContain("Check opens");
-		expect(markup).toContain("5 anonymous · 3 verified");
-		expect(markup).toContain("Check attempts");
-		expect(markup).toContain("1 anonymous · 3 verified");
-		expect(markup).toContain("Passed attempts");
-		expect(markup).toContain("1 anonymous · 2 verified");
+		expect(markup).toContain("Self-check submissions");
+		expect(markup).toContain("Passed self-checks");
 		expect(markup).toContain("Pass rate");
 		expect(markup).toContain("75%");
-		expect(markup).toContain("100% anonymous · 66.7% verified");
-		expect(markup).toContain("Verified account-days");
-		expect(markup).toContain("80–89%: 3 total · 1 anonymous · 2 verified");
-		expect(markup).toContain("100%: 1 total · 0 anonymous · 1 verified");
+		expect(markup).toContain("80–89%: 3");
+		expect(markup).toContain("100%: 1");
+		expect(markup).not.toContain("verified");
+		expect(markup).not.toContain("Lesson completions");
 		expect(markup).toContain('dateTime="2026-07-26T12:00:00.000Z"');
 		expect(markup).toContain(
-			"Anonymous metrics are directional browser observations, not unique visitors.",
-		);
-		expect(markup).toContain(
-			"Verified account-days sum daily active verified accounts; they are not unique people.",
+			"Metrics are anonymous directional browser observations, not unique visitors.",
 		);
 		expect(markup).toContain(
 			"Calculated through is the report snapshot time, not the latest visitor activity.",
@@ -228,13 +216,11 @@ describe("ReportsView", () => {
 						courses: [
 							{
 								courseId: "course-1",
-								opens: { total: 1, anonymous: 1, verified: 0 },
-								verifiedAccountDays: 0,
-								lessonOpens: { total: 0, anonymous: 0, verified: 0 },
-								lessonCompletions: { total: 0, anonymous: 0, verified: 0 },
-								checkOpens: { total: 0, anonymous: 0, verified: 0 },
-								checkSubmissions: { total: 0, anonymous: 0, verified: 0 },
-								passedSubmissions: { total: 0, anonymous: 0, verified: 0 },
+								opens: 1,
+								lessonOpens: 0,
+								checkOpens: 0,
+								checkSubmissions: 0,
+								passedSubmissions: 0,
 							},
 						],
 					},

@@ -1,22 +1,17 @@
-import type { LearnerPrincipal } from "../learner-principal.js";
-
 export type EngagementObservation =
 	| {
 			type: "course_opened";
 			courseId: string;
-			actor: LearnerPrincipal;
 	  }
 	| {
-			type: "lesson_opened" | "lesson_completed";
+			type: "lesson_opened";
 			courseId: string;
 			lessonId: string;
-			actor: LearnerPrincipal;
 	  }
 	| {
 			type: "check_opened";
 			courseId: string;
 			checkId: string;
-			actor: LearnerPrincipal;
 	  }
 	| {
 			type: "check_submitted";
@@ -24,7 +19,6 @@ export type EngagementObservation =
 			checkId: string;
 			passed: boolean;
 			score: number;
-			actor: LearnerPrincipal;
 	  };
 
 export interface StoredEngagementObservation {
@@ -33,39 +27,23 @@ export interface StoredEngagementObservation {
 	courseId: string;
 	lessonId?: string;
 	checkId?: string;
-	actorKind: LearnerPrincipal["kind"];
-	actorKey?: string;
 	passed?: boolean;
 	scoreBand?: number;
 	observedAt: string;
 	day: string;
 }
 
-export interface ActorCount {
-	total: number;
-	anonymous: number;
-	verified: number;
-}
-
 export interface CourseEngagementReport {
 	courseId: string;
-	opens: ActorCount;
-	/**
-	 * Sum of distinct verified accounts active in each UTC day.
-	 *
-	 * This intentionally is not presented as cross-day unique people because
-	 * day-scoped pseudonyms are not joinable across UTC days.
-	 */
-	verifiedAccountDays: number;
-	lessonOpens: ActorCount;
-	lessonCompletions: ActorCount;
-	checkOpens: ActorCount;
-	checkSubmissions: ActorCount;
-	passedSubmissions: ActorCount;
+	opens: number;
+	lessonOpens: number;
+	checkOpens: number;
+	checkSubmissions: number;
+	passedSubmissions: number;
 	scoreBands?: Array<{
 		minimum: number;
 		maximum: number;
-		count: ActorCount;
+		count: number;
 	}>;
 }
 
@@ -102,7 +80,6 @@ export interface EngagementReportingDependencies {
 	store: EngagementStore;
 	clock: () => Date;
 	nextId: () => string;
-	pseudonymize: (learnerId: string, day: string) => string | Promise<string>;
 }
 
 export const ENGAGEMENT_OBSERVATION_RETENTION_DAYS = 90;
@@ -120,8 +97,7 @@ export class EngagementReportingError extends Error {
 }
 
 interface MutableCourseReport extends CourseEngagementReport {
-	verifiedActorDays: Set<string>;
-	scoreBandCounts: Map<number, ActorCount>;
+	scoreBandCounts: Map<number, number>;
 }
 
 function utcDay(instant: string): string {
@@ -151,33 +127,14 @@ function scoreBand(score: number): number {
 	return Math.max(0, Math.min(100, Math.floor(score / 10) * 10));
 }
 
-function emptyActorCount(): ActorCount {
-	return {
-		total: 0,
-		anonymous: 0,
-		verified: 0,
-	};
-}
-
-function incrementActorCount(
-	count: ActorCount,
-	actorKind: StoredEngagementObservation["actorKind"],
-): void {
-	count.total += 1;
-	count[actorKind] += 1;
-}
-
 function mutableCourse(courseId: string): MutableCourseReport {
 	return {
 		courseId,
-		opens: emptyActorCount(),
-		verifiedAccountDays: 0,
-		lessonOpens: emptyActorCount(),
-		lessonCompletions: emptyActorCount(),
-		checkOpens: emptyActorCount(),
-		checkSubmissions: emptyActorCount(),
-		passedSubmissions: emptyActorCount(),
-		verifiedActorDays: new Set(),
+		opens: 0,
+		lessonOpens: 0,
+		checkOpens: 0,
+		checkSubmissions: 0,
+		passedSubmissions: 0,
 		scoreBandCounts: new Map(),
 	};
 }
@@ -198,35 +155,27 @@ function addObservation(
 	observation: StoredEngagementObservation,
 ): void {
 	const course = courseFor(courses, observation.courseId);
-	if (observation.actorKey) {
-		course.verifiedActorDays.add(`${observation.day}:${observation.actorKey}`);
-	}
 	switch (observation.type) {
 		case "course_opened": {
-			incrementActorCount(course.opens, observation.actorKind);
+			course.opens += 1;
 			break;
 		}
 		case "lesson_opened": {
-			incrementActorCount(course.lessonOpens, observation.actorKind);
-			break;
-		}
-		case "lesson_completed": {
-			incrementActorCount(course.lessonCompletions, observation.actorKind);
+			course.lessonOpens += 1;
 			break;
 		}
 		case "check_opened": {
-			incrementActorCount(course.checkOpens, observation.actorKind);
+			course.checkOpens += 1;
 			break;
 		}
 		case "check_submitted": {
-			incrementActorCount(course.checkSubmissions, observation.actorKind);
-			if (observation.passed) {
-				incrementActorCount(course.passedSubmissions, observation.actorKind);
-			}
+			course.checkSubmissions += 1;
+			if (observation.passed) course.passedSubmissions += 1;
 			if (observation.scoreBand !== undefined) {
-				const count = course.scoreBandCounts.get(observation.scoreBand) ?? emptyActorCount();
-				incrementActorCount(count, observation.actorKind);
-				course.scoreBandCounts.set(observation.scoreBand, count);
+				course.scoreBandCounts.set(
+					observation.scoreBand,
+					(course.scoreBandCounts.get(observation.scoreBand) ?? 0) + 1,
+				);
 			}
 			break;
 		}
@@ -240,8 +189,7 @@ function finishReports(
 	return (
 		[...courses.values()]
 			.filter((course) => courseId === undefined || course.courseId === courseId)
-			.map(({ scoreBandCounts, verifiedActorDays, ...course }) => {
-				course.verifiedAccountDays += verifiedActorDays.size;
+			.map(({ scoreBandCounts, ...course }) => {
 				if (scoreBandCounts.size > 0) {
 					const orderedBands = [...scoreBandCounts.entries()];
 					// oxlint-disable-next-line no-array-sort -- sorting a new local array
@@ -273,31 +221,14 @@ export function createEngagementReporting(
 ): EngagementReporting {
 	return {
 		async observe(observation) {
-			let observedAt = dependencies.clock().toISOString();
-			let day = utcDay(observedAt);
-			let actorKey: string | undefined;
-			if (observation.actor.kind === "verified") {
-				// Pseudonym generation may straddle midnight. Finalize the event
-				// timestamp after that await and recompute until its day and key
-				// agree.
-				for (;;) {
-					// oxlint-disable-next-line no-await-in-loop -- the loop runs again only across UTC midnight
-					actorKey = await dependencies.pseudonymize(observation.actor.learnerId, day);
-					observedAt = dependencies.clock().toISOString();
-					const finalizedDay = utcDay(observedAt);
-					if (finalizedDay === day) break;
-					day = finalizedDay;
-				}
-			}
+			const observedAt = dependencies.clock().toISOString();
 			const stored: StoredEngagementObservation = {
 				id: dependencies.nextId(),
 				type: observation.type,
 				courseId: observation.courseId,
-				actorKind: observation.actor.kind,
 				observedAt,
-				day,
+				day: utcDay(observedAt),
 			};
-			if (actorKey !== undefined) stored.actorKey = actorKey;
 			if ("lessonId" in observation) stored.lessonId = observation.lessonId;
 			if ("checkId" in observation) stored.checkId = observation.checkId;
 			if (observation.type === "check_submitted") {

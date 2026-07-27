@@ -142,9 +142,6 @@ const next =
 				import { createLearnBrowserClient } from "@emdash/lms-core/browser";
 
 				const learn = createLearnBrowserClient({ storage: window.localStorage });
-				if (import.meta.env.DEV) {
-					Reflect.set(window, "__emdashLearnDemoClient", learn);
-				}
 				const progressRoot = document.querySelector<HTMLElement>("[data-device-progress]");
 				const progressStatus = progressRoot?.querySelector<HTMLElement>(
 					"[data-device-progress-status]",
@@ -180,17 +177,7 @@ const next =
 							progressStatus.textContent = "Saving completion…";
 							void learn
 								.completeLesson({ courseId, lessonId })
-								.then((completion) => {
-									if (completion.mode === "device") {
-										showDeviceCompletion();
-										return undefined;
-									}
-									progressStatus.textContent = "Completed in your EmDash account.";
-									progressNote.textContent =
-										"Saved to the verified EmDash account for this session.";
-									completeButton.textContent = "Completed in your account";
-									return undefined;
-								})
+								.then(() => showDeviceCompletion())
 								.catch((error: unknown) => {
 									progressStatus.textContent =
 										error instanceof Error

@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Assessment, DraftCheckInput } from "../../../src/modules/assessment/index.js";
 import type { EngagementReporting } from "../../../src/modules/engagement-reporting/index.js";
-import {
-	assessmentPresentInput,
-	assessmentSubmitAttemptInput,
-	createAssessmentRoutes,
-} from "../../../src/routes/assessment.js";
+import { assessmentPresentInput, createAssessmentRoutes } from "../../../src/routes/assessment.js";
 import { createRouteContext } from "../../utils/route-context.js";
 
 function unusedAssessment(): Assessment {
@@ -39,13 +35,13 @@ function unusedAssessment(): Assessment {
 			throw new Error("Unexpected selfGrade");
 		},
 		async submitAttempt() {
-			throw new Error("Unexpected submitAttempt");
+			throw new Error("Account attempts are not exposed in this release");
 		},
 		async listAttempts() {
-			throw new Error("Unexpected listAttempts");
+			throw new Error("Account attempts are not exposed in this release");
 		},
 		async eraseLearnerAttempts() {
-			throw new Error("Unexpected eraseLearnerAttempts");
+			throw new Error("Account attempts are not exposed in this release");
 		},
 	};
 }
@@ -86,6 +82,7 @@ describe("Assessment routes", () => {
 			updatedAt: "2026-07-26T10:00:00.000Z",
 		}));
 		const publish = vi.fn(async () => ({
+			courseId: "course-typescript",
 			checkId: "check-1",
 			revisionId: "revision-1",
 			title: authoredDraft.title,
@@ -136,14 +133,12 @@ describe("Assessment routes", () => {
 		const observe = vi.fn(async () => {
 			throw new Error("reporting unavailable");
 		});
-		const beforePublicAssessment = vi.fn(async () => {});
-		const requirePublishedAssessmentCourse = vi.fn(async () => {});
 		const warn = vi.fn();
 		const routes = createAssessmentRoutes({
 			createAssessment: () => ({ ...unusedAssessment(), selfGrade }),
 			createReporting: () => reporting(observe),
-			beforePublicAssessment,
-			requirePublishedAssessmentCourse,
+			beforePublicAssessment: async () => {},
+			requirePublishedAssessmentCourse: async () => {},
 		});
 
 		const result = await routes["assessment:self-grade"].handler(
@@ -159,224 +154,41 @@ describe("Assessment routes", () => {
 		);
 
 		expect(result).toMatchObject({ score: 100, passed: true });
-		expect(selfGrade).toHaveBeenCalledWith({
-			courseId: "course-typescript",
-			checkId: "check-1",
-			revisionId: "revision-1",
-			answers: [{ questionId: "question-1", answer: true }],
-		});
-		expect(observe).toHaveBeenCalledOnce();
 		expect(observe).toHaveBeenCalledWith({
 			type: "check_submitted",
 			courseId: "course-typescript",
 			checkId: "check-1",
 			passed: true,
 			score: 100,
-			actor: { kind: "anonymous" },
 		});
-		expect(beforePublicAssessment).toHaveBeenCalledOnce();
-		expect(requirePublishedAssessmentCourse).toHaveBeenCalledWith(
-			expect.anything(),
-			"course-typescript",
-		);
 		expect(warn).toHaveBeenCalledOnce();
 		expect(routes["assessment:self-grade"].public).toBe(true);
 	});
 
-	it("requires a bounded course id when presenting a public Knowledge Check", () => {
-		expect(
-			assessmentPresentInput.safeParse({
-				courseId: "course-typescript",
-				checkId: "check-1",
-			}).success,
-		).toBe(true);
+	it("exposes only public self-check and editor-authoring routes", () => {
+		const routes = createAssessmentRoutes({
+			createAssessment: unusedAssessment,
+			createReporting: reporting,
+			beforePublicAssessment: async () => {},
+			requirePublishedAssessmentCourse: async () => {},
+		});
+
+		expect(Object.keys(routes)).toEqual([
+			"assessment:present",
+			"assessment:self-grade",
+			"assessment:draft-list",
+			"assessment:draft-create",
+			"assessment:draft-get",
+			"assessment:draft-update",
+			"assessment:draft-delete",
+			"assessment:publish",
+			"assessment:archive",
+		]);
 		expect(
 			assessmentPresentInput.safeParse({
 				courseId: "x".repeat(201),
 				checkId: "check-1",
 			}).success,
 		).toBe(false);
-		expect(assessmentPresentInput.safeParse({ checkId: "check-1" }).success).toBe(false);
-	});
-
-	it("derives verified Attempt ownership and never accepts a learner id", async () => {
-		const submitAttempt = vi.fn(async () => ({
-			courseId: "course-typescript",
-			attemptId: "attempt-1",
-			submissionId: "submission-1",
-			submittedAt: "2026-07-26T12:00:00.000Z",
-			checkId: "check-1",
-			revisionId: "revision-1",
-			score: 80,
-			passed: true,
-			pointsAwarded: 4,
-			pointsPossible: 5,
-			questions: [],
-			newlyRecorded: true,
-		}));
-		const listAttempts = vi.fn(async () => []);
-		const requirePublishedAssessmentCourse = vi.fn(async () => {});
-		const routes = createAssessmentRoutes({
-			createAssessment: () => ({
-				...unusedAssessment(),
-				submitAttempt,
-				listAttempts,
-			}),
-			createReporting: () => reporting(),
-			beforePublicAssessment: async () => {},
-			requirePublishedAssessmentCourse,
-		});
-		const principal = { id: "core-user-42" };
-
-		await routes["assessment:submit-attempt"].handler(
-			createRouteContext(
-				{
-					courseId: "course-typescript",
-					checkId: "check-1",
-					revisionId: "revision-1",
-					submissionId: "submission-1",
-					answers: [],
-				},
-				{ principal },
-			),
-		);
-		await routes["assessment:attempts"].handler(
-			createRouteContext({ checkId: "check-1" }, { principal }),
-		);
-
-		expect(submitAttempt).toHaveBeenCalledWith(
-			{ kind: "verified", learnerId: "core-user-42" },
-			{
-				courseId: "course-typescript",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				submissionId: "submission-1",
-				answers: [],
-			},
-		);
-		expect(requirePublishedAssessmentCourse).toHaveBeenCalledWith(
-			expect.anything(),
-			"course-typescript",
-		);
-		expect(listAttempts).toHaveBeenCalledWith(
-			{ kind: "verified", learnerId: "core-user-42" },
-			{ checkId: "check-1" },
-		);
-		expect(
-			assessmentSubmitAttemptInput.safeParse({
-				courseId: "course-typescript",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				submissionId: "submission-1",
-				answers: [],
-				learnerId: "attacker-selected",
-			}).success,
-		).toBe(false);
-		expect(
-			assessmentSubmitAttemptInput.safeParse({
-				courseId: "course-typescript",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				submissionId: "someone@example.test",
-				answers: [],
-			}).success,
-		).toBe(false);
-		expect(
-			assessmentSubmitAttemptInput.safeParse({
-				courseId: "course-typescript",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				submissionId: "00000000-0000-4000-8000-000000000001",
-				answers: [],
-			}).success,
-		).toBe(true);
-		expect(routes["assessment:submit-attempt"].permission).toBe("content:read");
-		expect(routes["assessment:attempts"].permission).toBe("content:read");
-	});
-
-	it("rejects an anonymous Attempt before constructing personalized services", async () => {
-		const createAssessment = vi.fn(() => unusedAssessment());
-		const routes = createAssessmentRoutes({
-			createAssessment,
-			createReporting: () => reporting(),
-			beforePublicAssessment: async () => {},
-			requirePublishedAssessmentCourse: async () => {},
-		});
-
-		await expect(
-			routes["assessment:submit-attempt"].handler(
-				createRouteContext({
-					courseId: "course-typescript",
-					checkId: "check-1",
-					revisionId: "revision-1",
-					submissionId: "submission-1",
-					answers: [],
-				}),
-			),
-		).rejects.toMatchObject({ code: "LEARN_UNAUTHENTICATED", status: 401 });
-		expect(createAssessment).not.toHaveBeenCalled();
-	});
-
-	it("reports only a newly durable verified Attempt and not an idempotent retry", async () => {
-		const submitAttempt = vi
-			.fn()
-			.mockResolvedValueOnce({
-				courseId: "course-typescript",
-				attemptId: "attempt-1",
-				submissionId: "00000000-0000-4000-8000-000000000001",
-				submittedAt: "2026-07-26T12:00:00.000Z",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				score: 100,
-				passed: true,
-				pointsAwarded: 1,
-				pointsPossible: 1,
-				questions: [],
-				newlyRecorded: true,
-			})
-			.mockResolvedValueOnce({
-				courseId: "course-typescript",
-				attemptId: "attempt-1",
-				submissionId: "00000000-0000-4000-8000-000000000001",
-				submittedAt: "2026-07-26T12:00:00.000Z",
-				checkId: "check-1",
-				revisionId: "revision-1",
-				score: 100,
-				passed: true,
-				pointsAwarded: 1,
-				pointsPossible: 1,
-				questions: [],
-				newlyRecorded: false,
-			});
-		const observe = vi.fn(async () => {});
-		const routes = createAssessmentRoutes({
-			createAssessment: () => ({ ...unusedAssessment(), submitAttempt }),
-			createReporting: () => reporting(observe),
-			beforePublicAssessment: async () => {},
-			requirePublishedAssessmentCourse: async () => {},
-		});
-		const ctx = () =>
-			createRouteContext(
-				{
-					courseId: "course-typescript",
-					checkId: "check-1",
-					revisionId: "revision-1",
-					submissionId: "00000000-0000-4000-8000-000000000001",
-					answers: [],
-				},
-				{ principal: { id: "core-user-42" } },
-			);
-
-		await routes["assessment:submit-attempt"].handler(ctx());
-		await routes["assessment:submit-attempt"].handler(ctx());
-
-		expect(observe).toHaveBeenCalledOnce();
-		expect(observe).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "check_submitted",
-				courseId: "course-typescript",
-				checkId: "check-1",
-			}),
-		);
 	});
 });

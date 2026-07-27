@@ -8,10 +8,8 @@ export {
 	type DeviceSelfCheck,
 } from "./device-progress.js";
 export {
-	LearnBrowserApiError,
 	createLearnBrowserClient,
 	type BrowserLessonCompletion,
-	type DeviceImportResult,
 	type LearnBrowserClient,
 	type LearnBrowserClientOptions,
 } from "./learning-client.js";

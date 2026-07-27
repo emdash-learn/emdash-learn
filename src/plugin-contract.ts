@@ -29,24 +29,8 @@ export const LEARN_STORAGE: PluginStorageConfig = {
 	assessment_heads: {
 		indexes: ["revisionId"],
 	},
-	assessment_attempts: {
-		indexes: ["learnerKey", "submissionId"],
-		uniqueIndexes: [["learnerKey", "submissionId"]],
-	},
-	lesson_completions: {
-		indexes: ["learnerKey", "courseId", "completedAt", ["learnerKey", "courseId"]],
-		uniqueIndexes: [["learnerKey", "lessonId"]],
-	},
 	engagement_observations: {
-		indexes: [
-			"day",
-			"observedAt",
-			"courseId",
-			"type",
-			"actorKind",
-			"actorKey",
-			["day", "courseId"],
-		],
+		indexes: ["day", "observedAt", "courseId", "type", ["day", "courseId"]],
 	},
 };
 
@@ -54,8 +38,7 @@ export const LEARN_BLOCK = {
 	type: "learnKnowledgeCheck",
 	label: "Knowledge check",
 	icon: "list-checks",
-	description:
-		"Insert a published Knowledge Check with anonymous self-check and verified-attempt support.",
+	description: "Insert a published Knowledge Check with browser-local self-check results.",
 	courseIdField: "courseId",
 	checkIdField: "checkId",
 } as const;

@@ -153,10 +153,8 @@ describe("createApiClient", () => {
 					courses: [
 						{
 							courseId: "course-1",
-							opens: { total: 8, anonymous: 5, verified: 3 },
-							verifiedAccountDays: 2,
+							opens: 8,
 							lessonOpens: 7,
-							lessonCompletions: 4,
 							checkOpens: 3,
 							checkSubmissions: 2,
 							passedSubmissions: 1,
@@ -175,7 +173,7 @@ describe("createApiClient", () => {
 			}),
 		).resolves.toMatchObject({
 			calculatedThrough: "2026-07-26T12:00:00.000Z",
-			courses: [{ courseId: "course-1", verifiedAccountDays: 2 }],
+			courses: [{ courseId: "course-1", opens: 8 }],
 		});
 		expect(fetchMock.mock.calls[0]?.[0]).toBe("/_emdash/api/plugins/lms-core/reporting:query");
 		expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(

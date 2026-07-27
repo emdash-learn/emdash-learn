@@ -51,11 +51,9 @@ test.describe("published course reader", () => {
 	test("keeps anonymous lesson completion on this device without creating an account record", async ({
 		page,
 	}) => {
-		const serverCompletionStatuses: number[] = [];
-		page.on("response", (response) => {
-			if (response.url().endsWith("/learning:complete-lesson")) {
-				serverCompletionStatuses.push(response.status());
-			}
+		const serverCompletionRequests: string[] = [];
+		page.on("request", (request) => {
+			if (request.url().includes("/learning:")) serverCompletionRequests.push(request.url());
 		});
 
 		await page.goto("/courses/course-publishing-essentials");
@@ -72,7 +70,7 @@ test.describe("published course reader", () => {
 
 		await complete.click();
 		await expect(progress).toContainText("Completed on this device.");
-		expect(serverCompletionStatuses).toEqual([401]);
+		expect(serverCompletionRequests).toEqual([]);
 
 		const saved = await page.evaluate((storageKey) => {
 			const value = localStorage.getItem(storageKey);

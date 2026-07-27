@@ -1,20 +1,14 @@
 import { z } from "astro/zod";
 import { PluginRouteError, type PluginContext, type PluginRoute, type RouteContext } from "emdash";
 
-import {
-	AssessmentError,
-	type Assessment,
-	type PersistedCheckResult,
-} from "../modules/assessment/index.js";
+import { AssessmentError, type Assessment, type CheckResult } from "../modules/assessment/index.js";
 import {
 	assessmentIdSchema,
 	draftCheckInputSchema,
 	submittedAnswerSchema,
 } from "../modules/assessment/schema.js";
 import type { EngagementReporting } from "../modules/engagement-reporting/index.js";
-import { requireVerifiedLearner } from "../modules/learner-principal.js";
 import { PublicRateLimitError } from "../security/public-rate-limit.js";
-import { learnerPrincipalFromRoute } from "./route-principal.js";
 
 const checkIdInput = z.object({ checkId: assessmentIdSchema }).strict();
 export const assessmentPresentInput = z
@@ -24,7 +18,6 @@ export const assessmentPresentInput = z
 	})
 	.strict();
 const emptyInput = z.object({}).strict();
-const submissionIdSchema = z.string().uuid();
 
 export const assessmentSelfGradeInput = z
 	.object({
@@ -32,22 +25,6 @@ export const assessmentSelfGradeInput = z
 		checkId: assessmentIdSchema,
 		revisionId: assessmentIdSchema,
 		answers: z.array(submittedAnswerSchema).max(200),
-	})
-	.strict();
-
-export const assessmentSubmitAttemptInput = z
-	.object({
-		courseId: assessmentIdSchema,
-		checkId: assessmentIdSchema,
-		revisionId: assessmentIdSchema,
-		submissionId: submissionIdSchema,
-		answers: z.array(submittedAnswerSchema).max(200),
-	})
-	.strict();
-
-const assessmentAttemptListInput = z
-	.object({
-		checkId: assessmentIdSchema.optional(),
 	})
 	.strict();
 
@@ -61,8 +38,6 @@ const assessmentUpdateDraftInput = z
 type CheckIdInput = z.infer<typeof checkIdInput>;
 type PresentInput = z.infer<typeof assessmentPresentInput>;
 type SelfGradeInput = z.infer<typeof assessmentSelfGradeInput>;
-type SubmitAttemptInput = z.infer<typeof assessmentSubmitAttemptInput>;
-type AttemptListInput = z.infer<typeof assessmentAttemptListInput>;
 type UpdateDraftInput = z.infer<typeof assessmentUpdateDraftInput>;
 type EmptyInput = z.infer<typeof emptyInput>;
 
@@ -89,32 +64,13 @@ function toRouteError(error: unknown): never {
 			error.code === "NOT_FOUND" ? 404 : error.code === "SUBMISSION_CONFLICT" ? 409 : 400;
 		throw new PluginRouteError(`LEARN_ASSESSMENT_${error.code}`, error.message, status);
 	}
-	if (
-		typeof error === "object" &&
-		error !== null &&
-		Reflect.get(error, "code") === "LEARN_UNAUTHENTICATED"
-	) {
-		throw new PluginRouteError(
-			"LEARN_UNAUTHENTICATED",
-			"A verified EmDash learner session is required.",
-			401,
-		);
-	}
 	throw error;
-}
-
-function verifiedLearner(ctx: RouteContext) {
-	try {
-		return requireVerifiedLearner(learnerPrincipalFromRoute(ctx));
-	} catch (error) {
-		return toRouteError(error);
-	}
 }
 
 async function observeResult(
 	ctx: RouteContext,
 	services: AssessmentRouteServices,
-	result: Pick<PersistedCheckResult, "courseId" | "checkId" | "passed" | "score">,
+	result: Pick<CheckResult, "courseId" | "checkId" | "passed" | "score">,
 ): Promise<void> {
 	try {
 		const reporting = await services.createReporting(ctx);
@@ -124,7 +80,6 @@ async function observeResult(
 			checkId: result.checkId,
 			passed: result.passed,
 			score: result.score,
-			actor: learnerPrincipalFromRoute(ctx),
 		});
 	} catch (error) {
 		ctx.log.warn("Learn engagement observation failed after Knowledge Check grading.", {
@@ -176,51 +131,6 @@ export function createAssessmentRoutes(services: AssessmentRouteServices) {
 				});
 				await observeResult(ctx, services, result);
 				return result;
-			} catch (error) {
-				return toRouteError(error);
-			}
-		},
-	};
-
-	const submitAttempt: PluginRoute<SubmitAttemptInput> & {
-		permission: "content:read";
-	} = {
-		input: assessmentSubmitAttemptInput,
-		permission: "content:read",
-		handler: async (ctx) => {
-			requirePost(ctx.request);
-			const learner = verifiedLearner(ctx);
-			try {
-				await services.requirePublishedAssessmentCourse(ctx, ctx.input.courseId);
-				const assessment = await services.createAssessment(ctx);
-				const result = await assessment.submitAttempt(learner, {
-					courseId: ctx.input.courseId,
-					checkId: ctx.input.checkId,
-					revisionId: ctx.input.revisionId,
-					submissionId: ctx.input.submissionId,
-					answers: ctx.input.answers,
-				});
-				if (result.newlyRecorded) await observeResult(ctx, services, result);
-				return result;
-			} catch (error) {
-				return toRouteError(error);
-			}
-		},
-	};
-
-	const attempts: PluginRoute<AttemptListInput> & {
-		permission: "content:read";
-	} = {
-		input: assessmentAttemptListInput,
-		permission: "content:read",
-		handler: async (ctx) => {
-			requirePost(ctx.request);
-			const learner = verifiedLearner(ctx);
-			try {
-				const assessment = await services.createAssessment(ctx);
-				return {
-					items: await assessment.listAttempts(learner, ctx.input),
-				};
 			} catch (error) {
 				return toRouteError(error);
 			}
@@ -323,8 +233,6 @@ export function createAssessmentRoutes(services: AssessmentRouteServices) {
 	return {
 		"assessment:present": present,
 		"assessment:self-grade": selfGrade,
-		"assessment:submit-attempt": submitAttempt,
-		"assessment:attempts": attempts,
 		"assessment:draft-list": draftList,
 		"assessment:draft-create": draftCreate,
 		"assessment:draft-get": draftGet,

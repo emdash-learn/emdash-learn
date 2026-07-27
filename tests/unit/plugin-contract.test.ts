@@ -25,28 +25,14 @@ describe("canonical plugin contract", () => {
 			"assessment_drafts",
 			"assessment_revisions",
 			"assessment_heads",
-			"assessment_attempts",
-			"lesson_completions",
 			"engagement_observations",
 		]);
 	});
 
-	it("enforces one immutable Attempt per learner submission id", () => {
-		expect(LEARN_PLUGIN_CONTRACT.storage.assessment_attempts).toMatchObject({
-			indexes: ["learnerKey", "submissionId"],
-			uniqueIndexes: [["learnerKey", "submissionId"]],
-		});
-	});
-
-	it("enforces one immutable completion per learner and lesson", () => {
-		expect(LEARN_PLUGIN_CONTRACT.storage.lesson_completions).toMatchObject({
-			indexes: ["learnerKey", "courseId", "completedAt", ["learnerKey", "courseId"]],
-			uniqueIndexes: [["learnerKey", "lessonId"]],
-		});
-	});
-
-	it("indexes retained engagement by daily pseudonym for bounded privacy erasure", () => {
-		expect(LEARN_PLUGIN_CONTRACT.storage.engagement_observations.indexes).toContain("actorKey");
+	it("indexes retained anonymous engagement for bounded reporting queries", () => {
+		const indexes = LEARN_PLUGIN_CONTRACT.storage.engagement_observations.indexes;
+		expect(indexes).toEqual(expect.arrayContaining(["day", "courseId", "type"]));
+		expect(indexes).not.toEqual(expect.arrayContaining(["actorKind", "actorKey"]));
 	});
 
 	it("keeps the Portable Text block name and field canonical", () => {

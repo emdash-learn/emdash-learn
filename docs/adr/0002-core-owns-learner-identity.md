@@ -1,9 +1,13 @@
 ---
-status: accepted
+status: deferred
 date: 2026-07-26
 ---
 
 # EmDash core owns learner identity
+
+> Future account track. EmDash Learn 0.1 has no account-linked routes or
+> storage. Any later implementation must be reconciled with the official
+> `ctx.user` contract tracked in emdash-cms/emdash#812.
 
 ## Context
 
@@ -40,9 +44,8 @@ Learn never collects or stores a copied profile for authorization and never
 accepts a caller-selected identity field. “Verified” in Learn means an
 authenticated EmDash account; it does not mean one unique person.
 
-The compatible contract target is EmDash 0.32.0. EmDash must publish that core
-contract before Learn publishes; local core patches and sibling links are not
-a release dependency.
+No Core version carrying this contract was published when Learn 0.1 was
+scoped. Local Core patches and sibling links are not a release dependency.
 
 ## Consequences
 

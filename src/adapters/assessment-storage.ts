@@ -33,7 +33,7 @@ export interface AssessmentStorageCollections {
 	drafts: AssessmentDraftCollection;
 	revisions: AssessmentRevisionCollection;
 	heads: AssessmentHeadCollection;
-	attempts: AssessmentAttemptCollection;
+	attempts?: AssessmentAttemptCollection;
 }
 
 type DraftQuery = NonNullable<Parameters<AssessmentDraftCollection["query"]>[0]>;
@@ -136,9 +136,13 @@ export function createAssessmentStorageAdapter(
 			return collections.heads.delete(checkId);
 		},
 		async getAttempt(learnerKey, submissionId) {
+			if (!collections.attempts) return undefined;
 			return findAttempt(collections.attempts, learnerKey, submissionId);
 		},
 		async createAttempt(attemptId, attempt) {
+			if (!collections.attempts) {
+				throw new Error("Account-linked assessment attempts are not enabled in this release.");
+			}
 			try {
 				await collections.attempts.put(attemptId, attempt);
 				return "created";
@@ -153,9 +157,11 @@ export function createAssessmentStorageAdapter(
 			}
 		},
 		async listAttempts(learnerKey) {
+			if (!collections.attempts) return [];
 			return (await listAttemptRows(collections.attempts, learnerKey)).map(({ data }) => data);
 		},
 		async eraseLearnerAttempts(learnerKey) {
+			if (!collections.attempts) return 0;
 			const rows = await listAttemptRows(collections.attempts, learnerKey);
 			const ids = rows.map(({ id }) => id);
 			let deleted = 0;

@@ -7,7 +7,6 @@ import {
 	type EngagementReporting,
 } from "../modules/engagement-reporting/index.js";
 import { PublicRateLimitError } from "../security/public-rate-limit.js";
-import { learnerPrincipalFromRoute } from "./route-principal.js";
 
 const boundedId = z.string().trim().min(1).max(200);
 
@@ -72,27 +71,23 @@ function toRouteError(error: unknown): never {
 }
 
 function toObservation(ctx: RouteContext<PublicObservationInput>): EngagementObservation {
-	const actor = learnerPrincipalFromRoute(ctx);
 	switch (ctx.input.type) {
 		case "course_opened":
 			return {
 				type: "course_opened",
 				courseId: ctx.input.courseId,
-				actor,
 			};
 		case "lesson_opened":
 			return {
 				type: "lesson_opened",
 				courseId: ctx.input.courseId,
 				lessonId: ctx.input.lessonId,
-				actor,
 			};
 		case "check_opened":
 			return {
 				type: "check_opened",
 				courseId: ctx.input.courseId,
 				checkId: ctx.input.checkId,
-				actor,
 			};
 		default:
 			return assertNever(ctx.input);
