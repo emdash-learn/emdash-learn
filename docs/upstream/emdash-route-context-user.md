@@ -1,9 +1,15 @@
 # emdash: `RouteContext.user` missing — plugins can't do owner-scoped authz
 
-**Status:** bug / missing feature in emdash core
+**Status:** Historical / superseded
 **Repro version:** `emdash@0.5.x` (installed via the lms-core plugin's demo)
 **Filed:** pending (this doc is the draft body for the GitHub issue)
 **Contact plugin that hit it:** `@emdash/lms-core` (see `src/authz.ts` + `src/routes/*.ts`)
+
+> This issue draft describes the superseded LMS and proposed exposing profile
+> PII. The accepted design is an opaque `RouteContext.principal` containing
+> only the authenticated EmDash user ID, targeted for EmDash 0.32.0. Learn
+> relies on Core route permissions for authorization and never receives email,
+> name, phone, or role. See [`../product-scope.md`](../product-scope.md).
 
 ---
 

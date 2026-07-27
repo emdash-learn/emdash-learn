@@ -17,16 +17,14 @@ export default defineConfig({
 		react(),
 		emdash({
 			database: sqlite({ url: "file:./data.db" }),
+			siteUrl: process.env.EMDASH_LEARN_SITE_URL,
 			plugins: [lmsCorePlugin()],
 		}),
 	],
 	vite: {
 		server: {
 			fs: {
-				allow: [
-					resolve(__dirname, "../.."),
-					resolve(__dirname, "../../../emdash"),
-				],
+				allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../../emdash")],
 			},
 		},
 	},

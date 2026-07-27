@@ -1,112 +1,147 @@
-# Contributing to Emdash Learn
+# Contributing to EmDash Learn
 
-Thanks for helping improve `@emdash/lms-core`. This guide covers the fast path: reporting bugs, running the plugin locally, and shipping a PR.
+Thanks for helping build `@emdash/lms-core`.
 
-## Reporting bugs
+Read the [authoritative product scope](./docs/product-scope.md) and current
+[release checklist](./docs/internal/release-readiness-2026-07-26.md) before
+starting a change. Unreleased legacy LMS code and historical design documents
+are not product requirements.
 
-Open an issue at <https://github.com/emdash-cms/lms-core/issues>. Please include:
+## Core ownership and compatibility
 
-- Plugin version (`@emdash/lms-core` from your site's lockfile).
-- emdash version, Astro version, Node/runtime.
-- Minimal repro steps — ideally a diff against `demos/simple`.
-- Expected vs. observed behaviour.
+EmDash core owns authentication, registration, account recovery, email
+verification and resend, credentials, sessions, users, and roles. Learn owns
+Course/Lesson conventions, assessments, device and account learning records,
+privacy erasure, and engagement reporting.
 
-For security issues, do **not** open a public issue — email the maintainers instead.
+The compatible host target is EmDash 0.32.0. Core must release the
+authenticated plugin-route principal first; Learn must not publish against a
+local patch, sibling link, or structural test double.
 
-## Local development
+Do not:
 
-Clone emdash beside this repo so the workspace link resolves:
+- create plugin-local signup, verification, credential, session, user, or role
+  flows;
+- collect names, email addresses, phone numbers, passwords, or verification
+  codes in Learn;
+- accept `userId`, `learnerId`, email, role, or another identity claim from a
+  learner request;
+- simulate a principal with a client-controlled header; or
+- create or mutate global EmDash users or roles.
 
-```
-~/dev/
-├── emdash/          # upstream CMS (from github.com/emdash-cms/emdash)
-└── lms-core/        # this repo
-    └── demos/simple # Astro demo wired to the plugin
-```
+Every personalized route must derive its opaque learner identity from the
+authenticated principal supplied by core and must reject an absent principal
+before touching personalized storage.
+
+## Canonical contracts
+
+Changes must preserve these boundaries:
+
+- Course and Lesson are EmDash content collections; setup is additive and
+  convergent.
+- `setup:run` accepts `{}` only. The server derives verified setup completion
+  after schema convergence and projection repair.
+- Public content and assessment DTOs use explicit allowlists.
+- Draft, scheduled, trashed, orphaned, and stale content stays private.
+- The Portable Text block is `learnKnowledgeCheck` with required `courseId` and
+  `checkId` fields. Do not reintroduce `lmsQuiz` or `quizId`.
+- Published knowledge-check revisions are immutable and grading targets an
+  exact `revisionId`.
+- Anonymous self-checks create no account Attempt. Their optional result is
+  device-local.
+- Authenticated Attempts are server-graded, immutable, and retry-idempotent.
+- Raw submitted answers and free text are never persisted.
+- Anonymous lesson state lives behind the browser `DeviceProgressStore`.
+  Imported lesson completions become `device_import` facts; device self-check
+  scores do not become verified Attempts.
+- Authenticated lesson completion is monotonic; Course percentages are derived
+  from current published Lessons.
+- Reporting is best-effort, uses a fixed event vocabulary, and distinguishes
+  anonymous activity from authenticated account activity.
+- `verifiedAccountDays` counts distinct accounts per UTC day and is not a
+  unique-person metric.
+- Privacy erasure removes principal-linked completions, Attempts, and raw
+  observations from subsequent reports.
+- Reporting observations are retained for at most 90 days and are aggregated
+  exactly at query time.
+- Every private route declares an explicit EmDash permission.
+- Descriptor and runtime declarations share the canonical plugin contract.
+
+Keep route adapters thin. Put invariants behind module interfaces and consume
+shared schemas and DTOs from admin, Astro, runtime, demo, and tests rather than
+duplicating them.
+
+## Reporting security and privacy
+
+Reporting changes must document:
+
+- which event types are browser-claimed and which follow server facts;
+- every persisted field;
+- retention and pruning behavior;
+- erasure behavior;
+- whether each metric describes anonymous activity, event totals, or verified
+  account-days; and
+- how failure remains outside the learning success path.
+
+Never persist copied profile PII, raw answers, free text, raw IP addresses, or
+full user agents in reporting rows. Request metadata may be transformed into a
+bounded, keyed rate-limit fingerprint but must not enter reports. Never
+describe an authenticated or email-verified account as a unique person.
+
+## Test-driven changes
+
+Start with the narrowest observable interface:
+
+1. Add a failing test for the behavior.
+2. Make the smallest implementation change that passes it.
+3. Refactor while keeping the test green.
+
+Use EmDash-supported storage/content stand-ins for integration behavior. Route
+tests must exercise validation, permission metadata, principal derivation,
+CSRF expectations, and error mapping. Unsafe-cast object literals that bypass
+the route or storage contract are not sufficient integration evidence.
+
+Before opening a pull request, run:
 
 ```bash
-git clone https://github.com/emdash-cms/lms-core.git
-cd lms-core
-pnpm install
-pnpm --filter ./demos/simple seed    # idempotent
-pnpm --filter ./demos/simple dev
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build
+pnpm test:e2e
 ```
 
-Open <http://localhost:4321/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin> to skip passkey setup and land in the admin. The plugin's sidebar entry shows up at `/_emdash/admin/plugins/lms-core/`.
+For a release change, also inspect `pnpm pack --dry-run` and install the packed
+artifact into a temporary consumer against the published EmDash 0.32.0
+package.
 
-## PR flow
+## Pull requests
 
-1. Fork the repo and create a feature branch off `develop` (`git checkout -b T27-my-change`).
-2. Make the change. Keep the diff scoped — one concern per PR.
-3. Run the full local gate before pushing:
-   ```bash
-   pnpm typecheck
-   pnpm lint:quick
-   pnpm format:check
-   pnpm test
-   pnpm test:e2e
-   pnpm build
-   ```
-4. Add a changeset:
-   ```bash
-   pnpm changeset
-   ```
-   Pick the right bump (`patch` for fixes, `minor` for new features, `major` for breaking changes) and write a user-facing summary — this text lands verbatim in `CHANGELOG.md`.
-5. Open a PR against `develop`. CI (`.github/workflows/ci.yml`) runs the same gates on every PR.
+Create a branch from `develop`, keep each pull request focused, and add a
+Changesets entry for user-visible changes:
 
-## Commit style
-
-Match the existing log (`git log --oneline -20`): imperative mood, descriptive, no trailing period. Task/section references are welcome:
-
-```
-T27: README + CHANGELOG + CI + CONTRIBUTING + changeset (§27, §18.10)
-fix(quiz): drop stale attempt cache when submission fails validation
-feat(admin): add course detail page
+```bash
+pnpm changeset
 ```
 
-Avoid Conventional Commits prefixes unless the change is purely `chore:`/`fix:` scoped — the log favours descriptive subjects over strict prefixes.
+The first public release has no compatibility obligation to unreleased WIP
+storage. After that release, storage and interface migrations require an
+explicit compatibility plan.
 
-## Changeset workflow
+## Content and uninstall behavior
 
-We use [`@changesets/cli`](https://github.com/changesets/changesets):
+Learn setup may add or verify Course and Lesson schema requirements, but those
+collections contain administrator-owned content. Uninstall must not drop the
+collections or delete authored content. EmDash may remove plugin-scoped
+storage only when an administrator explicitly selects data deletion.
 
-- `pnpm changeset` — creates a markdown changeset file under `.changeset/`.
-- `pnpm changeset version` — applies pending changesets, bumping `package.json` and regenerating `CHANGELOG.md`. Run this on the release branch only.
-- `pnpm changeset status` — lists pending changesets.
+## Report a bug
 
-Every change that affects `src/**` should ship with a changeset describing what a user sees.
+Include the Learn and EmDash revisions, Node/Astro/runtime versions, a minimal
+reproduction, and expected versus observed behavior. Do not disclose security
+vulnerabilities publicly; follow [SECURITY.md](./SECURITY.md).
 
-## Uninstalling with data deletion
+## Conduct
 
-The plugin manages three content collections (`courses`, `lessons`, `topics`)
-that emdash's uninstall flow cannot delete automatically (a platform limitation
-tracked in [`docs/upstream/plugin-schema-api.md`](./docs/upstream/plugin-schema-api.md)).
-
-### If you need to fully remove all authored content
-
-1. Open the setup wizard at `/_emdash/admin/plugins/lms-core/setup` as an
-   admin user.
-2. Scroll to the **"Drop plugin data"** section at the bottom of the page.
-3. Check both confirmation checkboxes and click **"Drop plugin data"**.
-   This permanently deletes the `courses`, `lessons`, and `topics` content
-   collections and all content inside them.
-4. Only after all collections are empty (or deleted) should you proceed to
-   uninstall the plugin via the emdash admin. Plugin storage (enrollments,
-   progress, certificates, etc.) is dropped by emdash automatically.
-
-### Why this is a two-step process
-
-The plugin's `plugin:uninstall` hook runs in a server context without browser
-cookies, so it cannot call the `/_emdash/api/schema/collections/:slug` endpoint
-that requires `schema:manage` permission. If the hook detects non-empty content
-collections when `deleteData=true`, it throws a descriptive error to prevent
-silent data-retention. The wizard's browser session does have the necessary
-permission and is the supported path.
-
-An upstream RFC proposes adding `ctx.schema.deleteCollection` to the emdash
-plugin context so this can eventually happen in a single atomic step:
-[`docs/upstream/plugin-schema-api.md`](./docs/upstream/plugin-schema-api.md).
-
-## Code of conduct
-
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). Be respectful. Assume good faith. Help newcomers.
+This project follows the [Contributor Covenant](./CODE_OF_CONDUCT.md).

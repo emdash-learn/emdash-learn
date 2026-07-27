@@ -17,14 +17,17 @@
 		"@emdash/lms-core": "workspace:*",
 		"astro": "^6.0.1",
 		"better-sqlite3": "^12.8.0",
-		"emdash": ">=0.5.0",
+		"emdash": "^0.31.1",
+		"kysely": "^0.29.0",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
 	},
 	"devDependencies": {
+		"@astrojs/check": "^0.9.6",
 		"@lingui/babel-plugin-lingui-macro": "^5.9.5",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^24.10.0",
-		"tsx": "^4.20.1"
+		"tsx": "^4.20.1",
+		"typescript": "^5.9.3"
 	}
 }

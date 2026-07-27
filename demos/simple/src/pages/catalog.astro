@@ -1,93 +1,78 @@
 ---
-import { callLmsRoute, escapeHtml } from "../lib/lms-api.ts";
+import { callLmsRoute } from "../lib/lms-api.ts";
 
 interface CatalogCourse {
 	id: string;
-	slug?: string;
+	slug: string | null;
 	title: string;
 	subtitle?: string;
 	description?: string;
-	difficulty?: string;
+	difficulty?: "beginner" | "intermediate" | "advanced";
 	estimatedHours?: number;
-	priceCents?: number;
-	currency?: string;
-	enrollmentOpen?: boolean;
 }
 
-const cookie = Astro.request.headers.get("cookie");
-const origin = Astro.url.origin;
-const result = await callLmsRoute<{ items: CatalogCourse[] }>(
-	"catalog",
-	{ limit: 50 },
-	{ cookie, origin },
-);
-
-const items: CatalogCourse[] = result.ok ? (result.data?.items ?? []) : [];
-
-function priceLabel(course: CatalogCourse): string {
-	if (!course.priceCents || course.priceCents === 0) return "Free";
-	const currency = course.currency ?? "USD";
-	const amount = (course.priceCents / 100).toFixed(2);
-	return `${amount} ${currency}`;
-}
+const result = await callLmsRoute<{
+	items: CatalogCourse[];
+	hasMore: boolean;
+}>("catalog", { limit: 50 }, { origin: Astro.url.origin });
+const courses = result.ok ? (result.data?.items ?? []) : [];
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Course catalog — Emdash Learn demo</title>
+		<title>Course catalog — EmDash Learn demo</title>
 		<style>
-			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
-			a { color: #1a4fff; }
-			.courses { list-style: none; padding: 0; display: grid; gap: 1rem; }
-			.course { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1rem 1.25rem; }
-			.meta { color: #666; font-size: 0.85rem; margin-block-start: 0.25rem; }
-			.badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; background: #eef; color: #224; font-size: 0.75rem; margin-inline-end: 0.25rem; }
-			.badge.free { background: #dfe; color: #153; }
-			.empty { color: #666; }
-			.error { color: #a33; }
+			body { font-family: system-ui, sans-serif; max-width: 58rem; margin: 2rem auto; padding: 0 1rem; color: #172033; line-height: 1.55; }
+			a { color: #3047d8; }
+			.intro { max-width: 44rem; color: #59657a; }
+			.courses { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 2rem; }
+			.course { border: 1px solid #dce1eb; border-radius: 0.75rem; padding: 1.25rem; }
+			.course h2 { margin: 0; font-size: 1.25rem; }
+			.meta { color: #667085; font-size: 0.9rem; }
+			.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; background: #edf0ff; color: #2d3a78; margin-right: 0.3rem; }
+			.error { border: 1px solid #efb5b5; background: #fff4f4; color: #812b2b; border-radius: 0.5rem; padding: 1rem; }
 		</style>
 	</head>
 	<body>
-		<nav><a href="/">← Home</a></nav>
-		<h1>Course catalog</h1>
-		{!result.ok && (
-			<p class="error" data-testid="catalog-error">
-				Couldn't load catalog: {result.error?.message}
+		<nav><a href="/">← Demo home</a></nav>
+		<main>
+			<h1>Published courses</h1>
+			<p class="intro">
+				Everything here came through the plugin's public catalog route. Drafts and
+				unpublished lessons stay behind the editorial boundary.
 			</p>
-		)}
-		{result.ok && items.length === 0 && (
-			<p class="empty">No published courses yet. Run the seed script.</p>
-		)}
-		{result.ok && items.length > 0 && (
-			<ul class="courses">
-				{items.map((course) => (
-					<li class="course" data-course-id={course.id}>
-						<h2 style="margin: 0;">
-							<a href={`/courses/${course.slug ?? course.id}`}>
-								{course.title}
-							</a>
-						</h2>
-						{course.subtitle && <p style="margin: 0.25rem 0;">{course.subtitle}</p>}
-						<div class="meta">
-							<span class={`badge ${(course.priceCents ?? 0) === 0 ? "free" : "paid"}`}>
-								{priceLabel(course)}
-							</span>
-							{course.difficulty && <span class="badge">{course.difficulty}</span>}
-							{typeof course.estimatedHours === "number" && (
-								<span class="badge">{course.estimatedHours}h</span>
-							)}
-							{course.enrollmentOpen === false && (
-								<span class="badge" style="background: #fee; color: #633;">Closed</span>
-							)}
-						</div>
-						{course.description && (
-							<p class="meta" set:html={escapeHtml(course.description)}></p>
-						)}
-					</li>
-				))}
-			</ul>
-		)}
+
+			{!result.ok && (
+				<p class="error" data-testid="catalog-error">
+					Couldn't load the catalog: {result.error?.message}
+				</p>
+			)}
+
+			{result.ok && courses.length === 0 && (
+				<p>No published courses yet. Run the demo seed.</p>
+			)}
+
+			{courses.length > 0 && (
+				<ul class="courses" data-testid="course-catalog">
+					{courses.map((course) => (
+						<li class="course" data-course-id={course.id}>
+							<h2>
+								<a href={`/courses/${course.slug ?? course.id}`}>{course.title}</a>
+							</h2>
+							{course.subtitle && <p>{course.subtitle}</p>}
+							<p class="meta">
+								{course.difficulty && <span class="badge">{course.difficulty}</span>}
+								{course.estimatedHours !== undefined && (
+									<span class="badge">{course.estimatedHours} hours</span>
+								)}
+							</p>
+							{course.description && <p class="meta">{course.description}</p>}
+						</li>
+					))}
+				</ul>
+			)}
+		</main>
 	</body>
 </html>

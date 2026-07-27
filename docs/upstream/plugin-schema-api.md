@@ -1,10 +1,15 @@
 # RFC: Plugin Schema API for emdash (`ctx.schema.*`)
 
-**Status:** Draft  
+**Status:** Historical / superseded
 **Author:** lms-core team  
 **Date:** 2026-04-21  
 **Related finding:** AUDIT C4, C5 in `@emdash/lms-core` v1 pre-release audit  
 **Target emdash version:** 0.6.0 or later
+
+> This RFC records an earlier LMS design and is not the current Learn
+> contract. Topics, browser-owned setup state, dropping authored collections,
+> and uninstall-time content deletion were removed by the 2026-07 refactor.
+> See [`../product-scope.md`](../product-scope.md) for the authoritative scope.
 
 ---
 

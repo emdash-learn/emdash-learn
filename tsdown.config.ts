@@ -6,13 +6,13 @@ const require = createRequire(import.meta.url);
 const { version } = require("./package.json") as { version: string };
 
 export default defineConfig({
-	entry: ["src/index.ts", "src/sandbox-entry.ts", "src/admin.tsx"],
+	entry: ["src/index.ts", "src/sandbox-entry.ts", "src/admin.tsx", "src/browser/index.ts"],
 	format: "esm",
 	dts: true,
 	clean: true,
 	external: ["emdash", "astro", "react", "react-dom", "react/jsx-runtime"],
 	define: {
 		// Replaced at build time so PLUGIN_VERSION always matches package.json.
-		"__PLUGIN_VERSION__": JSON.stringify(version),
+		__PLUGIN_VERSION__: JSON.stringify(version),
 	},
 });

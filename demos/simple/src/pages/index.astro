@@ -1,45 +1,43 @@
 ---
-const title = "Emdash Learn — demo";
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>{title}</title>
+		<title>EmDash Learn demo</title>
 		<style>
-			body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
-			a { color: #1a4fff; }
-			ul { padding-inline-start: 1.25rem; }
-			.muted { color: #666; font-size: 0.9rem; }
+			:root { color-scheme: light; }
+			body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 4rem auto; padding: 0 1.25rem; color: #172033; line-height: 1.6; }
+			h1 { max-width: 15ch; font-size: clamp(2.25rem, 6vw, 4rem); line-height: 1.05; margin-bottom: 1rem; }
+			.lede { max-width: 44rem; color: #4a5568; font-size: 1.15rem; }
+			.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+			.action { border-radius: 0.5rem; padding: 0.7rem 1rem; text-decoration: none; font-weight: 650; }
+			.primary { background: #3047d8; color: white; }
+			.secondary { border: 1px solid #ccd2e0; color: #24334f; }
+			.note { margin-top: 3rem; border-left: 3px solid #8aa0ff; padding-left: 1rem; color: #59657a; }
 		</style>
 	</head>
 	<body>
-		<h1>{title}</h1>
-		<p>
-			Minimal Astro site wired to the <code>@emdash/lms-core</code> plugin.
-			Use the links below to walk a student journey end to end.
-		</p>
-		<ul>
-			<li><a href="/catalog">Public course catalog</a></li>
-			<li><a href="/my-learning">My learning (requires session)</a></li>
-			<li>
-				<a href="/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin">Dev-bypass → admin</a>
-			</li>
-			<li>
-				<a href="/_emdash/api/auth/dev-bypass?asUser=alice@student.local&redirect=/my-learning">
-					Sign in as Alice (student)
+		<main>
+			<p>EmDash Learn</p>
+			<h1>Publish a course, not a learner database.</h1>
+			<p class="lede">
+				This demo shows the plugin's complete public surface: a published course
+				catalog, ordered lessons, anonymous device progress, and Knowledge Checks
+				with immediate feedback.
+			</p>
+			<div class="actions">
+				<a class="action primary" href="/catalog">Browse the course catalog</a>
+				<a class="action secondary" href="/_emdash/admin/plugins/lms-core">
+					Open plugin admin
 				</a>
-			</li>
-			<li>
-				<a href="/_emdash/api/auth/dev-bypass?asUser=lin@student.local&redirect=/my-learning">
-					Sign in as Lin (student, has certificate)
-				</a>
-			</li>
-		</ul>
-		<p class="muted">
-			Seed with <code>pnpm --filter ./demos/simple seed</code>. See
-			<code>prd-plugin.md</code> §25 for the fixture spec.
-		</p>
+			</div>
+			<p class="note">
+				No sign-in is required, and Learn does not create a server account. Lesson
+				completions and self-check results stay in this browser unless a verified
+				EmDash account explicitly imports supported device progress.
+			</p>
+		</main>
 	</body>
 </html>

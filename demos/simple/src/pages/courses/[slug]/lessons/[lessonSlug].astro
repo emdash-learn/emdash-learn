@@ -1,289 +1,207 @@
 ---
-// [lessonSlug] param is interpreted as the lesson's content id — the demo's
-// course page links generate IDs from the curriculum response and VisibleLesson
-// doesn't expose a slug field. ID-based URLs are good enough for the demo.
+import { KnowledgeCheckBlock } from "@emdash/lms-core/astro";
+import { callLmsRoute, portableTextParagraphs } from "../../../../lib/lms-api.ts";
 
-import { callLmsRoute, escapeHtml } from "../../../../lib/lms-api.ts";
-
-interface VisibleTopic {
+interface LessonSummary {
 	id: string;
 	title: string;
 	order: number;
+}
+
+interface CourseDetail {
+	course: { id: string; slug: string | null; title: string };
+	lessons: LessonSummary[];
+}
+
+interface PublishedLesson {
+	id: string;
+	courseId: string;
+	title: string;
 	summary?: string;
-	requiresPrevious: boolean;
-	unlocked: boolean;
-	completed: boolean;
-	percentComplete: number;
+	body?: unknown;
 	videoUrl?: string;
 	durationSeconds?: number;
 }
 
-interface VisibleLesson {
-	id: string;
-	title: string;
-	order: number;
-	summary?: string;
-	isPreview: boolean;
-	requiresPrevious: boolean;
-	dripOffsetDays: number;
-	unlocksAt: string;
-	unlocked: boolean;
-	completed: boolean;
-	percentComplete: number;
-	videoUrl?: string;
-	durationSeconds?: number;
-	topics: VisibleTopic[];
-}
+type PortableBlock = {
+	_type: "learnKnowledgeCheck";
+	courseId: string;
+	checkId: string;
+};
 
-interface LessonDoc {
-	id: string;
-	slug?: string;
-	data: Record<string, unknown>;
-}
-
-interface CatalogCourse {
-	id: string;
-	slug?: string;
-	title: string;
-}
-
-type PortableBlock = { _type: string; quizId?: string; [key: string]: unknown };
-
-const { slug, lessonSlug } = Astro.params;
-const lessonId = lessonSlug ?? "";
-const cookie = Astro.request.headers.get("cookie");
-const origin = Astro.url.origin;
-
-// Look up the course and the ordered curriculum so we can render prev/next nav.
-const catalog = await callLmsRoute<{ items: CatalogCourse[] }>(
-	"catalog",
-	{ limit: 100 },
-	{ cookie, origin },
-);
-const course = catalog.ok
-	? (catalog.data?.items ?? []).find((c) => c.slug === slug)
-	: undefined;
-if (!course) return new Response("Course not found", { status: 404 });
-
-const curriculumResult = await callLmsRoute<{ items: VisibleLesson[] }>(
-	"curriculum",
-	{ courseId: course.id },
-	{ cookie, origin },
-);
-const curriculum: VisibleLesson[] = curriculumResult.ok
-	? (curriculumResult.data?.items ?? [])
-	: [];
-
-const lessonResult = await callLmsRoute<{ lesson: LessonDoc }>(
-	"lesson",
-	{ lessonId },
-	{ cookie, origin },
-);
-
-if (!lessonResult.ok) {
-	const status =
-		lessonResult.error?.status && lessonResult.error.status >= 400 && lessonResult.error.status < 600
-			? lessonResult.error.status
-			: 500;
-	return new Response(
-		`Couldn't load lesson: ${lessonResult.error?.message ?? "unknown error"}`,
-		{ status },
+function isKnowledgeCheckBlock(value: unknown): value is PortableBlock {
+	if (typeof value !== "object" || value === null) return false;
+	return (
+		Reflect.get(value, "_type") === "learnKnowledgeCheck" &&
+		typeof Reflect.get(value, "courseId") === "string" &&
+		typeof Reflect.get(value, "checkId") === "string"
 	);
 }
 
-const lesson = lessonResult.data?.lesson;
-const data = (lesson?.data ?? {}) as Record<string, unknown>;
-const videoUrl = typeof data["video_url"] === "string" ? (data["video_url"] as string) : undefined;
-const summary = typeof data["summary"] === "string" ? (data["summary"] as string) : undefined;
-const body = Array.isArray(data["body"]) ? (data["body"] as PortableBlock[]) : [];
-const quizBlock = body.find((b) => b && b._type === "lmsQuiz" && typeof b.quizId === "string");
+const courseSlug = Astro.params.slug ?? "";
+const lessonId = Astro.params.lessonSlug ?? "";
+const [courseResult, lessonResult] = await Promise.all([
+	callLmsRoute<CourseDetail>("course:get", { slug: courseSlug }, { origin: Astro.url.origin }),
+	callLmsRoute<{ lesson: PublishedLesson }>(
+		"lesson:get",
+		{ lessonId },
+		{ origin: Astro.url.origin },
+	),
+]);
 
-const idx = curriculum.findIndex((l) => l.id === lessonId);
-const prev = idx > 0 ? curriculum[idx - 1] : undefined;
-const next = idx >= 0 && idx < curriculum.length - 1 ? curriculum[idx + 1] : undefined;
-const lessonInCurriculum = idx >= 0 ? curriculum[idx] : undefined;
-const topicsForLesson: VisibleTopic[] = lessonInCurriculum?.topics ?? [];
+if (!courseResult.ok || !courseResult.data || !lessonResult.ok || !lessonResult.data?.lesson) {
+	return new Response("Published lesson not found", { status: 404 });
+}
 
-const lessonTitle = typeof data["title"] === "string" ? (data["title"] as string) : "Lesson";
+const { course, lessons } = courseResult.data;
+const lesson = lessonResult.data.lesson;
+if (lesson.courseId !== course.id || !lessons.some((item) => item.id === lesson.id)) {
+	return new Response("Published lesson not found", { status: 404 });
+}
+
+const body = Array.isArray(lesson.body) ? lesson.body : [];
+const paragraphs = portableTextParagraphs(body);
+const checkBlock = body.find(isKnowledgeCheckBlock);
+const knowledgeCheckBlock =
+	checkBlock?.courseId === course.id ? checkBlock : undefined;
+
+const currentIndex = lessons.findIndex((item) => item.id === lesson.id);
+const previous = currentIndex > 0 ? lessons[currentIndex - 1] : undefined;
+const next =
+	currentIndex >= 0 && currentIndex < lessons.length - 1
+		? lessons[currentIndex + 1]
+		: undefined;
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>{lessonTitle} — {course.title}</title>
+		<title>{lesson.title} — {course.title}</title>
 		<style>
-			body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
-			a { color: #1a4fff; }
-			.video { margin-block: 1rem; }
-			.video video { width: 100%; max-height: 420px; border-radius: 6px; background: #000; }
-			button.complete { background: #1a4fff; color: white; border: 0; padding: 0.5rem 1rem; border-radius: 6px; font-size: 1rem; cursor: pointer; }
-			button.complete[disabled] { opacity: 0.5; cursor: not-allowed; }
-			button.complete.done { background: #163; }
-			.nav { display: flex; justify-content: space-between; margin-block: 1.5rem; }
-			.meta { color: #666; font-size: 0.9rem; }
-			.banner { border-radius: 6px; padding: 0.75rem 1rem; margin-block: 1rem; background: #dfe; color: #153; }
-			.error { color: #a33; }
+			body { font-family: system-ui, sans-serif; max-width: 50rem; margin: 2rem auto; padding: 0 1rem; color: #172033; line-height: 1.65; }
+			a { color: #3047d8; }
+			h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; }
+			.summary { color: #59657a; font-size: 1.1rem; }
+			.lesson-body { margin-block: 2rem; }
+			.device-progress { margin-top: 2rem; border: 1px solid #ccd2e0; border-radius: 0.75rem; padding: 1.25rem; }
+			.device-progress h2 { margin-top: 0; }
+			.device-note { color: #59657a; }
+			button { margin-top: 1.25rem; border: 0; border-radius: 0.45rem; background: #3047d8; color: white; font: inherit; font-weight: 700; padding: 0.65rem 1rem; cursor: pointer; }
+			button[disabled] { opacity: 0.65; cursor: wait; }
+			.lesson-nav { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid #dce1eb; margin-top: 2.5rem; padding-top: 1rem; }
 		</style>
 	</head>
 	<body>
 		<nav><a href={`/courses/${course.slug}`}>← {course.title}</a></nav>
-		<h1>{lessonTitle}</h1>
-		{summary && <p class="meta">{summary}</p>}
+		<main>
+			<h1>{lesson.title}</h1>
+			{lesson.summary && <p class="summary">{lesson.summary}</p>}
+			<div class="lesson-body" data-testid="lesson-body">
+					{paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+				</div>
 
-		{videoUrl && (
-			<div class="video">
-				<video
-					controls
-					preload="metadata"
-					src={videoUrl}
-					data-lesson-id={lessonId}
-					data-testid="lesson-video"
-				></video>
-			</div>
-		)}
+				<section
+					class="device-progress"
+					data-device-progress
+					data-course-id={course.id}
+					data-lesson-id={lesson.id}
+					data-testid="device-progress"
+				>
+					<h2>Device progress</h2>
+					<p data-device-progress-status aria-live="polite">
+						Loading device progress…
+					</p>
+					<button type="button" data-device-complete>Mark lesson complete</button>
+					<p class="device-note">
+						Stored in this browser only. This is not an EmDash account learning record.
+					</p>
+				</section>
 
-		{body.length > 0 && !quizBlock && (
-			<div class="lesson-body">
-				{body
-					.filter((b) => b && b._type === "block" && Array.isArray((b as any).children))
-					.map((b: any) => (
-						<p set:html={escapeHtml(
-							(b.children as any[])
-								.filter((c) => typeof c?.text === "string")
-								.map((c) => c.text)
-								.join(""),
-						)}></p>
-					))}
-			</div>
-		)}
+				{knowledgeCheckBlock && <KnowledgeCheckBlock node={knowledgeCheckBlock} />}
 
-		{quizBlock && (
-			<div class="banner" data-testid="quiz-block">
-				<p style="margin: 0;">
-					This lesson has a terminal quiz. You must pass it to complete the lesson.
-				</p>
-				<p style="margin: 0.5rem 0 0;">
-					<a href={`/quizzes/${quizBlock.quizId}?lessonId=${lessonId}&back=${encodeURIComponent(Astro.url.pathname)}`}>
-						Start quiz →
-					</a>
-				</p>
-			</div>
-		)}
+			<nav class="lesson-nav" aria-label="Lesson navigation">
+				<span>
+					{previous && (
+						<a href={`/courses/${course.slug}/lessons/${previous.id}`}>
+							← {previous.title}
+						</a>
+					)}
+				</span>
+				<span>
+					{next && (
+						<a href={`/courses/${course.slug}/lessons/${next.id}`}>
+							{next.title} →
+						</a>
+					)}
+				</span>
+			</nav>
+		</main>
 
-		{!quizBlock && (
-			<button
-				class="complete"
-				data-testid="complete-btn"
-				data-lesson-id={lessonId}
-			>
-				Mark complete
-			</button>
-		)}
+			<script>
+				import { createLearnBrowserClient } from "@emdash/lms-core/browser";
 
-		{topicsForLesson.length > 0 && (
-			<section style="margin-block: 1.5rem;">
-				<h2 style="font-size: 1.05rem;">Topics</h2>
-				<ol class="lessons" data-testid="topics-list">
-					{topicsForLesson.map((topic) => (
-						<li data-topic-id={topic.id}>
-							{topic.unlocked ? (
-								<a
-									href={`/courses/${course.slug}/lessons/${lessonId}/topics/${topic.id}`}
-									data-testid="topic-link"
-								>
-									{topic.title}
-								</a>
-							) : (
-								<span>{topic.title}</span>
-							)}
-							{!topic.unlocked && <span class="meta"> · locked</span>}
-							{topic.completed && <span class="meta"> · ✓ done</span>}
-							{topic.requiresPrevious && !topic.completed && (
-								<span class="meta"> · requires previous</span>
-							)}
-						</li>
-					))}
-				</ol>
-			</section>
-		)}
+				const learn = createLearnBrowserClient({ storage: window.localStorage });
+				if (import.meta.env.DEV) {
+					Reflect.set(window, "__emdashLearnDemoClient", learn);
+				}
+				const progressRoot = document.querySelector<HTMLElement>("[data-device-progress]");
+				const progressStatus = progressRoot?.querySelector<HTMLElement>(
+					"[data-device-progress-status]",
+				);
+				const progressNote = progressRoot?.querySelector<HTMLElement>(".device-note");
+				const completeButton = progressRoot?.querySelector<HTMLButtonElement>(
+					"[data-device-complete]",
+				);
 
-		<div class="nav">
-			<div>
-				{prev && (
-					<a href={`/courses/${course.slug}/lessons/${prev.id}`}>← {prev.title}</a>
-				)}
-			</div>
-			<div>
-				{next && (
-					<a href={`/courses/${course.slug}/lessons/${next.id}`}>{next.title} →</a>
-				)}
-			</div>
-		</div>
+				function showDeviceCompletion(): void {
+					if (!progressStatus || !progressNote || !completeButton) return;
+					progressStatus.textContent = "Completed on this device.";
+					progressNote.textContent =
+						"Stored in this browser only. This is not an EmDash account learning record.";
+					completeButton.textContent = "Completed on this device";
+					completeButton.disabled = true;
+				}
 
-		<script is:inline>
-			const video = document.querySelector("[data-testid='lesson-video']");
-			if (video) {
-				const lessonId = video.getAttribute("data-lesson-id");
-				let last = 0;
-				video.addEventListener("timeupdate", async () => {
-					if (!video.duration) return;
-					const pct = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
-					const pos = Math.floor(video.currentTime);
-					if (pos - last < 15) return;
-					last = pos;
-					try {
-						await fetch("/_emdash/api/plugins/lms-core/progress:tick", {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"X-EmDash-Request": "1",
-							},
-							credentials: "same-origin",
-							body: JSON.stringify({
-								stepType: "lesson",
-								stepId: lessonId,
-								positionSeconds: pos,
-								percentComplete: pct,
-							}),
-						});
-					} catch {
-						// Ticks are best-effort; ignore transient failures.
-					}
-				});
-			}
-
-			const btn = document.querySelector("[data-testid='complete-btn']");
-			if (btn) {
-				btn.addEventListener("click", async () => {
-					btn.setAttribute("disabled", "true");
-					btn.textContent = "Saving…";
-					try {
-						const res = await fetch("/_emdash/api/plugins/lms-core/progress:complete", {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"X-EmDash-Request": "1",
-							},
-							credentials: "same-origin",
-							body: JSON.stringify({
-								stepType: "lesson",
-								stepId: btn.getAttribute("data-lesson-id"),
-							}),
-						});
-						if (!res.ok) {
-							const text = await res.text();
-							throw new Error(text || `Complete failed (${res.status})`);
+					if (progressRoot && progressStatus && progressNote && completeButton) {
+						const courseId = progressRoot.dataset.courseId ?? "";
+						const lessonId = progressRoot.dataset.lessonId ?? "";
+						if (courseId && lessonId && progressRoot.dataset.openObserved !== "true") {
+							progressRoot.dataset.openObserved = "true";
+							void learn.observeLessonOpened({ courseId, lessonId });
 						}
-						btn.classList.add("done");
-						btn.textContent = "Completed ✓";
-					} catch (err) {
-						btn.removeAttribute("disabled");
-						btn.textContent = "Mark complete";
-						alert("Mark complete failed: " + (err && err.message ? err.message : err));
+						const progress = learn.deviceProgress.getCourse(courseId);
+					if (progress?.completedLessonIds.includes(lessonId)) {
+						showDeviceCompletion();
+					} else {
+						progressStatus.textContent = "Not completed on this device.";
+						completeButton.addEventListener("click", () => {
+							completeButton.disabled = true;
+							progressStatus.textContent = "Saving completion…";
+							void learn
+								.completeLesson({ courseId, lessonId })
+								.then((completion) => {
+									if (completion.mode === "device") {
+										showDeviceCompletion();
+										return undefined;
+									}
+									progressStatus.textContent = "Completed in your EmDash account.";
+									progressNote.textContent =
+										"Saved to the verified EmDash account for this session.";
+									completeButton.textContent = "Completed in your account";
+									return undefined;
+								})
+								.catch((error: unknown) => {
+									progressStatus.textContent =
+										error instanceof Error
+											? error.message
+											: "Completion could not be saved.";
+									completeButton.disabled = false;
+								});
+						});
 					}
-				});
-			}
-		</script>
+				}
+
+			</script>
 	</body>
 </html>

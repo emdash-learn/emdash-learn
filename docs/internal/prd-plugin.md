@@ -1,5 +1,10 @@
 # Emdash Learn — Product Requirements & Technical Design
 
+> [!WARNING]
+> Historical design document. Its v1 decisions are superseded by
+> [`docs/product-scope.md`](../product-scope.md), which is the authoritative
+> product contract targeting EmDash 0.32.0.
+
 **Status:** Draft, in progress
 **Last updated:** 2026-04-17
 **Companion doc:** [`./emdash-learn-viability.md`](./emdash-learn-viability.md) (architectural feasibility analysis)

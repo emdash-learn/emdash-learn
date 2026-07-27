@@ -1,0 +1,401 @@
+---
+interface KnowledgeCheckNode {
+	_type: "learnKnowledgeCheck";
+	_key?: string;
+	courseId: string;
+	checkId: string;
+}
+
+export interface Props {
+	node: KnowledgeCheckNode;
+}
+
+const { node } = Astro.props;
+---
+
+<section
+	class="emdash-knowledge-check"
+	data-course-id={node.courseId}
+	data-check-id={node.checkId}
+	data-knowledge-check
+	data-testid="knowledge-check"
+	aria-label="Knowledge check"
+>
+	<p data-check-state aria-live="polite">Loading knowledge check…</p>
+	<form data-check-form hidden>
+		<header>
+			<h2 data-check-title></h2>
+			<p data-check-description hidden></p>
+		</header>
+		<div data-check-questions></div>
+		<button type="submit" data-testid="check-submit">Check answers</button>
+	</form>
+	<div data-check-result data-testid="check-result" aria-live="polite" hidden></div>
+</section>
+
+<script>
+	import { createDeviceProgressStore } from "../browser/device-progress.js";
+	import { createSubmissionRetryState } from "../browser/submission-retry.js";
+
+	interface PublicOption {
+		id: string;
+		text: string;
+	}
+
+	type PublicQuestion =
+		| {
+				id: string;
+				type: "single_choice" | "multiple_choice";
+				prompt: string;
+				points: number;
+				options: PublicOption[];
+		  }
+		| {
+				id: string;
+				type: "true_false" | "short_text";
+				prompt: string;
+				points: number;
+		  };
+
+	interface PublicCheck {
+		courseId: string;
+		checkId: string;
+		revisionId: string;
+		title: string;
+		description?: string;
+		passingScore: number;
+		questions: PublicQuestion[];
+	}
+
+	interface QuestionResult {
+		questionId: string;
+		correct: boolean;
+		explanation?: string;
+	}
+
+	interface GradeResult {
+		checkId: string;
+		revisionId: string;
+		score: number;
+		passed: boolean;
+		questions: QuestionResult[];
+	}
+
+	interface SuccessEnvelope<T> {
+		data: T;
+	}
+
+	class LearnRouteError extends Error {
+		constructor(
+			message: string,
+			readonly status: number,
+			readonly code?: string,
+		) {
+			super(message);
+			this.name = "LearnRouteError";
+		}
+	}
+
+	const endpoint = (route: string): string => `/_emdash/api/plugins/lms-core/${route}`;
+
+	async function callRoute<T>(route: string, input: unknown): Promise<T> {
+		const response = await fetch(endpoint(route), {
+			method: "POST",
+			credentials: "same-origin",
+			headers: {
+				"Content-Type": "application/json",
+				Accept: "application/json",
+				"X-EmDash-Request": "1",
+			},
+			body: JSON.stringify(input),
+		});
+		const payload = (await response.json()) as
+			| SuccessEnvelope<T>
+			| { error?: { code?: string; message?: string } };
+		if (!response.ok || !("data" in payload)) {
+			const error = "error" in payload ? payload.error : undefined;
+			throw new LearnRouteError(
+				error?.message ?? "The knowledge check request failed.",
+				response.status,
+				error?.code,
+			);
+		}
+		return payload.data;
+	}
+
+	function choiceOption(
+		fieldset: HTMLFieldSetElement,
+		question: PublicQuestion,
+		option: PublicOption,
+		index: number,
+	): void {
+		const label = document.createElement("label");
+		const input = document.createElement("input");
+		input.type = question.type === "multiple_choice" ? "checkbox" : "radio";
+		input.name = `learn-check-${question.id}`;
+		input.value = option.id;
+		if (index === 0) input.required = question.type !== "multiple_choice";
+		label.append(input, document.createTextNode(` ${option.text}`));
+		fieldset.append(label);
+	}
+
+	function renderQuestion(question: PublicQuestion): HTMLFieldSetElement {
+		const fieldset = document.createElement("fieldset");
+		fieldset.dataset.questionId = question.id;
+		fieldset.dataset.questionType = question.type;
+
+		const legend = document.createElement("legend");
+		legend.textContent = question.prompt;
+		fieldset.append(legend);
+
+		if (question.type === "short_text") {
+			const input = document.createElement("input");
+			input.type = "text";
+			input.name = `learn-check-${question.id}`;
+			input.autocomplete = "off";
+			input.required = true;
+			fieldset.append(input);
+			return fieldset;
+		}
+
+		const options =
+			question.type === "true_false"
+				? [
+						{ id: "true", text: "True" },
+						{ id: "false", text: "False" },
+					]
+				: question.options;
+		for (const [index, option] of options.entries()) {
+			choiceOption(fieldset, question, option, index);
+		}
+		return fieldset;
+	}
+
+	function collectAnswers(form: HTMLFormElement): Array<{
+		questionId: string;
+		answer: string | string[] | boolean;
+	}> {
+		return Array.from(form.querySelectorAll<HTMLFieldSetElement>("fieldset")).map(
+			(fieldset) => {
+				const questionId = fieldset.dataset.questionId ?? "";
+				const type = fieldset.dataset.questionType;
+				if (type === "multiple_choice") {
+					return {
+						questionId,
+						answer: Array.from(
+							fieldset.querySelectorAll<HTMLInputElement>("input:checked"),
+							(input) => input.value,
+						),
+					};
+				}
+				const selected = fieldset.querySelector<HTMLInputElement>(
+					type === "short_text" ? "input[type=text]" : "input:checked",
+				);
+				if (type === "true_false") {
+					return { questionId, answer: selected?.value === "true" };
+				}
+				return { questionId, answer: selected?.value ?? "" };
+			},
+		);
+	}
+
+	function renderResult(
+		container: HTMLElement,
+		result: GradeResult,
+		savedToAccount: boolean,
+	): void {
+		container.hidden = false;
+		container.dataset.passed = String(result.passed);
+		container.replaceChildren();
+		const summary = document.createElement("p");
+		summary.className = result.passed ? "is-passed" : "is-not-passed";
+		summary.textContent = `${result.score}% — ${result.passed ? "Passed" : "Keep learning"}`;
+		container.append(summary);
+
+		const storageNote = document.createElement("p");
+		storageNote.textContent = savedToAccount
+			? "Attempt saved to your EmDash account."
+			: "Self-check saved only on this device.";
+		container.append(storageNote);
+
+		const explanations = result.questions.filter((item) => item.explanation);
+		if (explanations.length === 0) return;
+		const list = document.createElement("ul");
+		for (const item of explanations) {
+			const entry = document.createElement("li");
+			entry.textContent = `${item.correct ? "Correct" : "Review"}: ${item.explanation}`;
+			list.append(entry);
+		}
+		container.append(list);
+	}
+
+	function rememberDeviceResult(courseId: string, result: GradeResult): void {
+		try {
+			createDeviceProgressStore(localStorage).recordSelfCheck(courseId, {
+				checkId: result.checkId,
+				revisionId: result.revisionId,
+				score: result.score,
+				passed: result.passed,
+			});
+		} catch {
+			// Storage can be disabled or full; grading remains useful without it.
+		}
+	}
+
+	async function grade(
+		courseId: string,
+		check: PublicCheck,
+		answers: ReturnType<typeof collectAnswers>,
+		submissionId: string,
+	): Promise<{ result: GradeResult; savedToAccount: boolean }> {
+		try {
+			const result = await callRoute<GradeResult>("assessment:submit-attempt", {
+				courseId,
+				checkId: check.checkId,
+				revisionId: check.revisionId,
+				submissionId,
+				answers,
+			});
+			return { result, savedToAccount: true };
+		} catch (error) {
+			if (!(error instanceof LearnRouteError) || ![401, 403].includes(error.status)) {
+				throw error;
+			}
+		}
+
+		const result = await callRoute<GradeResult>("assessment:self-grade", {
+			courseId,
+			checkId: check.checkId,
+			revisionId: check.revisionId,
+			answers,
+		});
+		rememberDeviceResult(courseId, result);
+		return { result, savedToAccount: false };
+	}
+
+	async function initialize(root: HTMLElement): Promise<void> {
+		if (root.dataset.initialized === "true") return;
+		root.dataset.initialized = "true";
+
+		const courseId = root.dataset.courseId ?? "";
+		const checkId = root.dataset.checkId ?? "";
+		const state = root.querySelector<HTMLElement>("[data-check-state]");
+		const form = root.querySelector<HTMLFormElement>("[data-check-form]");
+		const title = root.querySelector<HTMLElement>("[data-check-title]");
+		const description = root.querySelector<HTMLElement>("[data-check-description]");
+		const questions = root.querySelector<HTMLElement>("[data-check-questions]");
+		const result = root.querySelector<HTMLElement>("[data-check-result]");
+		if (!state || !form || !title || !description || !questions || !result) return;
+		if (!courseId || !checkId) {
+			state.textContent = "This Knowledge Check is missing its Course or Check ID.";
+			return;
+		}
+
+		try {
+			const check = await callRoute<PublicCheck>("assessment:present", {
+				courseId,
+				checkId,
+			});
+			const submissionRetry = createSubmissionRetryState();
+			title.textContent = check.title;
+			if (check.description) {
+				description.textContent = check.description;
+				description.hidden = false;
+			}
+			questions.replaceChildren(...check.questions.map(renderQuestion));
+			state.hidden = true;
+			form.hidden = false;
+			void callRoute("engagement:observe", {
+				type: "check_opened",
+				courseId,
+				checkId,
+			}).catch(() => {
+				// Reporting is deliberately fail-open.
+			});
+
+			form.addEventListener("submit", (event) => {
+				event.preventDefault();
+				const answers = collectAnswers(form);
+				const submissionId = submissionRetry.idFor(answers);
+				const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+				if (submit) submit.disabled = true;
+				result.hidden = false;
+				delete result.dataset.passed;
+				result.textContent = "Checking answers…";
+				void grade(courseId, check, answers, submissionId)
+					.then((graded) => {
+						submissionRetry.settle();
+						return renderResult(result, graded.result, graded.savedToAccount);
+					})
+					.catch((error: unknown) => {
+						if (
+							error instanceof LearnRouteError &&
+							error.status >= 400 &&
+							error.status < 500
+						) {
+							submissionRetry.settle();
+						}
+						result.dataset.passed = "error";
+						result.textContent =
+							error instanceof Error ? error.message : "Answers could not be checked.";
+					})
+					.finally(() => {
+						if (submit) submit.disabled = false;
+					});
+			});
+		} catch (error: unknown) {
+			state.textContent =
+				error instanceof Error ? error.message : "The knowledge check could not be loaded.";
+		}
+	}
+
+	for (const root of document.querySelectorAll<HTMLElement>(".emdash-knowledge-check")) {
+		void initialize(root);
+	}
+</script>
+
+<style>
+	.emdash-knowledge-check {
+		padding: 1.25rem;
+		border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+		border-radius: 0.75rem;
+	}
+
+	.emdash-knowledge-check fieldset {
+		display: grid;
+		gap: 0.5rem;
+		margin-block: 1.25rem;
+		padding: 0;
+		border: 0;
+	}
+
+	.emdash-knowledge-check legend {
+		margin-block-end: 0.5rem;
+		font-weight: 650;
+	}
+
+	.emdash-knowledge-check label {
+		display: block;
+	}
+
+	.emdash-knowledge-check input[type="text"] {
+		box-sizing: border-box;
+		width: min(100%, 36rem);
+		padding: 0.6rem 0.75rem;
+	}
+
+	.emdash-knowledge-check button {
+		padding: 0.65rem 1rem;
+		cursor: pointer;
+	}
+
+	.emdash-knowledge-check .is-passed {
+		color: #166534;
+		font-weight: 700;
+	}
+
+	.emdash-knowledge-check .is-not-passed {
+		color: #9a3412;
+		font-weight: 700;
+	}
+</style>
