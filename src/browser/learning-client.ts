@@ -34,11 +34,17 @@ export interface LearnBrowserClient {
 	completeLesson(input: { courseId: string; lessonId: string }): Promise<BrowserLessonCompletion>;
 }
 
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+	return value.slice(0, end);
+}
+
 export function createLearnBrowserClient(options: LearnBrowserClientOptions): LearnBrowserClient {
 	const fetcher =
 		options.fetch ??
 		((input: URL | RequestInfo, init?: RequestInit) => globalThis.fetch(input, init));
-	const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/u, "");
+	const baseUrl = trimTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
 	const deviceProgress = createDeviceProgressStore(options.storage);
 
 	async function observeOpen(

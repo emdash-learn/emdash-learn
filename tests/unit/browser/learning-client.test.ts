@@ -61,6 +61,22 @@ describe("Learn browser client", () => {
 		).resolves.toBeUndefined();
 	});
 
+	it("normalizes long caller-supplied trailing slash suffixes in linear time", async () => {
+		const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ data: { accepted: true } }));
+		const client = createLearnBrowserClient({
+			storage: storage(),
+			fetch: fetcher,
+			baseUrl: `/custom/learn${"/".repeat(100_000)}`,
+		});
+
+		await client.observeCourseOpened("course-1");
+
+		expect(fetcher).toHaveBeenCalledWith(
+			"/custom/learn/engagement:observe",
+			expect.objectContaining({ method: "POST" }),
+		);
+	});
+
 	it("records Lesson completion only in bounded browser storage", async () => {
 		const fetcher = vi.fn<typeof fetch>();
 		const client = createLearnBrowserClient({
