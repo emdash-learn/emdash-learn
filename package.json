@@ -92,7 +92,7 @@
 		"@commitlint/config-conventional": "^21.2.0",
 		"@emdash-cms/blocks": "^0.31.1",
 		"@playwright/test": "^1.62.0",
-		"@types/node": "^24.13.3",
+		"@types/node": "^26.1.1",
 		"@types/react": "^19.2.17",
 		"@types/react-dom": "^19.2.3",
 		"actionlint": "^2.0.6",

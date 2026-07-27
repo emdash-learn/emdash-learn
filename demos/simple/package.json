@@ -26,7 +26,7 @@
 		"@astrojs/check": "^0.9.9",
 		"@lingui/babel-plugin-lingui-macro": "^5.9.5",
 		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "^24.13.3",
+		"@types/node": "^26.1.1",
 		"tsx": "^4.23.1",
 		"typescript": "^5.9.3"
 	}
