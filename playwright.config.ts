@@ -1,11 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const localPort = process.env["E2E_PORT"] ?? "4322";
+if (!/^\d{2,5}$/u.test(localPort) || Number(localPort) < 1024 || Number(localPort) > 65_535) {
+	throw new Error("E2E_PORT must be an unprivileged TCP port.");
+}
+const localBaseUrl = `http://localhost:${localPort}`;
+const baseUrl = process.env["E2E_BASE_URL"] ?? localBaseUrl;
+
 /**
  * Playwright config. The webServer boots the demo site's Astro dev server
  * against a freshly seeded data.db (globalSetup runs the §25 seed).
  *
- * Tests never hardcode port 4321 elsewhere — they read `baseURL` via the
- * `use` option. `E2E_BASE_URL` lets CI override both baseURL + webServer.
+ * Tests read `baseURL` from the config. A strict dedicated port prevents
+ * Playwright from silently reusing an unrelated local Astro server.
  */
 export default defineConfig({
 	testDir: "./tests/e2e",
@@ -18,16 +25,18 @@ export default defineConfig({
 	reporter: process.env.CI ? "github" : "list",
 	globalSetup: "./tests/e2e/global-setup.ts",
 	use: {
-		baseURL: process.env.E2E_BASE_URL ?? "http://localhost:4321",
+		baseURL: baseUrl,
 		trace: "on-first-retry",
 		screenshot: "only-on-failure",
 	},
 	webServer: process.env.E2E_BASE_URL
 		? undefined
 		: {
-				command: "pnpm --filter ./demos/simple dev",
-				url: "http://localhost:4321",
-				reuseExistingServer: !process.env.CI,
+				command:
+					`ASTRO_DEV_BACKGROUND=0 EMDASH_LEARN_SITE_URL=${localBaseUrl} ` +
+					`pnpm --filter ./demos/simple exec astro dev --force --port ${localPort} --strictPort`,
+				url: localBaseUrl,
+				reuseExistingServer: false,
 				timeout: 120_000,
 				stdout: "pipe",
 				stderr: "pipe",

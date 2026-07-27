@@ -1,14 +1,20 @@
 # ADR 0001: Topics as a first-class primitive
 
-- **Status:** Accepted
+> [!WARNING]
+> Historical. The current product scope is Course → Lesson and is defined in
+> [`../product-scope.md`](../product-scope.md). Topics were removed when the
+> plugin was narrowed to the contracts available in EmDash core; the current
+> compatibility target is published EmDash 0.31.
+
+- **Status:** Superseded
 - **Date:** 2026-04-18
 - **Deciders:** emdash-learn maintainers
 - **Supersedes:** n/a
-- **Superseded by:** n/a
+- **Superseded by:** `docs/product-scope.md`
 
 ## Context
 
-`@emdash/lms-core` currently models course content as **Course → Lesson → (optional Quiz)**. Lessons are the only sub-course content unit.
+`@emdashlms/plugin` currently models course content as **Course → Lesson → (optional Quiz)**. Lessons are the only sub-course content unit.
 
 We want to later ship a **LearnDash → emdash-learn migration plugin**. Research of the LearnDash data model and REST API surface (see `emdash-learn-viability.md`, sections 1–4) confirms LearnDash's canonical hierarchy is:
 

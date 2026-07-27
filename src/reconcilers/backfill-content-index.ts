@@ -1,211 +1,221 @@
-/**
- * backfill-content-index reconciler (AUDIT C3).
- *
- * Seeds the `course_content_index` projection for existing installs. On a
- * fresh install this runs once via the setup wizard (step `seed-content-index`,
- * BOOTSTRAP_VERSION 3). On daily cron it sweeps for drift and fills any gaps
- * left by missed `content:afterPublish` events.
- *
- * Guarantees:
- *   - Idempotent: the uniqueIndex on `(courseId, stepType, stepId)` means a
- *     second put of the same row is a no-op at the storage level; we
- *     `put` unconditionally rather than checking-then-writing.
- *   - Per-item try/catch: one bad row never aborts the full sweep.
- *   - Single content.list scan per step type (acceptable for a backfill
- *     reconciler; not for hot curriculum/progress paths).
- *
- * Returns `Result<{ lessonsUpserted, topicsUpserted, errors }>`.
- */
-
 import type { PluginContext, StorageCollection } from "emdash";
 
-import { LESSONS_COLLECTION_SLUG, TOPICS_COLLECTION_SLUG } from "../constants.js";
-import { ok, type Result } from "../engine/result.js";
+import { LESSONS_COLLECTION_SLUG } from "../constants.js";
+import { contentIndexId } from "../hooks/content.js";
 import type { CourseContentIndexRow } from "../types/storage.js";
+
+const MAX_REBUILD_SOURCE_PAGES = 100;
 
 export interface BackfillSummary {
 	lessonsUpserted: number;
-	topicsUpserted: number;
+	staleRowsDeleted: number;
 	errors: number;
-	/** Forwarded by the cron dispatcher as `processed` for uniform log shape. */
-	processed: number;
-	/** Forwarded by the cron dispatcher as `skipped` for uniform log shape. */
-	skipped: number;
 }
 
-const PAGE_SIZE = 100;
-const CONTENT_INDEX_COLLECTION = "course_content_index";
+function indexStore(ctx: PluginContext): StorageCollection | null {
+	return ctx.storage["course_content_index"] ?? null;
+}
 
-function contentIndexStore(ctx: PluginContext): StorageCollection<CourseContentIndexRow> {
-	const store = (ctx.storage as Record<string, StorageCollection | undefined>)[
-		CONTENT_INDEX_COLLECTION
-	];
-	if (!store) {
-		throw new Error(
-			`backfill-content-index: ctx.storage.${CONTENT_INDEX_COLLECTION} is not declared on the descriptor.`,
-		);
+function stringField(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function nonNegativeIntegerField(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+/**
+ * Rebuild the shallow lesson projection from authoritative published content.
+ * Per-item failures are isolated so one malformed lesson does not hide the
+ * remaining course outline.
+ */
+export async function backfillContentIndex(ctx: PluginContext): Promise<BackfillSummary> {
+	const summary: BackfillSummary = { lessonsUpserted: 0, staleRowsDeleted: 0, errors: 0 };
+	if (!ctx.content) {
+		summary.errors = 1;
+		ctx.log.warn("Learn content index could not be rebuilt: content access is unavailable.");
+		return summary;
 	}
-	return store as StorageCollection<CourseContentIndexRow>;
-}
+	const store = indexStore(ctx);
+	if (!store) {
+		summary.errors = 1;
+		ctx.log.warn("Learn content index could not be rebuilt: projection storage is unavailable.");
+		return summary;
+	}
 
-function contentIndexId(courseId: string, stepType: "lesson" | "topic", stepId: string): string {
-	return `idx__${courseId}__${stepType}__${stepId}`;
-}
-
-function fieldNum(data: Record<string, unknown>, key: string): number | undefined {
-	const v = data[key];
-	return typeof v === "number" ? v : undefined;
-}
-
-function fieldBool(data: Record<string, unknown>, key: string): boolean | undefined {
-	const v = data[key];
-	if (typeof v === "boolean") return v;
-	if (v === 1) return true;
-	if (v === 0) return false;
-	return undefined;
-}
-
-function fieldStr(data: Record<string, unknown>, key: string): string | undefined {
-	const v = data[key];
-	return typeof v === "string" && v ? v : undefined;
-}
-
-async function backfillLessons(
-	ctx: PluginContext,
-	summary: BackfillSummary,
-): Promise<void> {
-	if (!ctx.content) return;
-	const store = contentIndexStore(ctx);
+	const desired = new Map<string, CourseContentIndexRow>();
 	let cursor: string | undefined;
-	/* oxlint-disable no-await-in-loop */
+	let sourcePagesRead = 0;
+	/* oxlint-disable no-await-in-loop -- content pagination is sequential */
 	do {
-		const page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
-			where: { status: "published" },
-			limit: PAGE_SIZE,
-			cursor,
-		});
-		for (const item of page.items) {
-			const courseId = fieldStr(item.data as Record<string, unknown>, "course");
-			if (!courseId) {
-				summary.errors += 1;
-				ctx.log.warn("backfill-content-index: lesson missing course ref", {
-					lessonId: item.id,
-				});
-				continue;
-			}
+		sourcePagesRead += 1;
+		let page;
+		try {
+			page = await ctx.content.list(LESSONS_COLLECTION_SLUG, {
+				where: { status: "published" },
+				limit: 100,
+				cursor,
+			});
+		} catch (error) {
+			summary.errors += 1;
+			ctx.log.warn("Learn content index could not read the Lessons collection.", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return summary;
+		}
+
+		for (const lesson of page.items) {
 			try {
-				const data = item.data as Record<string, unknown>;
+				if (lesson.status !== "published") continue;
+				const data = typeof lesson.data === "object" && lesson.data !== null ? lesson.data : {};
+				const lessonId = stringField(lesson.id);
+				const courseId = stringField(data["course"]);
+				if (!courseId) {
+					summary.errors += 1;
+					ctx.log.warn("Learn content index skipped a lesson without a course reference.", {
+						lessonId: lesson.id,
+					});
+					continue;
+				}
+				const title = stringField(data["title"]);
+				const order = nonNegativeIntegerField(data["order"]);
+				if (!lessonId || !title || order === undefined) {
+					summary.errors += 1;
+					ctx.log.warn("Learn content index skipped a malformed lesson.", {
+						lessonId: lesson.id,
+					});
+					continue;
+				}
 				const row: CourseContentIndexRow = {
 					courseId,
 					stepType: "lesson",
-					stepId: item.id,
-					order: fieldNum(data, "order") ?? 0,
+					stepId: lessonId,
+					order,
 					status: "published",
 				};
-				if (item.publishedAt) row.publishedAt = item.publishedAt;
-				// scheduledAt is available on the internal ContentItem but not on the
-				// public ContentItem interface; access via cast for the backfill path.
-				const scheduledAt = (item as unknown as Record<string, unknown>)["scheduledAt"];
-				if (typeof scheduledAt === "string") row.scheduledAt = scheduledAt;
-				const dur = fieldNum(data, "duration_seconds");
-				if (dur !== undefined) row.durationSeconds = dur;
-				const isPreview = fieldBool(data, "is_preview");
-				if (isPreview !== undefined) row.isPreview = isPreview;
-				const requiresPrevious = fieldBool(data, "requires_previous");
-				if (requiresPrevious !== undefined) row.requiresPrevious = requiresPrevious;
-				const dripOffsetDays = fieldNum(data, "drip_offset_days");
-				if (dripOffsetDays !== undefined) row.dripOffsetDays = dripOffsetDays;
-
-				await store.put(contentIndexId(courseId, "lesson", item.id), row);
-				summary.lessonsUpserted += 1;
-				summary.processed += 1;
+				desired.set(contentIndexId(courseId, lessonId), row);
 			} catch (error) {
 				summary.errors += 1;
-				ctx.log.warn("backfill-content-index: lesson upsert threw", {
-					lessonId: item.id,
+				ctx.log.warn("Learn content index skipped a malformed lesson.", {
+					lessonId: lesson.id,
 					error: error instanceof Error ? error.message : String(error),
 				});
 			}
 		}
+		if (page.hasMore && !page.cursor) {
+			summary.errors += 1;
+			ctx.log.warn(
+				"Learn content index rebuild stopped because Lesson pagination could not continue deterministically.",
+			);
+			return summary;
+		}
+		if (page.hasMore && sourcePagesRead >= MAX_REBUILD_SOURCE_PAGES) {
+			summary.errors += 1;
+			ctx.log.warn(
+				`Learn content index rebuild stopped at the ${MAX_REBUILD_SOURCE_PAGES}-page source limit.`,
+			);
+			return summary;
+		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
 	/* oxlint-enable no-await-in-loop */
-}
 
-async function backfillTopics(
-	ctx: PluginContext,
-	summary: BackfillSummary,
-): Promise<void> {
-	if (!ctx.content) return;
-	const store = contentIndexStore(ctx);
-	let cursor: string | undefined;
-	/* oxlint-disable no-await-in-loop */
+	const existing: Array<{ id: string; data: unknown }> = [];
+	cursor = undefined;
+	let projectionPagesRead = 0;
+	/* oxlint-disable no-await-in-loop -- storage pagination is sequential */
 	do {
-		const page = await ctx.content.list(TOPICS_COLLECTION_SLUG, {
-			where: { status: "published" },
-			limit: PAGE_SIZE,
-			cursor,
-		});
-		for (const item of page.items) {
-			const data = item.data as Record<string, unknown>;
-			const courseId = fieldStr(data, "course");
-			if (!courseId) {
-				summary.errors += 1;
-				ctx.log.warn("backfill-content-index: topic missing course ref", {
-					topicId: item.id,
-				});
-				continue;
-			}
-			try {
-				const row: CourseContentIndexRow = {
-					courseId,
-					stepType: "topic",
-					stepId: item.id,
-					order: fieldNum(data, "order") ?? 0,
-					status: "published",
-				};
-				const lessonId = fieldStr(data, "lesson");
-				if (lessonId) row.lessonId = lessonId;
-				if (item.publishedAt) row.publishedAt = item.publishedAt;
-				const scheduledAt = (item as unknown as Record<string, unknown>)["scheduledAt"];
-				if (typeof scheduledAt === "string") row.scheduledAt = scheduledAt;
-				const dur = fieldNum(data, "duration_seconds");
-				if (dur !== undefined) row.durationSeconds = dur;
-				const requiresPrevious = fieldBool(data, "requires_previous");
-				if (requiresPrevious !== undefined) row.requiresPrevious = requiresPrevious;
-
-				await store.put(contentIndexId(courseId, "topic", item.id), row);
-				summary.topicsUpserted += 1;
-				summary.processed += 1;
-			} catch (error) {
-				summary.errors += 1;
-				ctx.log.warn("backfill-content-index: topic upsert threw", {
-					topicId: item.id,
-					error: error instanceof Error ? error.message : String(error),
-				});
-			}
+		projectionPagesRead += 1;
+		let page;
+		try {
+			page = await store.query({ limit: 100, cursor });
+		} catch (error) {
+			summary.errors += 1;
+			ctx.log.warn("Learn content index could not read the existing projection.", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return summary;
+		}
+		existing.push(...page.items.map(({ id, data }) => ({ id, data })));
+		if (page.hasMore && !page.cursor) {
+			summary.errors += 1;
+			ctx.log.warn(
+				"Learn content index rebuild stopped because projection pagination could not continue deterministically.",
+			);
+			return summary;
+		}
+		if (page.hasMore && projectionPagesRead >= MAX_REBUILD_SOURCE_PAGES) {
+			summary.errors += 1;
+			ctx.log.warn(
+				`Learn content index rebuild stopped at the ${MAX_REBUILD_SOURCE_PAGES}-page projection limit.`,
+			);
+			return summary;
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
-	/* oxlint-enable no-await-in-loop */
-}
 
-export async function backfillContentIndexReconciler(
-	ctx: PluginContext,
-): Promise<Result<BackfillSummary>> {
-	const summary: BackfillSummary = {
-		lessonsUpserted: 0,
-		topicsUpserted: 0,
-		errors: 0,
-		processed: 0,
-		skipped: 0,
-	};
-	await backfillLessons(ctx, summary);
-	await backfillTopics(ctx, summary);
-	ctx.log.info("backfill-content-index: complete", {
-		lessonsUpserted: summary.lessonsUpserted,
-		topicsUpserted: summary.topicsUpserted,
-		errors: summary.errors,
-	});
-	return ok(summary);
+	const desiredEntries = [...desired.entries()];
+	// oxlint-disable-next-line no-array-sort -- sorting a local copy for deterministic reconciliation
+	desiredEntries.sort(([left], [right]) => left.localeCompare(right));
+
+	// A Lesson reassignment changes the projection row id while the declared
+	// `stepId` index remains unique. Remove only those stale conflicting rows
+	// before upserting the new authoritative pointer.
+	const desiredStepIds = new Set(desiredEntries.map(([, row]) => row.stepId));
+	const orderedExisting = [...existing];
+	// oxlint-disable-next-line no-array-sort -- sorting a local copy for deterministic reconciliation
+	orderedExisting.sort((left, right) => left.id.localeCompare(right.id));
+	const deletedBeforeUpsert = new Set<string>();
+	for (const row of orderedExisting) {
+		if (desired.has(row.id)) continue;
+		const stepId =
+			typeof row.data === "object" && row.data !== null
+				? stringField(Reflect.get(row.data, "stepId"))
+				: undefined;
+		if (!stepId || !desiredStepIds.has(stepId)) continue;
+		try {
+			if (await store.delete(row.id)) {
+				summary.staleRowsDeleted += 1;
+				deletedBeforeUpsert.add(row.id);
+			}
+		} catch (error) {
+			summary.errors += 1;
+			ctx.log.warn("Learn content index could not delete a conflicting stale pointer.", {
+				rowId: row.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	for (const [id, row] of desiredEntries) {
+		try {
+			await store.put(id, row);
+			summary.lessonsUpserted += 1;
+		} catch (error) {
+			summary.errors += 1;
+			ctx.log.warn("Learn content index could not upsert a lesson pointer.", {
+				lessonId: row.stepId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	// Sorting above makes cleanup order stable for logs, fakes, and
+	// partial-failure recovery.
+	for (const row of orderedExisting) {
+		if (desired.has(row.id) || deletedBeforeUpsert.has(row.id)) continue;
+		try {
+			if (await store.delete(row.id)) summary.staleRowsDeleted += 1;
+		} catch (error) {
+			summary.errors += 1;
+			ctx.log.warn("Learn content index could not delete a stale pointer.", {
+				rowId: row.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+	/* oxlint-enable no-await-in-loop */
+
+	ctx.log.info("Learn content index rebuilt.", summary);
+	return summary;
 }

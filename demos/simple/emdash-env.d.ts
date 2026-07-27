@@ -3,7 +3,7 @@
 
 /// <reference types="emdash/locals" />
 
-import type { ContentBylineCredit, PortableTextBlock } from "emdash";
+import type { ContentBylineCredit, TaxonomyTerm, PortableTextBlock } from "emdash";
 
 export interface Course {
   id: string;
@@ -13,19 +13,14 @@ export interface Course {
   subtitle?: string;
   description?: string;
   body?: PortableTextBlock[];
-  cover_image?: { id: string; src?: string; alt?: string; width?: number; height?: number };
-  trailer_url?: string;
+  cover_image?: { id: string; src?: string; alt?: string; width?: number; height?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> };
   difficulty?: "beginner" | "intermediate" | "advanced";
   estimated_hours?: number;
-  price_cents?: number;
-  currency?: string;
-  enrollment_open?: boolean;
-  enrollment_opens_at?: string;
-  enrollment_closes_at?: string;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
   bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
 }
 
 export interface Lesson {
@@ -39,13 +34,11 @@ export interface Lesson {
   body?: PortableTextBlock[];
   video_url?: string;
   duration_seconds?: number;
-  is_preview?: boolean;
-  requires_previous?: boolean;
-  drip_offset_days?: number;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
   bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
 }
 
 export interface Page {
@@ -58,6 +51,7 @@ export interface Page {
   updatedAt: Date;
   publishedAt: Date | null;
   bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
 }
 
 export interface Post {
@@ -65,32 +59,14 @@ export interface Post {
   slug: string | null;
   status: string;
   title: string;
-  featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number };
+  featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> };
   content?: PortableTextBlock[];
   excerpt?: string;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
   bylines?: ContentBylineCredit[];
-}
-
-export interface Topic {
-  id: string;
-  slug: string | null;
-  status: string;
-  title: string;
-  lesson: string;
-  course: string;
-  order: number;
-  summary?: string;
-  body?: PortableTextBlock[];
-  video_url?: string;
-  duration_seconds?: number;
-  requires_previous?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  publishedAt: Date | null;
-  bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
 }
 
 declare module "emdash" {
@@ -99,6 +75,5 @@ declare module "emdash" {
     lessons: Lesson;
     pages: Page;
     posts: Post;
-    topics: Topic;
   }
 }

@@ -4,7 +4,7 @@ Paste into a fresh Claude Code session at `/Users/baezor/dev/lms-core/`. This is
 
 ---
 
-You are a senior TypeScript engineer executing the Topics primitive refactor on `@emdash/lms-core`. Working directory: `/Users/baezor/dev/lms-core/`.
+You are a senior TypeScript engineer executing the Topics primitive refactor on `@emdashlms/plugin`. Working directory: `/Users/baezor/dev/lms-core/`.
 
 ## Start here
 

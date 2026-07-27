@@ -4,7 +4,9 @@
 
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
-Email your report to **security@romerobaez.com** with:
+Prefer
+[GitHub private vulnerability reporting](https://github.com/emdash-learn/emdash-learn/security/advisories/new).
+If that is unavailable, email **security@romerobaez.com** with:
 
 - A description of the vulnerability and its potential impact.
 - Steps to reproduce or a proof-of-concept.
@@ -16,8 +18,8 @@ You will receive an acknowledgement within 72 hours. We aim to release a patch w
 
 | Version | Supported |
 | ------- | --------- |
-| 1.x     | ✓         |
-| < 1.0   | ✗         |
+| 0.1.x   | ✓         |
+| < 0.1   | ✗         |
 
 ## Disclosure Policy
 

@@ -1,742 +1,291 @@
-/**
- * Setup wizard admin page — mounts at `/_emdash/admin/plugins/lms-core/setup`.
- *
- * The component orchestrates the wizard steps (§7) from the admin browser:
- *   - `probe()` reports each step's current state.
- *   - `apply()` runs schema-mutating calls against
- *     `/_emdash/api/schema/*` using the admin's session cookie (D2).
- *   - Completion is persisted via the plugin's `setup:mark` route.
- *
- * T01 ships plain HTML + inline styles rather than Kumo / Lingui wiring.
- * Rationale lodged in prd-plugin.md §12 Q19 — T18/T19 refactor this page to
- * Kumo components and Lingui strings alongside the rest of the admin UI.
- */
-
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
-
 import {
-	BOOTSTRAP_VERSION,
-	COURSES_COLLECTION_SLUG,
-	LESSONS_COLLECTION_SLUG,
-	TOPICS_COLLECTION_SLUG,
-} from "../constants.js";
-import { CoreSchemaClientError, createCoreSchemaClient } from "../setup/core-schema-client.js";
-import { WIZARD_STEPS, type StepProbe, type WizardStep } from "../setup/steps.js";
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+	type CSSProperties,
+	type ReactElement,
+} from "react";
+
+import { BOOTSTRAP_VERSION } from "../constants.js";
+import type { ProjectionRepairResult } from "../setup/orchestrator.js";
 import type { BootstrapState } from "../types/storage.js";
-import { LmsApiError, createApiClient, type WhoamiResponse } from "./api-client.js";
+import { createApiClient, LmsApiError, type ApiClient } from "./api-client.js";
 
-interface StepRowState {
-	probe: StepProbe;
-	applying: boolean;
-	lastApplyError?: string;
-	lastWrites?: number;
+interface SetupResultSummary {
+	schemaWrites: number;
+	projection: ProjectionRepairResult;
 }
 
-const initialRow: StepRowState = {
-	probe: { status: "pending", summary: "Loading…" },
-	applying: false,
-};
-
-const statusPalette: Record<StepProbe["status"], { label: string; color: string }> = {
-	pending: { label: "…", color: "#64748b" },
-	ok: { label: "✓", color: "#15803d" },
-	"needs-apply": { label: "○", color: "#b45309" },
-	conflict: { label: "!", color: "#b91c1c" },
-	error: { label: "×", color: "#b91c1c" },
-};
-
-function formatError(err: unknown): string {
-	if (err instanceof CoreSchemaClientError) {
-		const detail =
-			err.body && typeof err.body === "object" && "message" in err.body
-				? String((err.body as { message: unknown }).message)
-				: String(err.status);
-		return `${err.message} — ${detail}`;
-	}
-	if (err instanceof LmsApiError) return err.message;
-	if (err instanceof Error) return err.message;
-	return String(err);
+export interface SetupViewProps {
+	state: BootstrapState | null;
+	targetVersion: number;
+	running: boolean;
+	error: string | null;
+	result: SetupResultSummary | null;
+	onRun: () => void;
+	onRefresh: () => void;
 }
 
-export function SetupWizardPage(): ReactElement {
-	const schema = useMemo(() => createCoreSchemaClient(), []);
-	const api = useMemo(() => createApiClient(), []);
-	const [rows, setRows] = useState<Record<string, StepRowState>>(() => {
-		const out: Record<string, StepRowState> = {};
-		for (const step of WIZARD_STEPS) out[step.id] = initialRow;
-		return out;
-	});
-	const [bootstrap, setBootstrap] = useState<BootstrapState | null>(null);
-	const [targetVersion, setTargetVersion] = useState<number>(BOOTSTRAP_VERSION);
-	const [runningAll, setRunningAll] = useState(false);
-	const [globalError, setGlobalError] = useState<string | null>(null);
+function projectionCount(projection: ProjectionRepairResult, field: string): number | null {
+	const value = Reflect.get(projection, field);
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
 
-	// Admin role guard (H7): check caller role on mount; show a clear error if not admin.
-	const [whoami, setWhoami] = useState<WhoamiResponse | null>(null);
-	const [whoamiLoading, setWhoamiLoading] = useState(true);
-	const [whoamiError, setWhoamiError] = useState<string | null>(null);
-
-	// Drop data panel state (H7).
-	const [dropConfirm1, setDropConfirm1] = useState(false);
-	const [dropConfirm2, setDropConfirm2] = useState(false);
-	const [dropping, setDropping] = useState(false);
-	const [dropResult, setDropResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-	const runProbe = useCallback(
-		async (step: WizardStep): Promise<StepProbe> => {
-			try {
-				return await step.probe({ schema });
-			} catch (err) {
-				return { status: "error", summary: formatError(err) };
-			}
-		},
-		[schema],
+function isVerified(state: BootstrapState | null, targetVersion: number): boolean {
+	return Boolean(
+		state &&
+		state.version >= targetVersion &&
+		state.verification?.schema === "compatible" &&
+		state.verification.projection === "repaired" &&
+		state.verification.contractVersion >= targetVersion,
 	);
+}
 
-	const refreshAll = useCallback(async () => {
-		setGlobalError(null);
-		const next: Record<string, StepRowState> = {};
-		for (const step of WIZARD_STEPS) {
-			next[step.id] = { ...initialRow, probe: { status: "pending", summary: "Checking…" } };
-		}
-		setRows(next);
-		const probes = await Promise.all(
-			WIZARD_STEPS.map(async (step) => ({ id: step.id, probe: await runProbe(step) })),
-		);
-		setRows((prev) => {
-			const updated = { ...prev };
-			for (const { id, probe } of probes) {
-				updated[id] = { ...(updated[id] ?? initialRow), probe };
-			}
-			return updated;
-		});
-	}, [runProbe]);
-
-	const refreshBootstrap = useCallback(async () => {
-		try {
-			const res = await api.setup.state();
-			setBootstrap(res.state);
-			setTargetVersion(res.targetVersion);
-		} catch (err) {
-			setGlobalError(formatError(err));
-		}
-	}, [api]);
-
-	// Fetch caller's role on mount (H7).
-	useEffect(() => {
-		setWhoamiLoading(true);
-		void (async () => {
-			try {
-				const w = await api.setup.whoami();
-				setWhoami(w);
-			} catch (err: unknown) {
-				setWhoamiError(formatError(err));
-			} finally {
-				setWhoamiLoading(false);
-			}
-		})();
-	}, [api]);
-
-	useEffect(() => {
-		void refreshBootstrap();
-		void refreshAll();
-	}, [refreshAll, refreshBootstrap]);
-
-	// Drop all plugin content collections via admin session (H7).
-	// Sequential deletion (topics → lessons → courses) ensures reference integrity:
-	// topics reference lessons which reference courses.
-	const dropPluginData = useCallback(async () => {
-		setDropping(true);
-		setDropResult(null);
-		const slugs = [TOPICS_COLLECTION_SLUG, LESSONS_COLLECTION_SLUG, COURSES_COLLECTION_SLUG];
-		const errors: string[] = [];
-
-		// oxlint-disable no-await-in-loop -- sequential deletion order matters
-		for (const slug of slugs) {
-			try {
-				await schema.deleteCollection(slug, { force: true }); // eslint-disable-line no-await-in-loop
-			} catch (err) {
-				if (err instanceof CoreSchemaClientError && err.status === 404) continue;
-				errors.push(`${slug}: ${formatError(err)}`);
-			}
-		}
-		// oxlint-enable no-await-in-loop
-
-		setDropping(false);
-		if (errors.length > 0) {
-			setDropResult({
-				ok: false,
-				message: `Some collections could not be dropped: ${errors.join("; ")}`,
-			});
-		} else {
-			setDropResult({
-				ok: true,
-				message:
-					"All content collections (courses, lessons, topics) have been deleted. " +
-					"You may now uninstall the plugin.",
-			});
-			setDropConfirm1(false);
-			setDropConfirm2(false);
-		}
-	}, [schema]);
-
-	const callPluginRoute = useCallback(
-		(route: string, input?: unknown): Promise<unknown> => api.setup.callRoute(route, input),
-		[api],
-	);
-
-	const runStep = useCallback(
-		async (step: WizardStep): Promise<boolean> => {
-			setRows((prev) => ({
-				...prev,
-				[step.id]: { ...(prev[step.id] ?? initialRow), applying: true, lastApplyError: undefined },
-			}));
-			try {
-				const result = await step.apply({ schema, callPluginRoute });
-				const probe = await runProbe(step);
-				setRows((prev) => ({
-					...prev,
-					[step.id]: {
-						...(prev[step.id] ?? initialRow),
-						probe,
-						applying: false,
-						lastWrites: result.writes,
-					},
-				}));
-				return probe.status === "ok";
-			} catch (err) {
-				const message = formatError(err);
-				const probe = await runProbe(step);
-				setRows((prev) => ({
-					...prev,
-					[step.id]: {
-						...(prev[step.id] ?? initialRow),
-						probe: probe.status === "ok" ? probe : { status: "error", summary: message },
-						applying: false,
-						lastApplyError: message,
-					},
-				}));
-				return false;
-			}
-		},
-		[callPluginRoute, runProbe, schema],
-	);
-
-	const runAll = useCallback(async () => {
-		setRunningAll(true);
-		setGlobalError(null);
-		const completed: string[] = [];
-		let failed: { stepId: string; message: string } | undefined;
-		for (const step of WIZARD_STEPS) {
-			if (step.id === "finalize") continue;
-			// Sequential by design: step 2 reads the collection created in step 1.
-			// eslint-disable-next-line eslint/no-await-in-loop -- step order matters
-			const success = await runStep(step);
-			if (success) {
-				completed.push(step.id);
-			} else {
-				const row = rows[step.id];
-				failed = {
-					stepId: step.id,
-					message: row?.lastApplyError ?? row?.probe.summary ?? "unknown",
-				};
-				break;
-			}
-		}
-		try {
-			if (!failed) completed.push("finalize");
-			const markInput: {
-				completedSteps: string[];
-				lastError?: { stepId: string; message: string; at: string };
-			} = { completedSteps: completed };
-			if (failed) {
-				markInput.lastError = {
-					stepId: failed.stepId,
-					message: failed.message,
-					at: new Date().toISOString(),
-				};
-			}
-			await api.setup.mark(markInput);
-			await refreshBootstrap();
-		} catch (err) {
-			setGlobalError(formatError(err));
-		}
-		setRunningAll(false);
-	}, [api, refreshBootstrap, rows, runStep]);
-
-	const allSteps = WIZARD_STEPS;
-	const pendingCount = allSteps.filter((s) => rows[s.id]?.probe.status !== "ok").length;
-	const isComplete = bootstrap !== null && bootstrap.version >= targetVersion && pendingCount === 0;
-
-	// Show loading state while role is being checked.
-	if (whoamiLoading) {
-		return (
-			<section style={pageStyle}>
-				<p style={{ color: "#475569" }}>Checking permissions…</p>
-			</section>
-		);
-	}
-
-	// Show a clear "not admin" state instead of cryptic 403s (H7).
-	if (whoamiError || (whoami !== null && !whoami.isAdmin)) {
-		return (
-			<section style={pageStyle}>
-				<header style={headerStyle}>
-					<h1 style={{ fontSize: "1.5rem", marginBlockEnd: "0.5rem" }}>
-						Emdash Learn · Setup
-					</h1>
-				</header>
-				<div
-					role="alert"
-					style={{
-						paddingBlock: "1rem",
-						paddingInline: "1.25rem",
-						borderRadius: "0.5rem",
-						border: "1px solid #fecaca",
-						backgroundColor: "#fef2f2",
-						color: "#991b1b",
-					}}
-				>
-					<strong>Admin role required.</strong>{" "}
-					{whoamiError
-						? `Could not verify your permissions: ${whoamiError}`
-						: "Only users with the Admin role can run or modify the plugin setup. " +
-							"Ask a site administrator to open this page."}
-				</div>
-			</section>
-		);
-	}
+export function SetupView({
+	state,
+	targetVersion,
+	running,
+	error,
+	result,
+	onRun,
+	onRefresh,
+}: SetupViewProps): ReactElement {
+	const verified = isVerified(state, targetVersion);
+	const reconciledLessons = result ? projectionCount(result.projection, "lessonsUpserted") : null;
+	const deletedPointers = result ? projectionCount(result.projection, "staleRowsDeleted") : null;
 
 	return (
 		<section style={pageStyle}>
 			<header style={headerStyle}>
-				<h1 style={{ fontSize: "1.5rem", marginBlockEnd: "0.5rem" }}>Emdash Learn · Setup</h1>
-				<p style={{ color: "#475569", marginBlockStart: 0 }}>
-					Provisions the <code>courses</code> and <code>lessons</code> content collections the LMS
-					engine depends on. Every step is idempotent — safe to re-run after an upgrade.
+				<p style={eyebrowStyle}>EmDash Learn</p>
+				<h1 style={titleStyle}>Setup</h1>
+				<p style={introStyle}>
+					Verify the Course and Lesson schema, repair compatible missing fields, and reconcile the
+					published lesson index. The server derives every completion check; the browser cannot mark
+					setup complete.
 				</p>
-				<StatusBanner
-					bootstrap={bootstrap}
-					targetVersion={targetVersion}
-					isComplete={isComplete}
-					pendingCount={pendingCount}
-				/>
-				{globalError ? <ErrorBanner message={globalError} /> : null}
 			</header>
 
-			<div style={toolbarStyle}>
+			<div role="status" style={verified ? successStyle : warningStyle}>
+				<strong>{verified ? "Setup verified" : "Setup needs verification"}</strong>
+				<div>
+					Bootstrap version {state?.version ?? 0} / {targetVersion}
+					{state?.lastRunAt ? ` · last run ${new Date(state.lastRunAt).toLocaleString()}` : ""}
+				</div>
+			</div>
+
+			{error ? (
+				<div role="alert" style={errorStyle}>
+					{error}
+				</div>
+			) : null}
+
+			<div style={actionsStyle}>
 				<button
 					type="button"
-					onClick={runAll}
-					disabled={runningAll}
-					style={primaryButtonStyle(runningAll)}
+					onClick={onRun}
+					disabled={running}
+					style={primaryButtonStyle(running)}
 				>
-					{runningAll ? "Running setup…" : pendingCount === 0 ? "Re-check" : "Run setup"}
+					{running ? "Running verified setup…" : verified ? "Verify and repair again" : "Run setup"}
 				</button>
-				<button
-					type="button"
-					onClick={() => void refreshAll()}
-					disabled={runningAll}
-					style={secondaryButtonStyle}
-				>
-					Refresh
+				<button type="button" onClick={onRefresh} disabled={running} style={secondaryButtonStyle}>
+					Refresh status
 				</button>
 			</div>
 
-			<ol style={listStyle}>
-				{allSteps.map((step) => {
-					const row = rows[step.id] ?? initialRow;
-					return (
-						<li key={step.id} style={itemStyle}>
-							<div style={itemHeadStyle}>
-								<StatusBadge status={row.probe.status} />
-								<div style={{ flex: 1 }}>
-									<div style={itemTitleStyle}>{step.title}</div>
-									<div style={itemSummaryStyle}>{row.probe.summary}</div>
-									{row.probe.details && row.probe.details.length > 0 ? (
-										<ul style={detailListStyle}>
-											{row.probe.details.map((d) => (
-												<li key={d}>{d}</li>
-											))}
-										</ul>
-									) : null}
-									{row.lastApplyError ? (
-										<div style={itemErrorStyle}>Apply error: {row.lastApplyError}</div>
-									) : null}
-									{typeof row.lastWrites === "number" && row.lastWrites > 0 ? (
-										<div style={itemHintStyle}>
-											{row.lastWrites} write{row.lastWrites === 1 ? "" : "s"} performed.
-										</div>
-									) : null}
-								</div>
-								<button
-									type="button"
-									onClick={() => void runStep(step)}
-									disabled={runningAll || row.applying}
-									style={tertiaryButtonStyle}
-								>
-									{row.applying ? "Applying…" : "Apply"}
-								</button>
-							</div>
-							<p style={itemDescStyle}>{step.description}</p>
+			{result ? (
+				<section aria-label="Latest setup result" style={resultStyle}>
+					<h2 style={sectionTitleStyle}>Latest run</h2>
+					<ul>
+						<li>
+							{result.schemaWrites} schema write
+							{result.schemaWrites === 1 ? "" : "s"} applied
 						</li>
-					);
-				})}
-			</ol>
+						{reconciledLessons === null ? null : (
+							<li>{reconciledLessons} lesson records reconciled</li>
+						)}
+						{deletedPointers === null ? null : (
+							<li>{deletedPointers} stale lesson pointers removed</li>
+						)}
+						<li>{result.projection.errors} projection errors</li>
+					</ul>
+				</section>
+			) : null}
 
-			{/* Drop plugin data panel (H7 / AUDIT C4) */}
-			<DropDataPanel
-				dropConfirm1={dropConfirm1}
-				dropConfirm2={dropConfirm2}
-				dropping={dropping}
-				dropResult={dropResult}
-				onConfirm1Change={setDropConfirm1}
-				onConfirm2Change={setDropConfirm2}
-				onDrop={() => void dropPluginData()}
-			/>
+			{state?.completedSteps.length ? (
+				<details style={detailsStyle}>
+					<summary>Verified schema steps ({state.completedSteps.length})</summary>
+					<ul>
+						{state.completedSteps.map((step) => (
+							<li key={step}>
+								<code>{step}</code>
+							</li>
+						))}
+					</ul>
+				</details>
+			) : null}
+
+			<aside style={noteStyle}>
+				<strong>Content remains yours.</strong> Setup only adds compatible Course and Lesson schema
+				requirements. Uninstalling Learn never deletes administrator-owned Course or Lesson entries.
+			</aside>
 		</section>
 	);
 }
 
-/**
- * "Drop plugin data" panel (H7 / AUDIT C4).
- *
- * Surfaced to admin users who need to delete the authored content collections
- * (courses, lessons, topics) before uninstalling the plugin. Uses a
- * double-confirm pattern to prevent accidental deletion. Calls
- * `schema.deleteCollection` via the admin browser session (which carries the
- * `schema:manage`-required cookie) — the same session the wizard uses to
- * create collections.
- *
- * This panel is only visible to admin users (whoami check above guards the
- * whole page). Gate is intentionally redundant: the schema endpoint will
- * reject non-admin sessions with 403 anyway.
- */
-function DropDataPanel({
-	dropConfirm1,
-	dropConfirm2,
-	dropping,
-	dropResult,
-	onConfirm1Change,
-	onConfirm2Change,
-	onDrop,
-}: {
-	dropConfirm1: boolean;
-	dropConfirm2: boolean;
-	dropping: boolean;
-	dropResult: { ok: boolean; message: string } | null;
-	onConfirm1Change: (v: boolean) => void;
-	onConfirm2Change: (v: boolean) => void;
-	onDrop: () => void;
-}): ReactElement {
-	const canDrop = dropConfirm1 && dropConfirm2 && !dropping;
-
-	return (
-		<div
-			style={{
-				marginBlockStart: "2.5rem",
-				padding: "1.25rem",
-				border: "1px solid #fecaca",
-				borderRadius: "0.5rem",
-				backgroundColor: "#fef2f2",
-			}}
-		>
-			<h2 style={{ fontSize: "1.1rem", color: "#991b1b", marginBlockEnd: "0.5rem" }}>
-				Drop plugin data
-			</h2>
-			<p style={{ color: "#7f1d1d", fontSize: "0.925rem", marginBlockStart: 0 }}>
-				This action permanently deletes the <code>courses</code>, <code>lessons</code>, and{" "}
-				<code>topics</code> content collections and all content inside them. It cannot be undone.
-				Plugin storage (enrollments, progress, certificates) is dropped separately by emdash when
-				you uninstall.
-			</p>
-			<p style={{ color: "#7f1d1d", fontSize: "0.925rem" }}>
-				<strong>Use this only before uninstalling the plugin</strong> — or when you need to start
-				fresh from an empty slate. After dropping, you must re-run "Run setup" to re-provision the
-				collections before the LMS is usable again.
-			</p>
-
-			<div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-				<label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer" }}>
-					<input
-						type="checkbox"
-						checked={dropConfirm1}
-						onChange={(e) => onConfirm1Change(e.target.checked)}
-						disabled={dropping}
-					/>
-					<span style={{ fontSize: "0.925rem", color: "#991b1b" }}>
-						I understand this will permanently delete all courses, lessons, and topics.
-					</span>
-				</label>
-				<label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer" }}>
-					<input
-						type="checkbox"
-						checked={dropConfirm2}
-						onChange={(e) => onConfirm2Change(e.target.checked)}
-						disabled={dropping}
-					/>
-					<span style={{ fontSize: "0.925rem", color: "#991b1b" }}>
-						I have confirmed there is no content I wish to keep.
-					</span>
-				</label>
-			</div>
-
-			<div style={{ marginBlockStart: "1rem" }}>
-				<button
-					type="button"
-					onClick={onDrop}
-					disabled={!canDrop}
-					style={{
-						paddingBlock: "0.5rem",
-						paddingInline: "1rem",
-						borderRadius: "0.375rem",
-						border: "1px solid transparent",
-						backgroundColor: canDrop ? "#dc2626" : "#f87171",
-						color: "white",
-						cursor: canDrop ? "pointer" : "not-allowed",
-						fontWeight: 600,
-						fontSize: "0.925rem",
-					}}
-				>
-					{dropping ? "Deleting…" : "Drop plugin data"}
-				</button>
-			</div>
-
-			{dropResult !== null ? (
-				<div
-					role="status"
-					style={{
-						marginBlockStart: "0.75rem",
-						padding: "0.75rem",
-						borderRadius: "0.375rem",
-						border: `1px solid ${dropResult.ok ? "#86efac" : "#fca5a5"}`,
-						backgroundColor: dropResult.ok ? "#ecfdf5" : "#fef2f2",
-						color: dropResult.ok ? "#166534" : "#991b1b",
-						fontSize: "0.875rem",
-					}}
-				>
-					{dropResult.message}
-				</div>
-			) : null}
-		</div>
-	);
+function errorMessage(error: unknown): string {
+	if (error instanceof LmsApiError) return error.message;
+	if (error instanceof Error) return error.message;
+	return "Setup could not be completed.";
 }
 
-function StatusBadge({ status }: { status: StepProbe["status"] }): ReactElement {
-	const { label, color } = statusPalette[status];
-	return (
-		<span
-			aria-label={status}
-			style={{
-				display: "inline-flex",
-				alignItems: "center",
-				justifyContent: "center",
-				inlineSize: "1.5rem",
-				blockSize: "1.5rem",
-				borderRadius: "999px",
-				backgroundColor: `${color}1a`,
-				color,
-				fontWeight: 600,
-				fontVariantNumeric: "tabular-nums",
-			}}
-		>
-			{label}
-		</span>
-	);
+export interface SetupWizardPageProps {
+	client?: ApiClient;
 }
 
-function StatusBanner({
-	bootstrap,
-	targetVersion,
-	isComplete,
-	pendingCount,
-}: {
-	bootstrap: BootstrapState | null;
-	targetVersion: number;
-	isComplete: boolean;
-	pendingCount: number;
-}): ReactElement {
-	let tone: "neutral" | "success" | "warning" = "neutral";
-	let body: ReactElement;
-	if (bootstrap === null) {
-		body = <>Loading bootstrap state…</>;
-	} else if (isComplete) {
-		tone = "success";
-		body = (
-			<>
-				Setup complete — bootstrap version {bootstrap.version} / {targetVersion}. All checks green.
-			</>
-		);
-	} else if (bootstrap.version < targetVersion && bootstrap.completedSteps.length > 0) {
-		tone = "warning";
-		body = (
-			<>
-				A plugin upgrade bumped the bootstrap version. {pendingCount} step
-				{pendingCount === 1 ? "" : "s"} remain.
-			</>
-		);
-	} else {
-		tone = "warning";
-		body = (
-			<Fragment>
-				Bootstrap version {bootstrap.version} / {targetVersion}. {pendingCount} step
-				{pendingCount === 1 ? "" : "s"} remain.
-			</Fragment>
-		);
-	}
-	const palette =
-		tone === "success"
-			? { bg: "#ecfdf5", border: "#86efac", fg: "#166534" }
-			: tone === "warning"
-				? { bg: "#fefce8", border: "#fde68a", fg: "#854d0e" }
-				: { bg: "#f1f5f9", border: "#cbd5e1", fg: "#334155" };
+export function SetupWizardPage({ client }: SetupWizardPageProps = {}): ReactElement {
+	const api = useMemo(() => client ?? createApiClient(), [client]);
+	const [state, setState] = useState<BootstrapState | null>(null);
+	const [targetVersion, setTargetVersion] = useState(BOOTSTRAP_VERSION);
+	const [running, setRunning] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [result, setResult] = useState<SetupResultSummary | null>(null);
+
+	const refresh = useCallback(async () => {
+		try {
+			const response = await api.setup.state();
+			setState(response.state);
+			setTargetVersion(response.targetVersion);
+			setError(null);
+		} catch (caught) {
+			setError(errorMessage(caught));
+		}
+	}, [api]);
+
+	useEffect(() => {
+		void refresh();
+	}, [refresh]);
+
+	const run = useCallback(async () => {
+		setRunning(true);
+		setError(null);
+		try {
+			const response = await api.setup.run();
+			setState(response.state);
+			setResult({
+				schemaWrites: response.schemaWrites,
+				projection: response.projection,
+			});
+		} catch (caught) {
+			setError(errorMessage(caught));
+			await refresh();
+		} finally {
+			setRunning(false);
+		}
+	}, [api, refresh]);
+
 	return (
-		<div
-			style={{
-				marginBlockStart: "1rem",
-				marginBlockEnd: "1rem",
-				paddingBlock: "0.75rem",
-				paddingInline: "1rem",
-				borderRadius: "0.5rem",
-				border: `1px solid ${palette.border}`,
-				backgroundColor: palette.bg,
-				color: palette.fg,
-			}}
-		>
-			{body}
-		</div>
+		<SetupView
+			state={state}
+			targetVersion={targetVersion}
+			running={running}
+			error={error}
+			result={result}
+			onRun={() => void run()}
+			onRefresh={() => void refresh()}
+		/>
 	);
 }
-
-function ErrorBanner({ message }: { message: string }): ReactElement {
-	return (
-		<div
-			role="alert"
-			style={{
-				marginBlockStart: "0.5rem",
-				paddingBlock: "0.75rem",
-				paddingInline: "1rem",
-				borderRadius: "0.5rem",
-				border: "1px solid #fecaca",
-				backgroundColor: "#fef2f2",
-				color: "#991b1b",
-			}}
-		>
-			{message}
-		</div>
-	);
-}
-
-// ── styles ───────────────────────────────────────────────────────────────────
-
-const pageStyle = {
-	padding: "2rem",
-	maxInlineSize: "52rem",
-	marginInline: "auto",
-	fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif",
-	color: "#0f172a",
-} as const;
-
-const headerStyle = {
-	marginBlockEnd: "1.5rem",
-} as const;
-
-const toolbarStyle = {
-	display: "flex",
-	gap: "0.75rem",
-	marginBlockEnd: "1.5rem",
-} as const;
-
-const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
-	paddingBlock: "0.5rem",
-	paddingInline: "1rem",
-	borderRadius: "0.375rem",
-	border: "1px solid transparent",
-	backgroundColor: disabled ? "#94a3b8" : "#2563eb",
-	color: "white",
-	cursor: disabled ? "not-allowed" : "pointer",
-	fontWeight: 600,
-});
-
-const secondaryButtonStyle: React.CSSProperties = {
-	paddingBlock: "0.5rem",
-	paddingInline: "1rem",
-	borderRadius: "0.375rem",
-	border: "1px solid #cbd5e1",
-	backgroundColor: "white",
-	color: "#0f172a",
-	cursor: "pointer",
-};
-
-const tertiaryButtonStyle: React.CSSProperties = {
-	paddingBlock: "0.375rem",
-	paddingInline: "0.75rem",
-	borderRadius: "0.375rem",
-	border: "1px solid #cbd5e1",
-	backgroundColor: "white",
-	color: "#0f172a",
-	cursor: "pointer",
-	fontSize: "0.875rem",
-};
-
-const listStyle = {
-	listStyle: "none",
-	paddingInlineStart: 0,
-	marginBlockStart: 0,
-	marginBlockEnd: 0,
-	display: "flex",
-	flexDirection: "column",
-	gap: "0.75rem",
-} as const;
-
-const itemStyle: React.CSSProperties = {
-	padding: "1rem",
-	border: "1px solid #e2e8f0",
-	borderRadius: "0.5rem",
-	backgroundColor: "white",
-};
-
-const itemHeadStyle: React.CSSProperties = {
-	display: "flex",
-	alignItems: "flex-start",
-	gap: "0.75rem",
-};
-
-const itemTitleStyle: React.CSSProperties = {
-	fontWeight: 600,
-	marginBlockEnd: "0.25rem",
-};
-
-const itemSummaryStyle: React.CSSProperties = {
-	color: "#334155",
-	fontSize: "0.925rem",
-};
-
-const itemDescStyle: React.CSSProperties = {
-	color: "#64748b",
-	fontSize: "0.825rem",
-	marginBlockStart: "0.5rem",
-	marginBlockEnd: 0,
-};
-
-const itemErrorStyle: React.CSSProperties = {
-	marginBlockStart: "0.5rem",
-	color: "#991b1b",
-	fontSize: "0.875rem",
-};
-
-const itemHintStyle: React.CSSProperties = {
-	marginBlockStart: "0.25rem",
-	color: "#166534",
-	fontSize: "0.825rem",
-};
-
-const detailListStyle: React.CSSProperties = {
-	marginBlockStart: "0.375rem",
-	marginBlockEnd: 0,
-	paddingInlineStart: "1.25rem",
-	color: "#475569",
-	fontSize: "0.8125rem",
-};
 
 export default SetupWizardPage;
+
+const pageStyle: CSSProperties = {
+	maxWidth: "56rem",
+	marginInline: "auto",
+	padding: "2rem",
+	color: "#0f172a",
+};
+
+const headerStyle: CSSProperties = { marginBlockEnd: "1.5rem" };
+const eyebrowStyle: CSSProperties = {
+	margin: 0,
+	color: "#4f46e5",
+	fontSize: "0.75rem",
+	fontWeight: 700,
+	letterSpacing: "0.08em",
+	textTransform: "uppercase",
+};
+const titleStyle: CSSProperties = { marginBlock: "0.4rem", fontSize: "2rem" };
+const introStyle: CSSProperties = {
+	maxWidth: "48rem",
+	margin: 0,
+	color: "#475569",
+	lineHeight: 1.6,
+};
+const statusBase: CSSProperties = {
+	padding: "1rem",
+	borderRadius: "0.65rem",
+	lineHeight: 1.55,
+};
+const successStyle: CSSProperties = {
+	...statusBase,
+	border: "1px solid #86efac",
+	background: "#ecfdf5",
+	color: "#166534",
+};
+const warningStyle: CSSProperties = {
+	...statusBase,
+	border: "1px solid #fde68a",
+	background: "#fefce8",
+	color: "#854d0e",
+};
+const errorStyle: CSSProperties = {
+	marginBlockStart: "1rem",
+	padding: "0.85rem 1rem",
+	border: "1px solid #fecaca",
+	borderRadius: "0.65rem",
+	background: "#fef2f2",
+	color: "#991b1b",
+};
+const actionsStyle: CSSProperties = {
+	display: "flex",
+	flexWrap: "wrap",
+	gap: "0.75rem",
+	marginBlock: "1.25rem",
+};
+const primaryButtonStyle = (disabled: boolean): CSSProperties => ({
+	padding: "0.65rem 1rem",
+	border: 0,
+	borderRadius: "0.45rem",
+	background: disabled ? "#94a3b8" : "#4f46e5",
+	color: "white",
+	cursor: disabled ? "not-allowed" : "pointer",
+	fontWeight: 650,
+});
+const secondaryButtonStyle: CSSProperties = {
+	padding: "0.65rem 1rem",
+	border: "1px solid #cbd5e1",
+	borderRadius: "0.45rem",
+	background: "white",
+	color: "#0f172a",
+	cursor: "pointer",
+	fontWeight: 600,
+};
+const resultStyle: CSSProperties = {
+	padding: "1rem",
+	border: "1px solid #cbd5e1",
+	borderRadius: "0.65rem",
+	background: "#f8fafc",
+};
+const sectionTitleStyle: CSSProperties = { marginBlockStart: 0, fontSize: "1rem" };
+const detailsStyle: CSSProperties = { marginBlockStart: "1rem" };
+const noteStyle: CSSProperties = {
+	marginBlockStart: "1.5rem",
+	padding: "1rem",
+	borderInlineStart: "4px solid #818cf8",
+	background: "#eef2ff",
+	color: "#3730a3",
+	lineHeight: 1.55,
+};

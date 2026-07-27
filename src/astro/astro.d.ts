@@ -3,7 +3,7 @@
  *
  * Consuming Astro sites resolve these at build time via the Astro Vite
  * plugin. We only need the shape here so `tsc --noEmit` accepts
- * `src/astro/index.ts`'s import of `./QuizBlock.astro`.
+ * `src/astro/index.ts`'s import of `./KnowledgeCheckBlock.astro`.
  */
 declare module "*.astro" {
 	type Props = Record<string, unknown>;

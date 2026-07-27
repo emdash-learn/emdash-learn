@@ -2,10 +2,12 @@
  * Wizard step catalog (§7). Each step is an idempotent probe/apply pair so a
  * re-run after partial failure lands in the correct state.
  *
- * The wizard runs in the admin browser: `probe()` reports the observed state
- * to the UI, `apply()` performs whatever mutations are needed. Both receive
- * the same `StepContext` so the UI can render precise status text.
+ * The server-side setup orchestrator runs each `probe()`/`apply()` pair and
+ * returns its verified state to the admin UI. Both operations receive the same
+ * `StepContext`.
  */
+
+import type { UpdateCollectionInput } from "emdash";
 
 import type { CoreSchemaClient, RemoteCollectionWithFields } from "./core-schema-client.js";
 import { NOT_FOUND } from "./core-schema-client.js";
@@ -33,12 +35,6 @@ export interface StepApplyResult {
 
 export interface StepContext {
 	schema: CoreSchemaClient;
-	/**
-	 * Invoke a plugin route by name (admin session cookie is ambient).
-	 * Injected by SetupWizardPage; undefined when the step runs outside the
-	 * browser (e.g. reconciler tests where schema-only steps are tested).
-	 */
-	callPluginRoute?: (route: string, input?: unknown) => Promise<unknown>;
 }
 
 export interface WizardStep {
@@ -49,39 +45,124 @@ export interface WizardStep {
 	apply(ctx: StepContext): Promise<StepApplyResult>;
 }
 
-/** Subset of a field definition the fixture cares about for equality checks. */
-const fixtureFieldSlugs = (fixture: CollectionFixture): Set<string> =>
-	new Set(fixture.fields.map((f) => f.slug));
+function canonicalValue(value: unknown): string {
+	if (value === undefined || value === null) return "null";
+	if (Array.isArray(value)) return `[${value.map(canonicalValue).join(",")}]`;
+	if (isRecord(value)) {
+		const entries: Array<[string, unknown]> = Object.entries(value);
+		// oxlint-disable-next-line no-array-sort -- entries is a fresh local copy
+		entries.sort(([left], [right]) => left.localeCompare(right));
+		return `{${entries
+			.map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalValue(entryValue)}`)
+			.join(",")}}`;
+	}
+	return JSON.stringify(value);
+}
 
-const lockedFieldSlugs = (fixture: CollectionFixture): Set<string> =>
-	new Set(fixture.fields.filter((f) => f.locked).map((f) => f.slug));
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function diffFields(
 	fixture: CollectionFixture,
 	remote: RemoteCollectionWithFields,
-): { missing: FieldSpec[]; missingLocked: string[] } {
+): { missing: FieldSpec[] } {
 	const remoteSlugs = new Set(remote.fields.map((f) => f.slug));
 	const missing = fixture.fields.filter((f) => !remoteSlugs.has(f.slug));
-	const missingLocked = [...lockedFieldSlugs(fixture)].filter((slug) => !remoteSlugs.has(slug));
-	return { missing, missingLocked };
+	return { missing };
 }
 
-/**
- * Detects a renamed locked field: present in the fixture, absent remotely, but
- * SOME non-fixture slug with a conflicting label or identical position is
- * present. v1 keeps the heuristic simple: any missing locked slug + any extra
- * slug counts as a suspected rename. Surface the list; never auto-repair.
- */
-function detectRenames(fixture: CollectionFixture, remote: RemoteCollectionWithFields): string[] {
-	const fixtureSlugs = fixtureFieldSlugs(fixture);
-	const { missingLocked } = diffFields(fixture, remote);
-	if (missingLocked.length === 0) return [];
-	const extras = remote.fields.filter((f) => !fixtureSlugs.has(f.slug)).map((f) => f.slug);
-	if (extras.length === 0) return [];
-	return missingLocked.map(
-		(locked) =>
-			`\`${locked}\` appears to have been renamed or removed. Unknown fields present: ${extras.join(", ")}.`,
-	);
+function detectTypeConflicts(
+	fixture: CollectionFixture,
+	remote: RemoteCollectionWithFields,
+): string[] {
+	const specsBySlug = new Map(fixture.fields.map((field) => [field.slug, field]));
+	return remote.fields.flatMap((field) => {
+		const spec = specsBySlug.get(field.slug);
+		if (!spec || spec.type === field.type) return [];
+		return [`\`${field.slug}\` must be \`${spec.type}\`; found \`${field.type}\`.`];
+	});
+}
+
+function detectFieldSemanticConflicts(
+	fixture: CollectionFixture,
+	remote: RemoteCollectionWithFields,
+): string[] {
+	const specsBySlug = new Map(fixture.fields.map((field) => [field.slug, field]));
+	return remote.fields.flatMap((field) => {
+		const spec = specsBySlug.get(field.slug);
+		if (!spec || spec.type !== field.type) return [];
+		const expectedRequired = spec.required ?? false;
+		if (field.required !== expectedRequired) {
+			return [
+				`\`${field.slug}.required\` must be \`${expectedRequired}\`; found \`${field.required}\`.`,
+			];
+		}
+		const expectedUnique = spec.unique ?? false;
+		if (field.unique !== expectedUnique) {
+			return [`\`${field.slug}.unique\` must be \`${expectedUnique}\`; found \`${field.unique}\`.`];
+		}
+		const expectedValidation = spec.validation ?? null;
+		const remoteValidation = field.validation ?? null;
+		if (canonicalValue(remoteValidation) !== canonicalValue(expectedValidation)) {
+			return [
+				`\`${field.slug}.validation\` must be \`${canonicalValue(expectedValidation)}\`; found \`${canonicalValue(remoteValidation)}\`.`,
+			];
+		}
+		const expectedDefault = spec.defaultValue ?? null;
+		const remoteDefault = field.defaultValue ?? null;
+		if (canonicalValue(remoteDefault) !== canonicalValue(expectedDefault)) {
+			return [
+				`\`${field.slug}.defaultValue\` must be \`${canonicalValue(expectedDefault)}\`; found \`${canonicalValue(remoteDefault)}\`.`,
+			];
+		}
+		const expectedOptions = spec.options ?? null;
+		const remoteOptions = field.options ?? null;
+		if (canonicalValue(remoteOptions) !== canonicalValue(expectedOptions)) {
+			return [
+				`\`${field.slug}.options\` must be \`${canonicalValue(expectedOptions)}\`; found \`${canonicalValue(remoteOptions)}\`.`,
+			];
+		}
+		const expectedWidget = spec.widget ?? null;
+		const remoteWidget = field.widget ?? null;
+		if (canonicalValue(remoteWidget) !== canonicalValue(expectedWidget)) {
+			return [
+				`\`${field.slug}.widget\` must be \`${canonicalValue(expectedWidget)}\`; found \`${canonicalValue(remoteWidget)}\`.`,
+			];
+		}
+		const expectedSearchable = spec.searchable ?? false;
+		if (field.searchable !== expectedSearchable) {
+			return [
+				`\`${field.slug}.searchable\` must be \`${expectedSearchable}\`; found \`${field.searchable}\`.`,
+			];
+		}
+		const expectedTranslatable = spec.translatable ?? true;
+		if (field.translatable !== expectedTranslatable) {
+			return [
+				`\`${field.slug}.translatable\` must be \`${expectedTranslatable}\`; found \`${field.translatable}\`.`,
+			];
+		}
+		return [];
+	});
+}
+
+function collectionSettingsPatch(
+	fixture: CollectionFixture,
+	remote: RemoteCollectionWithFields,
+): UpdateCollectionInput | null {
+	const patch: UpdateCollectionInput = {};
+	const expectedSupports = fixture.create.supports ?? [];
+	const missingSupports = expectedSupports.filter((support) => !remote.supports.includes(support));
+	if (missingSupports.length > 0) {
+		patch.supports = [...remote.supports, ...missingSupports];
+	}
+	if (fixture.create.urlPattern !== undefined && remote.urlPattern !== fixture.create.urlPattern) {
+		patch.urlPattern = fixture.create.urlPattern;
+	}
+	if (fixture.create.hasSeo !== undefined && remote.hasSeo !== fixture.create.hasSeo) {
+		patch.hasSeo = fixture.create.hasSeo;
+	}
+	return Object.keys(patch).length > 0 ? patch : null;
 }
 
 function collectionStep(key: FixtureKey): WizardStep {
@@ -89,11 +170,19 @@ function collectionStep(key: FixtureKey): WizardStep {
 	return {
 		id: `collection:${key}`,
 		title: `Create \`${fixture.create.slug}\` collection`,
-		description: `Provisions the \`${fixture.create.slug}\` content collection with its label, icon, URL pattern, and comment settings.`,
+		description: `Creates the \`${fixture.create.slug}\` content collection or repairs its required publishing, search, URL, and SEO settings while preserving administrator-owned comment settings.`,
 		async probe({ schema }) {
 			const existing = await schema.getCollection(fixture.create.slug);
 			if (existing === NOT_FOUND) {
 				return { status: "needs-apply", summary: `\`${fixture.create.slug}\` does not exist.` };
+			}
+			const patch = collectionSettingsPatch(fixture, existing);
+			if (patch) {
+				return {
+					status: "needs-apply",
+					summary: `\`${fixture.create.slug}\` collection settings need repair.`,
+					details: Object.keys(patch).map((setting) => `\`${setting}\``),
+				};
 			}
 			return {
 				status: "ok",
@@ -106,14 +195,21 @@ function collectionStep(key: FixtureKey): WizardStep {
 			if (existing === NOT_FOUND) {
 				await schema.createCollection(fixture.create);
 				writes += 1;
-			}
-			if (fixture.postCreateUpdate) {
-				await schema.updateCollection(fixture.create.slug, fixture.postCreateUpdate);
-				writes += 1;
+			} else {
+				const patch = collectionSettingsPatch(fixture, existing);
+				if (patch) {
+					await schema.updateCollection(fixture.create.slug, patch);
+					writes += 1;
+				}
 			}
 			return {
 				writes,
-				summary: writes === 0 ? "No changes." : `Created \`${fixture.create.slug}\`.`,
+				summary:
+					writes === 0
+						? "No changes."
+						: existing === NOT_FOUND
+							? `Created \`${fixture.create.slug}\`.`
+							: `Repaired \`${fixture.create.slug}\` settings.`,
 			};
 		},
 	};
@@ -124,7 +220,7 @@ function fieldsStep(key: FixtureKey): WizardStep {
 	return {
 		id: `fields:${key}`,
 		title: `Ensure \`${fixture.create.slug}\` fields`,
-		description: `Adds every engine-depended field to \`${fixture.create.slug}\`. Never renames or retypes existing fields.`,
+		description: `Adds every engine-dependent field to \`${fixture.create.slug}\`. Never renames or retypes existing fields.`,
 		async probe({ schema }) {
 			const existing = await schema.getCollection(fixture.create.slug);
 			if (existing === NOT_FOUND) {
@@ -133,15 +229,43 @@ function fieldsStep(key: FixtureKey): WizardStep {
 					summary: `Run "Create \`${fixture.create.slug}\` collection" first.`,
 				};
 			}
-			const renames = detectRenames(fixture, existing);
-			if (renames.length > 0) {
+			const typeConflicts = detectTypeConflicts(fixture, existing);
+			if (typeConflicts.length > 0) {
 				return {
 					status: "conflict",
-					summary: "Locked field rename detected; repair required.",
-					details: renames,
+					summary: "Field type conflict detected; repair required.",
+					details: typeConflicts,
+				};
+			}
+			const semanticConflicts = detectFieldSemanticConflicts(fixture, existing);
+			if (semanticConflicts.length > 0) {
+				return {
+					status: "conflict",
+					summary: "Field semantics conflict detected; repair required.",
+					details: semanticConflicts,
 				};
 			}
 			const { missing } = diffFields(fixture, existing);
+			const missingRequired = missing.filter((field) => field.required === true);
+			if (missingRequired.length > 0) {
+				let isEmpty: boolean;
+				try {
+					isEmpty = await schema.isCollectionEmpty(fixture.create.slug);
+				} catch (error) {
+					return {
+						status: "error",
+						summary: `Could not prove that \`${fixture.create.slug}\` is empty.`,
+						details: [error instanceof Error ? error.message : String(error)],
+					};
+				}
+				if (!isEmpty) {
+					return {
+						status: "conflict",
+						summary: "Required fields cannot be added to a non-empty collection.",
+						details: missingRequired.map((field) => `\`${field.slug}\` is required and missing.`),
+					};
+				}
+			}
 			if (missing.length === 0) {
 				return {
 					status: "ok",
@@ -161,11 +285,23 @@ function fieldsStep(key: FixtureKey): WizardStep {
 					`Collection \`${fixture.create.slug}\` is missing; create it before adding fields.`,
 				);
 			}
-			const renames = detectRenames(fixture, existing);
-			if (renames.length > 0) {
-				throw new Error(`Rename detected — refusing to apply. ${renames.join(" ")}`);
+			const typeConflicts = detectTypeConflicts(fixture, existing);
+			if (typeConflicts.length > 0) {
+				throw new Error(`Field type conflict — refusing to apply. ${typeConflicts.join(" ")}`);
+			}
+			const semanticConflicts = detectFieldSemanticConflicts(fixture, existing);
+			if (semanticConflicts.length > 0) {
+				throw new Error(
+					`Field semantics conflict — refusing to apply. ${semanticConflicts.join(" ")}`,
+				);
 			}
 			const { missing } = diffFields(fixture, existing);
+			const missingRequired = missing.filter((field) => field.required === true);
+			if (missingRequired.length > 0 && !(await schema.isCollectionEmpty(fixture.create.slug))) {
+				throw new Error(
+					`Required fields cannot be added to non-empty collection \`${fixture.create.slug}\`.`,
+				);
+			}
 			await Promise.all(
 				missing.map((spec, i) => {
 					const { locked: _locked, ...createInput } = spec;
@@ -184,55 +320,11 @@ function fieldsStep(key: FixtureKey): WizardStep {
 	};
 }
 
-function finalizeStep(): WizardStep {
-	return {
-		id: "finalize",
-		title: "Finalize setup",
-		description: "Marks the plugin as fully bootstrapped.",
-		async probe() {
-			return { status: "needs-apply", summary: "Ready when the prior steps are green." };
-		},
-		async apply() {
-			return { writes: 0, summary: "Setup marker updated." };
-		},
-	};
-}
-
-function seedContentIndexStep(): WizardStep {
-	return {
-		id: "seed-content-index",
-		title: "Seed curriculum index",
-		description:
-			"Populates the course_content_index projection from existing published lessons and topics. Safe to re-run — rows are upserted, not duplicated.",
-		async probe() {
-			// We can't cheaply query whether the index is populated from the
-			// browser without a dedicated status route. Report `needs-apply`
-			// unconditionally; the apply is idempotent so re-running is safe.
-			return {
-				status: "needs-apply",
-				summary: "Run to seed (or re-seed) the curriculum projection.",
-			};
-		},
-		async apply({ callPluginRoute }) {
-			if (!callPluginRoute) {
-				// Running outside a browser context (e.g. unit tests). Skip silently.
-				return { writes: 0, summary: "Skipped (no plugin route caller available)." };
-			}
-			await callPluginRoute("admin:seed-content-index");
-			return { writes: 1, summary: "Curriculum index seeded." };
-		},
-	};
-}
-
 export const WIZARD_STEPS: readonly WizardStep[] = [
 	collectionStep("courses"),
 	fieldsStep("courses"),
 	collectionStep("lessons"),
 	fieldsStep("lessons"),
-	collectionStep("topics"),
-	fieldsStep("topics"),
-	seedContentIndexStep(),
-	finalizeStep(),
 ];
 
 export function stepById(id: string): WizardStep | undefined {

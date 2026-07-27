@@ -14,6 +14,7 @@ Steps to reproduce the behaviour.
 What you expected to happen.
 
 **Environment**
+
 - `@emdash/lms-core` version:
 - `emdash` version:
 - Node.js version:

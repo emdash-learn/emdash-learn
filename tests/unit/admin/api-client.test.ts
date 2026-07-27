@@ -1,15 +1,6 @@
-/**
- * Unit tests for `src/admin/api-client.ts` (T18).
- *
- * Covers the transport contract (envelope, headers, CSRF), typed error surface
- * (`LmsApiError`), and route-name routing across the nested client.
- */
-
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient, LmsApiError } from "../../../src/admin/api-client.js";
-
-type FetchMock = ReturnType<typeof vi.fn>;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 	return new Response(JSON.stringify(body), {
@@ -19,187 +10,233 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 	});
 }
 
-function textResponse(text: string, init: ResponseInit = {}): Response {
-	return new Response(text, {
-		status: 200,
-		headers: { "Content-Type": "text/plain" },
-		...init,
-	});
+function makeFetchMock() {
+	return vi.fn<typeof fetch>();
 }
 
-function makeClient(fetchMock: FetchMock) {
-	return createApiClient({ fetch: fetchMock as unknown as typeof fetch });
+function makeClient(fetchMock: typeof fetch) {
+	return createApiClient({ fetch: fetchMock });
 }
 
 describe("createApiClient", () => {
-	it("unwraps `data` on a 2xx envelope and returns the inner value", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
+	it("preserves the setup wizard contract", async () => {
+		const fetchMock = makeFetchMock();
+		fetchMock.mockResolvedValue(
 			jsonResponse({ data: { state: { version: 1, completedSteps: [] }, targetVersion: 1 } }),
 		);
 		const api = makeClient(fetchMock);
 
-		const res = await api.setup.state();
-		expect(res).toEqual({
+		await expect(api.setup.state()).resolves.toEqual({
 			state: { version: 1, completedSteps: [] },
 			targetVersion: 1,
 		});
+		expect(fetchMock.mock.calls[0]?.[0]).toBe("/_emdash/api/plugins/lms-core/setup:state");
 	});
 
-	it("throws LmsApiError with code + message + status on an error envelope", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
+	it("runs server-derived setup convergence without accepting client step claims", async () => {
+		const fetchMock = makeFetchMock();
+		const result = {
+			state: {
+				version: 4,
+				completedSteps: ["collections:courses"],
+				lastRunAt: "2026-07-26T12:00:00.000Z",
+			},
+			schemaWrites: 2,
+			projection: { errors: 0 },
+		};
+		fetchMock.mockResolvedValue(jsonResponse({ data: result }));
+		const api = makeClient(fetchMock);
+
+		await expect(api.setup.run()).resolves.toEqual(result);
+		expect(fetchMock.mock.calls[0]?.[0]).toBe("/_emdash/api/plugins/lms-core/setup:run");
+		expect(fetchMock.mock.calls[0]?.[1]?.body).toBe("{}");
+		expect(api.setup).not.toHaveProperty("mark");
+	});
+
+	it("maps the canonical Assessment draft lifecycle to exact route payloads", async () => {
+		const fetchMock = makeFetchMock();
+		const draft = {
+			courseId: "course-1",
+			title: "Safety check",
+			passingScore: 70,
+			questions: [
+				{
+					id: "question-1",
+					type: "true_false" as const,
+					prompt: "Inspect first?",
+					points: 1,
+					correctAnswer: true,
+				},
+			],
+		};
+		const api = makeClient(fetchMock);
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { items: [] } }));
+		await api.assessment.listDrafts();
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { checkId: "check-1", ...draft } }));
+		await api.assessment.getDraft("check-1");
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { checkId: "check-1", ...draft } }));
+		await api.assessment.createDraft(draft);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { checkId: "check-1", ...draft } }));
+		await api.assessment.updateDraft("check-1", draft);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { deleted: true } }));
+		await api.assessment.deleteDraft("check-1");
+
+		expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.body])).toEqual([
+			["/_emdash/api/plugins/lms-core/assessment:draft-list", "{}"],
+			["/_emdash/api/plugins/lms-core/assessment:draft-get", '{"checkId":"check-1"}'],
+			["/_emdash/api/plugins/lms-core/assessment:draft-create", JSON.stringify(draft)],
+			[
+				"/_emdash/api/plugins/lms-core/assessment:draft-update",
+				JSON.stringify({ checkId: "check-1", draft }),
+			],
+			["/_emdash/api/plugins/lms-core/assessment:draft-delete", '{"checkId":"check-1"}'],
+		]);
+	});
+
+	it("maps publish and archive without treating publication as draft status", async () => {
+		const fetchMock = makeFetchMock();
+		const api = makeClient(fetchMock);
+
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({
+				data: {
+					courseId: "course-1",
+					checkId: "check-1",
+					revisionId: "revision-2",
+					title: "Safety check",
+					passingScore: 70,
+					questions: [],
+				},
+			}),
+		);
+		await expect(api.assessment.publish("check-1")).resolves.toMatchObject({
+			checkId: "check-1",
+			revisionId: "revision-2",
+		});
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { archived: true } }));
+		await expect(api.assessment.archive("check-1")).resolves.toEqual({ archived: true });
+
+		expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.body])).toEqual([
+			["/_emdash/api/plugins/lms-core/assessment:publish", '{"checkId":"check-1"}'],
+			["/_emdash/api/plugins/lms-core/assessment:archive", '{"checkId":"check-1"}'],
+		]);
+	});
+
+	it("loads published courses for the assessment course selector", async () => {
+		const fetchMock = makeFetchMock();
+		fetchMock.mockResolvedValue(
+			jsonResponse({
+				data: {
+					items: [{ id: "course-1", title: "Safety", slug: "safety", publishedAt: null }],
+					hasMore: false,
+				},
+			}),
+		);
+		const api = makeClient(fetchMock);
+
+		await expect(api.courses.listPublished({ limit: 100 })).resolves.toMatchObject({
+			items: [{ id: "course-1", title: "Safety" }],
+			hasMore: false,
+		});
+		expect(fetchMock.mock.calls[0]?.[0]).toBe("/_emdash/api/plugins/lms-core/catalog");
+		expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"limit":100}');
+	});
+
+	it("queries engagement reporting with the exact range and optional Course filter", async () => {
+		const fetchMock = makeFetchMock();
+		fetchMock.mockResolvedValue(
+			jsonResponse({
+				data: {
+					calculatedThrough: "2026-07-26T12:00:00.000Z",
+					courses: [
+						{
+							courseId: "course-1",
+							opens: 8,
+							lessonOpens: 7,
+							checkOpens: 3,
+							checkSubmissions: 2,
+							passedSubmissions: 1,
+						},
+					],
+				},
+			}),
+		);
+		const api = makeClient(fetchMock);
+
+		await expect(
+			api.reporting.query({
+				from: "2026-07-20T00:00:00.000Z",
+				to: "2026-07-27T00:00:00.000Z",
+				courseId: "course-1",
+			}),
+		).resolves.toMatchObject({
+			calculatedThrough: "2026-07-26T12:00:00.000Z",
+			courses: [{ courseId: "course-1", opens: 8 }],
+		});
+		expect(fetchMock.mock.calls[0]?.[0]).toBe("/_emdash/api/plugins/lms-core/reporting:query");
+		expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+			'{"from":"2026-07-20T00:00:00.000Z","to":"2026-07-27T00:00:00.000Z","courseId":"course-1"}',
+		);
+	});
+
+	it("sends the EmDash CSRF header and same-origin credentials", async () => {
+		const fetchMock = makeFetchMock();
+		fetchMock.mockResolvedValue(jsonResponse({ data: { items: [] } }));
+		const api = makeClient(fetchMock);
+		await api.assessment.listDrafts();
+
+		const firstCall = fetchMock.mock.calls[0];
+		expect(firstCall).toBeDefined();
+		const init = firstCall?.[1];
+		expect(init).toMatchObject({
+			method: "POST",
+			credentials: "same-origin",
+			body: "{}",
+		});
+		expect(init.headers).toMatchObject({
+			"Content-Type": "application/json",
+			Accept: "application/json",
+			"X-EmDash-Request": "1",
+		});
+	});
+
+	it("surfaces plugin error envelopes as LmsApiError", async () => {
+		const fetchMock = makeFetchMock();
+		fetchMock.mockResolvedValue(
 			jsonResponse(
-				{ error: { code: "LEARN_NOT_ENROLLED", message: "not enrolled" } },
-				{ status: 403 },
+				{ error: { code: "LEARN_ASSESSMENT_NOT_FOUND", message: "Not found" } },
+				{ status: 404 },
 			),
 		);
 		const api = makeClient(fetchMock);
 
-		let caught: unknown;
-		try {
-			await api.enrollments.unenroll({ enrollmentId: "enr_123" });
-		} catch (err) {
-			caught = err;
-		}
-		expect(caught).toBeInstanceOf(LmsApiError);
-		const err = caught as LmsApiError;
-		expect(err.code).toBe("LEARN_NOT_ENROLLED");
-		expect(err.message).toBe("not enrolled");
-		expect(err.status).toBe(403);
-	});
-
-	it("maps a non-JSON response to NETWORK_ERROR", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			textResponse("<html>502 Bad Gateway</html>", { status: 502 }),
-		);
-		const api = makeClient(fetchMock);
-
-		await expect(api.setup.state()).rejects.toMatchObject({
+		await expect(api.assessment.getDraft("missing")).rejects.toMatchObject({
 			name: "LmsApiError",
-			code: "NETWORK_ERROR",
-			status: 502,
+			code: "LEARN_ASSESSMENT_NOT_FOUND",
+			message: "Not found",
+			status: 404,
 		});
 	});
 
-	it("maps a fetch rejection to NETWORK_ERROR with status 0", async () => {
-		const fetchMock: FetchMock = vi.fn(async () => {
-			throw new TypeError("Failed to fetch");
-		});
-		const api = makeClient(fetchMock);
-
-		await expect(api.setup.state()).rejects.toMatchObject({
-			name: "LmsApiError",
-			code: "NETWORK_ERROR",
-			status: 0,
-			message: "Failed to fetch",
-		});
-	});
-
-	it("sends X-EmDash-Request, JSON content type, and same-origin credentials", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ data: { items: [], hasMore: false } }),
-		);
-		const api = makeClient(fetchMock);
-
-		await api.catalog({ limit: 10 });
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("/_emdash/api/plugins/lms-core/catalog");
-		expect(init.method).toBe("POST");
-		expect(init.credentials).toBe("same-origin");
-		const headers = init.headers as Record<string, string>;
-		expect(headers["X-EmDash-Request"]).toBe("1");
-		expect(headers["Content-Type"]).toBe("application/json");
-		expect(headers["Accept"]).toBe("application/json");
-	});
-
-	it("sends `{}` as body for input-less methods", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ data: { state: { version: 0, completedSteps: [] }, targetVersion: 1 } }),
-		);
-		const api = makeClient(fetchMock);
-
-		await api.setup.state();
-		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(init.body).toBe("{}");
-	});
-
-	it("routes calls to the correct wire-level route name", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ data: { ok: true, progress: {} } }),
-		);
-		const api = makeClient(fetchMock);
-
-		await api.progress.tick({
-			stepType: "lesson",
-			stepId: "lesson_1",
-			positionSeconds: 30,
-			percentComplete: 50,
-		});
-		const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("/_emdash/api/plugins/lms-core/progress:tick");
-
-		fetchMock.mockClear();
-		fetchMock.mockResolvedValueOnce(jsonResponse({ data: { items: [], hasMore: false } }));
-		await api.curriculum.myLearning({ status: "active" });
-		const [url2] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url2).toBe("/_emdash/api/plugins/lms-core/my-learning");
-
-		fetchMock.mockClear();
-		fetchMock.mockResolvedValueOnce(
-			jsonResponse({
-				data: {
-					added: [],
-					unknownEmails: [],
-					alreadyMembers: [],
-					counts: { added: 0, unknown: 0, alreadyMembers: 0 },
-				},
+	it("maps network and malformed responses to stable client errors", async () => {
+		const rejected = makeFetchMock();
+		rejected.mockRejectedValue(new TypeError("Failed to fetch"));
+		await expect(makeClient(rejected).setup.state()).rejects.toEqual(
+			expect.objectContaining<LmsApiError>({
+				name: "LmsApiError",
+				code: "NETWORK_ERROR",
+				message: "Failed to fetch",
+				status: 0,
 			}),
 		);
-		await api.cohorts.import({ cohortId: "coh_1", emails: ["x@y.z"] });
-		const [url3] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url3).toBe("/_emdash/api/plugins/lms-core/cohort:import");
 
-		fetchMock.mockClear();
-		fetchMock.mockResolvedValueOnce(
-			jsonResponse({ data: { totalStudents: 0, active30d: 0, avgCompletion: 0, quizPassRate: 0 } }),
-		);
-		await api.instructorAnalytics.dashboardStats();
-		const [url4] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url4).toBe("/_emdash/api/plugins/lms-core/instructor:dashboard-stats");
-	});
-
-	it("serializes input payloads as JSON on the body", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ data: { ok: true, enrollment: {} } }),
-		);
-		const api = makeClient(fetchMock);
-
-		await api.enrollments.enroll({ courseId: "course_1", source: "free" });
-		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(init.body).toBe(JSON.stringify({ courseId: "course_1", source: "free" }));
-	});
-
-	it("throws MALFORMED_RESPONSE when a 2xx body is missing the `data` wrapper", async () => {
-		const fetchMock: FetchMock = vi.fn(async () => jsonResponse({ unexpected: "shape" }));
-		const api = makeClient(fetchMock);
-
-		await expect(api.setup.state()).rejects.toMatchObject({
+		const malformed = makeFetchMock();
+		malformed.mockResolvedValue(jsonResponse({ unexpected: true }));
+		await expect(makeClient(malformed).setup.state()).rejects.toMatchObject({
 			code: "MALFORMED_RESPONSE",
 			status: 200,
 		});
-	});
-
-	it("uses a custom baseUrl when provided", async () => {
-		const fetchMock: FetchMock = vi.fn(async () =>
-			jsonResponse({ data: { items: [], hasMore: false } }),
-		);
-		const api = createApiClient({
-			fetch: fetchMock as unknown as typeof fetch,
-			baseUrl: "https://example.com/api/plugins/lms-core",
-		});
-
-		await api.catalog();
-		const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
-		expect(url).toBe("https://example.com/api/plugins/lms-core/catalog");
 	});
 });
