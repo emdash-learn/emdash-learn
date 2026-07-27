@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1
+
+### Patch Changes
+
+- 147023f: Replace the pre-release README with current installation, setup, public API,
+  browser progress, Knowledge Check, reporting, compatibility, and contributor
+  guidance.
+- 0d25b1a: Set the package homepage and public README to the official EmDash Learn website
+  at `https://emdashlearn.com/`.
+
 All notable changes to `@emdashlms/plugin` are documented in this file.
 
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html), and
