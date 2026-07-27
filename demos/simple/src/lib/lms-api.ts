@@ -1,9 +1,4 @@
-/**
- * Tiny server-side helper the Astro pages use to call the plugin's public
- * routes. Mirrors the CSRF + cookie passthrough the admin api-client does
- * in the browser, minus the typed wrappers — demo pages only need the
- * shape-agnostic `call` function.
- */
+/** Tiny server-side helper for the plugin's public routes. */
 
 const PLUGIN_PREFIX = "/_emdash/api/plugins/lms-core";
 
@@ -28,17 +23,17 @@ interface EmdashSuccessEnvelope<T> {
 }
 
 function isSuccess<T>(value: unknown): value is EmdashSuccessEnvelope<T> {
-	return (
-		typeof value === "object" && value !== null && "data" in (value as Record<string, unknown>)
-	);
+	return typeof value === "object" && value !== null && Reflect.has(value, "data");
 }
 
 function isFailure(value: unknown): value is EmdashErrorEnvelope {
+	if (typeof value !== "object" || value === null || !Reflect.has(value, "error")) return false;
+	const error = Reflect.get(value, "error");
 	return (
-		typeof value === "object" &&
-		value !== null &&
-		"error" in (value as Record<string, unknown>) &&
-		typeof (value as { error?: unknown }).error === "object"
+		typeof error === "object" &&
+		error !== null &&
+		typeof Reflect.get(error, "code") === "string" &&
+		typeof Reflect.get(error, "message") === "string"
 	);
 }
 
@@ -128,11 +123,23 @@ export async function callLmsRoute<T = unknown>(
 	return { ok: true, data: parsed.data };
 }
 
-export function escapeHtml(input: string): string {
-	return input
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
+/** Extract plain paragraphs from the subset of Portable Text used by the demo. */
+export function portableTextParagraphs(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const paragraphs: string[] = [];
+	for (const block of value) {
+		if (typeof block !== "object" || block === null) continue;
+		const children = Reflect.get(block, "children");
+		if (!Array.isArray(children)) continue;
+		const text = children
+			.map((child) => {
+				if (typeof child !== "object" || child === null) return "";
+				const childText = Reflect.get(child, "text");
+				return typeof childText === "string" ? childText : "";
+			})
+			.join("")
+			.trim();
+		if (text) paragraphs.push(text);
+	}
+	return paragraphs;
 }

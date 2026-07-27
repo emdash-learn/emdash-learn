@@ -9,3 +9,14 @@ pnpm-lock.yaml
 demos/simple/emdash-env.d.ts
 # Astro single-file components need prettier-plugin-astro (not installed).
 demos/simple/src/pages/**/*.astro
+
+# Historical research and planning records are retained verbatim.
+AUDIT.md
+docs/emdash-issues-from-t28.md
+docs/internal/emdash-learn-viability.md
+docs/internal/prd-plugin.md
+docs/testing-t28-local.md
+docs/upstream/emdash-route-context-user.md
+docs/upstream/plugin-schema-api.md
+docs/v1-decisions.md
+docs/v1-dispatch-plan.md

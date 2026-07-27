@@ -16,6 +16,8 @@ coverage/
 # databases
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # editor / OS
 .DS_Store
