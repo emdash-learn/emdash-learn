@@ -1,6 +1,6 @@
 {
 	"name": "@emdashlms/plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Community-maintained learning and course publishing plugin for EmDash CMS.",
 	"type": "module",
 	"license": "MIT",
