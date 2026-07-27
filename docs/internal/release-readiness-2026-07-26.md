@@ -124,11 +124,12 @@ account candidate.
 - [x] Push `release/0.1.0`, open pull request
       [#3](https://github.com/emdash-learn/emdash-learn/pull/3) against `main`,
       and pass CI, CodeQL, and dependency review.
-- [ ] At organization level, allow Actions to create pull requests or add the
-      documented fine-grained `CHANGESETS_TOKEN` repository secret.
-- [ ] Configure the protected GitHub `npm` environment and first-publication
-      `NPM_TOKEN`; after the first publish, configure npm trusted publishing and
-      revoke the token.
+- [x] Allow GitHub Actions to create Changesets pull requests at the
+      organization and repository levels.
+- [x] Configure the GitHub `npm` environment and first-publication
+      `NPM_TOKEN`.
+- [ ] After the first publish, configure npm trusted publishing and revoke the
+      first-publication token.
 - [ ] Obtain project maintainer review.
 - [ ] Merge through the repository's required checks.
 - [ ] Sign and push `v0.1.0`; let the release workflow publish npm and create
