@@ -97,14 +97,67 @@ pnpm test:e2e
 For a release change, also inspect `pnpm pack --dry-run` and install the packed
 artifact into a temporary consumer against published EmDash 0.31.
 
-## Pull requests
+## Gitflow branches
 
-Create a branch from `develop`, keep each pull request focused, and add a
-Changesets entry for user-visible changes:
+The repository uses Gitflow:
+
+- `main` contains published production releases and release tags.
+- `develop` is the default integration branch.
+- `feature/*`, `fix/*`, `refactor/*`, `perf/*`, `docs/*`, `test/*`, `ci/*`,
+  `build/*`, and `chore/*` branch from and merge into `develop`.
+- `release/X.Y.Z` branches from versioned `develop` and merges into `main`.
+- `hotfix/X.Y.Z` branches from and merges into `main`.
+- After each release or hotfix, merge `main` back into `develop`.
+
+Use lowercase, hyphenated branch descriptions, such as
+`feature/course-search`. Release and hotfix branch names must contain an exact
+semantic version.
+
+CI rejects branch/base combinations outside this policy. See the complete
+[release process](./docs/maintainers/release-process.md).
+
+## Conventional Commits
+
+Every commit and pull-request title must follow
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+type(optional-scope): imperative summary
+```
+
+Examples:
+
+```text
+feat(assessment): add multiple-choice explanations
+fix(reporting): preserve the requested UTC range
+docs: explain browser-local progress
+chore(release): prepare 0.1.0
+```
+
+Allowed types are `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
+`refactor`, `revert`, `style`, and `test`. Headers may not exceed 100
+characters. The local `commit-msg` hook and CI both run Commitlint.
+
+Install dependencies once to activate the Husky hooks:
+
+```bash
+pnpm install
+```
+
+The pre-push hook runs `pnpm check`. Hooks are a convenience; GitHub checks
+remain authoritative.
+
+## Pull requests and Changesets
+
+Keep each pull request focused. Add a Changeset for every package-facing change:
 
 ```bash
 pnpm changeset
 ```
+
+Documentation, tests, and internal maintenance that cannot affect consumers do
+not need a Changeset. Pull-request titles are linted because squash merges use
+the title as the resulting Conventional Commit.
 
 The first public release has no compatibility obligation to unreleased WIP
 storage. After that release, storage and interface migrations require an

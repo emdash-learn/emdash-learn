@@ -8,7 +8,7 @@ import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { sqlite } from "emdash/db";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const currentDirectory = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
 	output: "server",
@@ -24,7 +24,7 @@ export default defineConfig({
 	vite: {
 		server: {
 			fs: {
-				allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../../emdash")],
+				allow: [resolve(currentDirectory, "../.."), resolve(currentDirectory, "../../../emdash")],
 			},
 		},
 	},

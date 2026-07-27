@@ -20,7 +20,7 @@ export function createRouteContext<TInput>(
 			async get<T>(key: string) {
 				const value = kvValues.get(key);
 				// This typed test adapter owns the values supplied by each test.
-				// oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion)
+				// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test-owned values match the requested fixture type
 				return value === undefined ? null : (structuredClone(value) as T);
 			},
 			async set(key, value) {

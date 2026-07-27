@@ -49,7 +49,7 @@ function requireCollection<T>(ctx: PluginContext, name: string): StorageCollecti
 	}
 	// Storage is type-erased by EmDash and recovered at this composition boundary;
 	// each domain adapter validates/owns the records in its declared collection.
-	// oxlint-disable-next-line typescript-eslint(no-unsafe-type-assertion)
+	// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- intentional type recovery at the EmDash storage boundary
 	return collection as StorageCollection<T>;
 }
 

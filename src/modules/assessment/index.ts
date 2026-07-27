@@ -38,10 +38,7 @@ export interface ShortTextQuestion extends QuestionBase {
 }
 
 export type DraftQuestion =
-	| SingleChoiceQuestion
-	| MultipleChoiceQuestion
-	| TrueFalseQuestion
-	| ShortTextQuestion;
+	SingleChoiceQuestion | MultipleChoiceQuestion | TrueFalseQuestion | ShortTextQuestion;
 
 export interface DraftCheckInput {
 	courseId: string;
@@ -215,10 +212,7 @@ export interface Assessment {
 }
 
 export type AssessmentErrorCode =
-	| "INVALID_DRAFT"
-	| "INVALID_SUBMISSION"
-	| "NOT_FOUND"
-	| "SUBMISSION_CONFLICT";
+	"INVALID_DRAFT" | "INVALID_SUBMISSION" | "NOT_FOUND" | "SUBMISSION_CONFLICT";
 
 export class AssessmentError extends Error {
 	readonly code: AssessmentErrorCode;

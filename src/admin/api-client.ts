@@ -80,14 +80,14 @@ interface ApiErrorEnvelope {
 
 function isApiError(body: unknown): body is ApiErrorEnvelope {
 	if (typeof body !== "object" || body === null || !("error" in body)) return false;
-	const error = (body as { error: unknown }).error;
+	const error = body.error;
 	return (
 		typeof error === "object" &&
 		error !== null &&
 		"code" in error &&
-		typeof (error as { code: unknown }).code === "string" &&
+		typeof error.code === "string" &&
 		"message" in error &&
-		typeof (error as { message: unknown }).message === "string"
+		typeof error.message === "string"
 	);
 }
 

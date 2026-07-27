@@ -4,7 +4,7 @@ Date: 2026-07-26
 
 Target: `@emdash/lms-core@0.1.0`
 
-Core compatibility: published EmDash `^0.31.1`
+Compatibility: published EmDash `^0.31.1`, Astro `^7.1.3`, and Node 22.12+
 
 ## Decision
 
@@ -21,9 +21,10 @@ import, profile reporting, and account privacy-erasure routes.
 
 ## Branch strategy
 
-- `codex/learn-0.1`: current-Core release candidate.
-- `codex/learn-account-future`: preserved, validated account-enabled
+- `release/0.1.0`: current-Core release candidate.
+- `future/account-learning`: preserved, validated account-enabled
   implementation candidate.
+- `archive/pre-release-refactor`: pre-release baseline retained for reference.
 
 The future branch is not a source of version 0.1 requirements. Before it can
 ship, it must be reconciled with the official Core contract proposed in
@@ -76,32 +77,65 @@ account candidate.
 - [x] Node 22 runtime confirmed (`v22.23.1`)
 - [x] `pnpm install --frozen-lockfile`
 - [x] `pnpm typecheck`
-- [x] `pnpm lint`
+- [x] `pnpm lint` with zero warnings
+- [x] all five GitHub Actions workflows pass local Actionlint validation
 - [x] `pnpm format:check`
 - [x] no formatting diff after the format gate
 - [x] unit tests (93 passing)
 - [x] integration tests (93 passing)
+- [x] repository-policy tests (5 passing)
 - [x] production package build
 - [x] anonymous browser E2E suite (4 passing)
 - [x] demo typecheck
 - [x] demo production build
+- [x] zero known dependency vulnerabilities at moderate severity or above
+- [x] package exports pass Publint and Are the Types Wrong for ESM consumers
 - [x] `pnpm pack --dry-run` contents inspected
 - [x] packed root, sandbox, admin, browser, and Astro consumer imports/build
 - [x] clean-checkout install and release suite
+
+## Repository governance and automation
+
+- [x] `main` exists as the production branch; `develop` remains the default
+      integration branch.
+- [x] Both permanent branches require pull requests, an up-to-date base,
+      successful complete CI, and resolved conversations.
+- [x] Force pushes and branch deletion are disabled; rules also apply to
+      administrators.
+- [x] Gitflow branch/base rules and Conventional Commit titles/commits are
+      enforced in CI.
+- [x] Local Husky hooks validate commit messages and run the release check
+      before pushes.
+- [x] Changesets owns semantic versions and `CHANGELOG.md`.
+- [x] CI, dependency review, CodeQL, Dependabot, version-PR, npm publish, and
+      GitHub release workflows/configuration are present.
+- [x] Every GitHub Action reference is pinned to a full commit SHA, and GitHub
+      rejects unpinned actions.
+- [x] Secret scanning, push protection, Dependabot security updates, and
+      private vulnerability reporting are enabled.
+- [x] Discussions are enabled for support; the unused wiki is disabled.
+- [x] Contribution, support, security, conduct, ownership, issue, and pull
+      request policies are present.
 
 ## Publication gates requiring maintainer action
 
 - [ ] Confirm package name and npm publishing rights for
       `@emdash/lms-core`.
-- [ ] Push the release branch and open the repository pull request.
+- [ ] At organization level, allow Actions to create pull requests or add the
+      documented fine-grained `CHANGESETS_TOKEN` repository secret.
+- [ ] Configure the protected GitHub `npm` environment and first-publication
+      `NPM_TOKEN`; after the first publish, configure npm trusted publishing and
+      revoke the token.
+- [ ] Push `release/0.1.0` and open its pull request against `main`.
 - [ ] Obtain project maintainer review.
 - [ ] Merge through the repository's required checks.
-- [ ] Let Changesets produce version `0.1.0`.
-- [ ] Publish the public npm package.
+- [ ] Sign and push `v0.1.0`; let the release workflow publish npm and create
+      the GitHub release.
+- [ ] Merge `main` back into `develop`.
 - [ ] Verify install and demo build from the published tarball.
 
-No npm publish, remote branch push, or pull request creation is implied by
-local release validation.
+The release branch is not pushed and no pull request or npm publication has
+been created.
 
 ## Deferred account-release gates
 

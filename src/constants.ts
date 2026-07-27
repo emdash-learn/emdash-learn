@@ -2,6 +2,7 @@
 export const PLUGIN_ID = "lms-core";
 
 // Replaced by tsdown so the runtime descriptor matches package.json.
+// oxlint-disable-next-line no-underscore-dangle
 declare const __PLUGIN_VERSION__: string;
 export const PLUGIN_VERSION: string =
 	typeof __PLUGIN_VERSION__ !== "undefined" ? __PLUGIN_VERSION__ : "0.0.0";

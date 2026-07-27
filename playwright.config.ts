@@ -33,8 +33,8 @@ export default defineConfig({
 		? undefined
 		: {
 				command:
-					`EMDASH_LEARN_SITE_URL=${localBaseUrl} ` +
-					`pnpm --filter ./demos/simple exec astro dev --port ${localPort} --strictPort`,
+					`ASTRO_DEV_BACKGROUND=0 EMDASH_LEARN_SITE_URL=${localBaseUrl} ` +
+					`pnpm --filter ./demos/simple exec astro dev --force --port ${localPort} --strictPort`,
 				url: localBaseUrl,
 				reuseExistingServer: false,
 				timeout: 120_000,

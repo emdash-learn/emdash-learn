@@ -75,7 +75,7 @@ claiming capabilities that Core does not yet expose to plugins.
   reporting, and setup.
 - The package exports plugin metadata, sandbox routes, admin pages, the browser
   client, and the canonical Astro block renderer.
-- The package declares compatibility with EmDash `^0.31.1`, Astro `^6.0.0`,
+- The package declares compatibility with EmDash `^0.31.1`, Astro `^7.1.3`,
   React/React DOM `^19.0.0`, and Node `>=22.12.0`.
 
 ## Privacy boundary

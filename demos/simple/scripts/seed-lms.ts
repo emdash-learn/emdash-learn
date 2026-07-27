@@ -188,10 +188,9 @@ async function removeSupersededDemoSchema(registry: SchemaRegistry): Promise<voi
 function tableExists(sqlite: BetterSqlite3.Database, table: string): boolean {
 	return Boolean(
 		sqlite
-			.prepare<
-				[string],
-				{ name: string }
-			>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+			.prepare<[string], { name: string }>(
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+			)
 			.get(table),
 	);
 }

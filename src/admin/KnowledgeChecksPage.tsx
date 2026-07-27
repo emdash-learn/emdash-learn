@@ -519,13 +519,15 @@ export interface KnowledgeCheckEditorViewProps {
 	onDelete: () => void;
 }
 
+const EMPTY_COURSE_OPTIONS: CourseOption[] = [];
+
 export function KnowledgeCheckEditorView({
 	checkId,
 	draft,
 	errors,
 	notice,
 	busyAction,
-	courseOptions = [],
+	courseOptions = EMPTY_COURSE_OPTIONS,
 	coursesLoading = false,
 	coursesError = null,
 	onDraftChange,

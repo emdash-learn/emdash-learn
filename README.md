@@ -5,6 +5,8 @@ anonymous engagement reporting for
 [EmDash](https://github.com/emdash-cms/emdash).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![CI](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/emdash-learn/emdash-learn/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/emdash-learn/emdash-learn/actions/workflows/codeql.yml)
 
 > [!IMPORTANT]
 > EmDash Learn is pre-release. Version 0.1 targets the currently published
@@ -105,7 +107,7 @@ read, not the latest visitor-activity timestamp.
 | Dependency        | Target      |
 | ----------------- | ----------- |
 | EmDash            | `^0.31.1`   |
-| Astro             | `^6.0.0`    |
+| Astro             | `^7.1.3`    |
 | React / React DOM | `^19.0.0`   |
 | Node.js           | `>=22.12.0` |
 | pnpm              | `10.x`      |
@@ -135,6 +137,10 @@ Account-linked progress is a future track. It must use the official EmDash
 authenticated route context after
 [emdash-cms/emdash#812](https://github.com/emdash-cms/emdash/issues/812)
 lands; it is not emulated in version 0.1.
+
+Contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+Gitflow and Conventional Commits workflow, and [CHANGELOG.md](./CHANGELOG.md)
+for published changes.
 
 ## License
 
