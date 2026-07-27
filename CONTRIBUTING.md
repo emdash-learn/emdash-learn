@@ -1,6 +1,6 @@
 # Contributing to EmDash Learn
 
-Thanks for helping build `@emdash/lms-core`.
+Thanks for helping build `@emdashlms/plugin`.
 
 Read the [authoritative product scope](./docs/product-scope.md) and current
 [release checklist](./docs/internal/release-readiness-2026-07-26.md) before

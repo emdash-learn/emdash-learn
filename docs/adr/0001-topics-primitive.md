@@ -14,7 +14,7 @@
 
 ## Context
 
-`@emdash/lms-core` currently models course content as **Course → Lesson → (optional Quiz)**. Lessons are the only sub-course content unit.
+`@emdashlms/plugin` currently models course content as **Course → Lesson → (optional Quiz)**. Lessons are the only sub-course content unit.
 
 We want to later ship a **LearnDash → emdash-learn migration plugin**. Research of the LearnDash data model and REST API surface (see `emdash-learn-viability.md`, sections 1–4) confirms LearnDash's canonical hierarchy is:
 

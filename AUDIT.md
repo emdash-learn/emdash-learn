@@ -1,4 +1,4 @@
-# `@emdash/lms-core` v1 pre-release audit
+# `@emdashlms/plugin` v1 pre-release audit
 
 Auditor: external staff engineer / software architect, performing a pre-release review.
 Commit audited: `1aa9e69` on `develop`.
@@ -356,7 +356,7 @@ Acknowledged as v1 ("scan and count" in line 10 comment). Worth flagging that tw
 - `src/constants.ts:8`: `PLUGIN_VERSION = "0.0.0"`
 - `package.json:3`: `"version": "0.0.0"`
 - `CHANGELOG.md:7`: `## 0.1.0 — 2026-04-18`
-- `.changeset/initial-release.md:2`: `"@emdash/lms-core": major`
+- `.changeset/initial-release.md:2`: `"@emdashlms/plugin": major`
 
 When `pnpm changeset version` runs, changeset bumps `package.json` from `0.0.0` to `1.0.0` (major). It does not edit `src/constants.ts`. The CHANGELOG section it writes will say `1.0.0`, but a hand-written `## 0.1.0` entry already exists in the file. So at publish, `package.json === 1.0.0`, `PLUGIN_VERSION === "0.0.0"`, and the CHANGELOG has a `0.1.0` block that was never a real release.
 

@@ -1,5 +1,5 @@
 ---
-import { KnowledgeCheckBlock } from "@emdash/lms-core/astro";
+import { KnowledgeCheckBlock } from "@emdashlms/plugin/astro";
 import { callLmsRoute, portableTextParagraphs } from "../../../../lib/lms-api.ts";
 
 interface LessonSummary {
@@ -139,7 +139,7 @@ const next =
 		</main>
 
 			<script>
-				import { createLearnBrowserClient } from "@emdash/lms-core/browser";
+				import { createLearnBrowserClient } from "@emdashlms/plugin/browser";
 
 				const learn = createLearnBrowserClient({ storage: window.localStorage });
 				const progressRoot = document.querySelector<HTMLElement>("[data-device-progress]");

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import node from "@astrojs/node";
 import react from "@astrojs/react";
-import { lmsCorePlugin } from "@emdash/lms-core";
+import { lmsCorePlugin } from "@emdashlms/plugin";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { sqlite } from "emdash/db";

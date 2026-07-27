@@ -3,7 +3,7 @@
 **Status:** Historical / superseded
 **Repro version:** `emdash@0.5.x` (installed via the lms-core plugin's demo)
 **Filed:** pending (this doc is the draft body for the GitHub issue)
-**Contact plugin that hit it:** `@emdash/lms-core` (see `src/authz.ts` + `src/routes/*.ts`)
+**Contact plugin that hit it:** `@emdashlms/plugin` (see `src/authz.ts` + `src/routes/*.ts`)
 
 > This issue draft describes the superseded LMS and proposed exposing profile
 > PII. The accepted design is an opaque `RouteContext.principal` containing
@@ -22,7 +22,7 @@ The fix is a ~20-line diff across four files in `packages/core`. The data is alr
 ## Impact
 
 - Plugins cannot implement §6.1-style "owner" auth (user may act on their own enrollments/progress/attempts) without either (a) going fully public, (b) admin-gating everything, or (c) reaching into emdash's session storage internals.
-- `@emdash/lms-core` has ~15 student/owner/editor routes (`enroll`, `progress:tick`, `progress:complete`, `quiz:submit`, `my-learning`, `certificates:mine`, `curriculum`, `lesson`, `unenroll`, etc.) — **all return `LEARN_UNAUTHENTICATED` at runtime regardless of session**, because `ctx.user` is always `undefined`.
+- `@emdashlms/plugin` has ~15 student/owner/editor routes (`enroll`, `progress:tick`, `progress:complete`, `quiz:submit`, `my-learning`, `certificates:mine`, `curriculum`, `lesson`, `unenroll`, etc.) — **all return `LEARN_UNAUTHENTICATED` at runtime regardless of session**, because `ctx.user` is always `undefined`.
 - `packages/plugins/audit-log` does not hit this because it listens to content hooks (which receive actor ids in the event payload). Any future plugin that exposes HTTP routes to authenticated users will hit it immediately.
 
 ## Reproduction
@@ -74,7 +74,7 @@ Probably not. Five signals it's incompleteness, not policy:
 1. **The work is already done.** Middleware fully resolves the session and populates `locals.user`. Line 46 uses it. Line 68 simply forgets to thread it through. No comment explains the drop.
 2. **`UserInfo` is the scrubbed, plugin-safe shape.** `plugins/types.ts:361` defines it as "Read-only user information exposed to plugins" — `{ id, email, name, role, createdAt }`. No password, no tokens, no internal flags. Exposing this via `RouteContext` is strictly less data than `ctx.users.get()` returns for any user in the system (and `read:users`-capable plugins can already enumerate).
 3. **No capability wall.** Every sensitive surface (content, media, users, email, network) has a named capability. There is no "identify caller" capability, no comment saying "plugins cannot see the session user", and nothing in `skills/creating-plugins/SKILL.md` about how to implement owner-scoped routes without one.
-4. **The test surface assumes the contract.** `@emdash/lms-core/tests/utils/test-plugin-ctx.ts:260` builds a `user` field, and `routes/analytics.test.ts:makeRouteCtx` merges it into the ctx with the inline comment _"matching the shape emdash passes to plugin route handlers"_. Whoever wrote that assumed emdash passes user. It doesn't.
+4. **The test surface assumes the contract.** `@emdashlms/plugin/tests/utils/test-plugin-ctx.ts:260` builds a `user` field, and `routes/analytics.test.ts:makeRouteCtx` merges it into the ctx with the inline comment _"matching the shape emdash passes to plugin route handlers"_. Whoever wrote that assumed emdash passes user. It doesn't.
 5. **Peer systems expose the caller.** WordPress (`wp_get_current_user()`), Shopify Admin API (session token), Sanity (`useClient` with token), Contentful (Sys.createdBy) — all expose the calling identity to their plugin/extension layer. Hiding it is unusual enough that a deliberate choice would be called out in the docs.
 
 ### Security review of exposing `user`
@@ -153,8 +153,8 @@ All existing plugins compile unchanged (the field is additive; readers cast thro
 
 - Update `skills/creating-plugins/SKILL.md` with an "Owner-scoped routes" section: "read `ctx.user` for the caller; combine with `read:users` for cross-user lookups".
 - Remove `makeRouteCtx` shim in consuming plugins' test suites (the test ctx already matches the real one).
-- `@emdash/lms-core` can drop its `AuthContext` cast-through in `src/authz.ts` and rely on the native type.
+- `@emdashlms/plugin` can drop its `AuthContext` cast-through in `src/authz.ts` and rely on the native type.
 
 ## Version notes
 
-Observed against the `emdash@0.5.x` installed in `@emdash/lms-core`'s demo. Source cross-check against the emdash working tree (no behavior difference; the types live in the same file in `HEAD`).
+Observed against the `emdash@0.5.x` installed in `@emdashlms/plugin`'s demo. Source cross-check against the emdash working tree (no behavior difference; the types live in the same file in `HEAD`).

@@ -1,8 +1,11 @@
-# EmDash Learn (`@emdash/lms-core`)
+# EmDash Learn (`@emdashlms/plugin`)
 
 Course publishing, browser-local learning progress, knowledge checks, and
 anonymous engagement reporting for
 [EmDash](https://github.com/emdash-cms/emdash).
+
+EmDash Learn is an independent, community-maintained project. It is not
+published by or affiliated with the `emdash-cms` GitHub or npm organization.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![CI](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml)
@@ -12,6 +15,12 @@ anonymous engagement reporting for
 > EmDash Learn is pre-release. Version 0.1 targets the currently published
 > EmDash 0.31 plugin API and deliberately does not provide learner accounts or
 > server-side learner records.
+
+## Installation
+
+```bash
+pnpm add @emdashlms/plugin emdash
+```
 
 ## What Learn provides
 
@@ -61,7 +70,7 @@ Astro sites can use the canonical component directly:
 
 ```astro
 ---
-import { KnowledgeCheckBlock } from "@emdash/lms-core/astro";
+import { KnowledgeCheckBlock } from "@emdashlms/plugin/astro";
 ---
 
 <KnowledgeCheckBlock node={block} />
@@ -82,7 +91,7 @@ grading. Sites may record Course and Lesson visits once when a corresponding
 page loads:
 
 ```ts
-import { createLearnBrowserClient } from "@emdash/lms-core/browser";
+import { createLearnBrowserClient } from "@emdashlms/plugin/browser";
 
 const learn = createLearnBrowserClient({ storage: window.localStorage });
 

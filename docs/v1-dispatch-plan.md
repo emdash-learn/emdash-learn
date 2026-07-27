@@ -52,7 +52,7 @@ Self-contained playbook for dispatching the v1 fix work to subagents. A clean Cl
 **Prompt:**
 
 ```
-You are a senior engineer fixing audit findings in @emdash/lms-core, an LMS plugin
+You are a senior engineer fixing audit findings in @emdashlms/plugin, an LMS plugin
 for emdash. Read AUDIT.md sections C2, H6, M9 first, then CLAUDE.md for repo
 conventions.
 
@@ -122,7 +122,7 @@ any blockers. Do not open a PR.
 **Prompt:**
 
 ```
-You are a senior engineer fixing audit findings in @emdash/lms-core. Read
+You are a senior engineer fixing audit findings in @emdashlms/plugin. Read
 AUDIT.md sections H1, H2, M1, M8 and CLAUDE.md.
 
 Mission: close four quiz correctness gaps.
@@ -199,7 +199,7 @@ do not bump the version yourself in this track; Track I owns version hygiene).
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md sections H3, H5 and CLAUDE.md.
+Senior engineer, @emdashlms/plugin. Read AUDIT.md sections H3, H5 and CLAUDE.md.
 
 Mission: two small correctness fixes.
 
@@ -258,7 +258,7 @@ Report back.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md sections M3, M10 and CLAUDE.md.
+Senior engineer, @emdashlms/plugin. Read AUDIT.md sections M3, M10 and CLAUDE.md.
 
 Mission: fix two public-surface correctness issues.
 
@@ -319,7 +319,7 @@ Report back.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md sections M4, M6, M11 and CLAUDE.md.
+Senior engineer, @emdashlms/plugin. Read AUDIT.md sections M4, M6, M11 and CLAUDE.md.
 
 Mission: three small fixes, one branch.
 
@@ -378,7 +378,7 @@ Report back.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md sections M7, L1, L2, L3, L4, L6,
+Senior engineer, @emdashlms/plugin. Read AUDIT.md sections M7, L1, L2, L3, L4, L6,
 README.md, CONTRIBUTING.md, .changeset/initial-release.md and CLAUDE.md.
 
 Mission: release-readiness hygiene. Zero runtime code changes.
@@ -494,7 +494,7 @@ pnpm.overrides verification output.
 **Prompt sketch (full prompt is large; see `docs/v1-decisions.md` Gate C for the row shape and collection declaration — paste them into your prompt):**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md section C3, M2, then read
+Senior engineer, @emdashlms/plugin. Read AUDIT.md section C3, M2, then read
 docs/v1-decisions.md Gate C in full (row shape + collection declaration live
 there). Then CLAUDE.md.
 
@@ -562,7 +562,7 @@ storage-call-count reduction numbers.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md section C1, then
+Senior engineer, @emdashlms/plugin. Read AUDIT.md section C1, then
 docs/v1-decisions.md Gate A (Decision: Rip). Then CLAUDE.md.
 
 Mission: remove the one-sided event bus and replace it with a reconciler-
@@ -637,7 +637,7 @@ Report back.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md sections C4, C5, H7, H8, then
+Senior engineer, @emdashlms/plugin. Read AUDIT.md sections C4, C5, H7, H8, then
 docs/v1-decisions.md Gate B (Decision: Document + upstream RFC). Then CLAUDE.md.
 
 Mission: make install/uninstall honest.
@@ -729,7 +729,7 @@ setup precheck.
 **Prompt:**
 
 ```
-Senior engineer, @emdash/lms-core. Read AUDIT.md section M5, and the
+Senior engineer, @emdashlms/plugin. Read AUDIT.md section M5, and the
 post-Track-D shape of src/engine/curriculum.ts (the projection helpers). Then
 CLAUDE.md.
 
@@ -790,7 +790,7 @@ Dispatch after all Wave 2 branches merge. Single agent. Produces a resolution re
 **Prompt:**
 
 ```
-Senior engineer doing a pre-release verification pass on @emdash/lms-core.
+Senior engineer doing a pre-release verification pass on @emdashlms/plugin.
 
 Your job: for every finding in AUDIT.md, confirm it's been addressed, and
 produce docs/AUDIT-v1-resolutions.md mirroring the AUDIT.md structure.

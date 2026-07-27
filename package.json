@@ -1,10 +1,10 @@
 {
-	"name": "@emdash/lms-core",
+	"name": "@emdashlms/plugin",
 	"version": "0.1.0",
-	"description": "EmDash course publishing, browser-local progress, knowledge checks, and anonymous engagement reporting.",
+	"description": "Community-maintained learning and course publishing plugin for EmDash CMS.",
 	"type": "module",
 	"license": "MIT",
-	"author": "Emdash Learn contributors",
+	"author": "EmDash Learn contributors",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/emdash-learn/emdash-learn.git"

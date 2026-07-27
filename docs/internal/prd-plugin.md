@@ -3,7 +3,7 @@
 > [!WARNING]
 > Historical design document. Its v1 decisions are superseded by
 > [`docs/product-scope.md`](../product-scope.md), which is the authoritative
-> product contract targeting EmDash 0.32.0.
+> product contract targeting the published EmDash 0.31 API.
 
 **Status:** Draft, in progress
 **Last updated:** 2026-04-17
@@ -13,9 +13,9 @@
 
 ## 1. Context & goals
 
-**Emdash Learn** is an open-source LMS shipped as a plugin (npm: `@emdash/lms-core`) on top of [emdash](https://github.com/emdash-cms/emdash). Product site: [emdashlearn.com](https://emdashlearn.com). It leverages emdash's CMS, admin UI, passkey auth, sandboxed plugin runtime, and content-collection schema to deliver a WordPress-class LMS without the WordPress-class security surface.
+**Emdash Learn** is an open-source LMS shipped as a plugin (npm: `@emdashlms/plugin`) on top of [emdash](https://github.com/emdash-cms/emdash). Product site: [emdashlearn.com](https://emdashlearn.com). It leverages emdash's CMS, admin UI, passkey auth, sandboxed plugin runtime, and content-collection schema to deliver a WordPress-class LMS without the WordPress-class security surface.
 
-**Naming** (locked by D51, D53): product brand is **Emdash Learn**. The npm package is `@emdash/lms-core` and the plugin's runtime identifier is `lms-core`, which is what appears in admin URLs, route paths, and the monorepo directory. The `lms-*` namespace is reserved for future learning-suite packages (`@emdash/lms-theme`, `@emdash/lms-proctor`, etc.).
+**Naming** (updated after D51, D53): product brand is **Emdash Learn**. The independently owned npm package is `@emdashlms/plugin`; the plugin's stable runtime identifier remains `lms-core`, which appears in admin URLs and route paths. The `@emdashlms` scope leaves room for future learning-suite packages such as `@emdashlms/theme` and `@emdashlms/testing`.
 
 **Why a plugin, not a fork:**
 - Content authoring (courses, lessons, rich bodies) reuses emdash's `ec_*` tables, Portable Text editor, revisions, drafts, scheduling, SEO, i18n, search, and visual editing — no reinvention.
@@ -461,7 +461,7 @@ The plugin is a **backend + admin-UI** deliverable. Learner-facing pages (course
 | Certificate display | `certificates:mine` |
 | Public cert verification page | `certificate:verify` |
 
-**Deferred to v1.1:** a companion `@emdash/lms-theme` starter template that wires these routes into Astro pages. For v1, we document the integration in the README.
+**Deferred to v1.1:** a companion `@emdashlms/theme` starter template that wires these routes into Astro pages. For v1, we document the integration in the README.
 
 ---
 
@@ -513,9 +513,9 @@ The plugin is a **backend + admin-UI** deliverable. Learner-facing pages (course
 | D48 | Analytics retention: no rollup in v1; queries run over source tables | Plugin storage is document-based — there's no separate analytics event store to trim. Source tables (enrollments, progress, quiz_attempts) hold business data that must persist anyway. At v1 scale (D42), aggregations over source tables are fine. Daily-snapshot rollup tables are a v1.1+ perf optimization, only if needed. |
 | D49 | Date range defaults: instructor dashboard = last 7d; admin analytics = last 30d (when shipped in v2) | Dashboard answers "how's this week?" (active instructors glance at it daily). Analytics answers "how's this quarter?" (admins check it weekly/monthly). v1 only needs the dashboard default since D33 defers the analytics page. |
 | D50 | Cohort CSV import: email-match only; unknown emails returned as a report | Simpler + loud failure mode ("3 not found: x@a.com, y@b.com, z@c.com"). Instructor invites unknown users via emdash's existing user-invite flow. Auto-create-invite requires its own design pass (invite templates, claim flow, email delivery, edge cases like unverified addresses) — v1.1+. |
-| D51 | Package name: `@emdash/lms-core`; `lms-*` prefix reserved for future learning-suite packages | Uses the `@emdash` npm scope with an `lms-` prefix to leave namespace room for future related packages (`@emdash/lms-theme` for the v1.1 companion theme, plus future candidates like `@emdash/lms-proctor`, `@emdash/lms-scorm`, `@emdash/lms-reports`). **Standalone repo**, not inside the emdash monorepo — published independently from its own GitHub repository with emdash declared as a peer dependency. |
+| D51 | Package name: `@emdashlms/plugin`; the `@emdashlms` scope is independently owned | Keeps authorship distinct from official `@emdash-cms` packages and leaves namespace room for future packages such as `@emdashlms/theme` and `@emdashlms/testing`. **Standalone repo**, not inside the EmDash monorepo — published independently from its own GitHub repository with EmDash declared as a peer dependency. |
 | D52 | Ship `demos/simple/` as a minimal reference integration | 0.5 week investment. Wires every plugin route into plain Astro pages. Enables E2E Playwright tests (§18.7), serves as the copy-paste starting point for theme authors, and guards against accidental integration regressions during plugin development. |
-| D53 | Product name "Emdash Learn" (brand) is distinct from plugin id `lms-core` (tech) | Product-facing surfaces — PRD, README, admin chrome label, marketing site at emdashlearn.com — use "Emdash Learn" (proper case, two words). Technical identifiers — plugin `id`, admin URL mount (`/plugins/lms-core/*`), API route prefix (`/api/plugins/lms-core/*`), standalone-repo GitHub name (`lms-core` or `emdash-lms-core` — TBD at repo creation) — use `lms-core` to match the npm package `@emdash/lms-core`. Precedent: products like React (packages `react` / `react-dom`) and Astro (package `astro`, plugins `@astrojs/*`) routinely have distinct product names and package identifiers. Consistency rule: if it shows up in a user-visible string, it's "Emdash Learn"; if it's a path, identifier, or import specifier, it's `lms-core`. |
+| D53 | Product name "Emdash Learn" (brand) is distinct from plugin id `lms-core` (tech) | Product-facing surfaces use "Emdash Learn" (proper case, two words). The stable plugin `id`, admin URL mount (`/plugins/lms-core/*`), and API route prefix (`/api/plugins/lms-core/*`) retain `lms-core` independently of the npm package name. |
 
 ---
 
@@ -536,7 +536,7 @@ The plugin is a **backend + admin-UI** deliverable. Learner-facing pages (course
 13. ~~Date range picker defaults~~ — **closed by D49** (dashboard last 7d; analytics last 30d when it ships).
 14. ~~Cohort capacity under concurrency~~ — **closed jointly with Q6 (D43)**.
 15. ~~Cohort CSV import~~ — **closed by D50** (email-match-only; report unknowns; no auto-invite in v1).
-16. ~~Package name~~ — **closed by D51** (`@emdash/lms-core`; `lms-*` prefix reserved for future learning-suite packages).
+16. ~~Package name~~ — **closed by D51** (`@emdashlms/plugin`; `lms-*` prefix reserved for future learning-suite packages).
 17. ~~Minimal demo site~~ — **closed by D52** (ship `demos/simple/`; enables E2E tests and serves as theme reference).
 18. ~~Test coverage bar~~ — **closed by §18.2**: ≥85% engine, ≥80% routes/hooks/reconcilers, ≥70% setup, admin/blocks excluded.
 19. Kumo + Lingui for SetupWizardPage — **deferred**: T01 ships the wizard page in plain HTML + inline styles so the plugin has no admin-UI runtime dep before T18 lands the typed RPC client and T19+ pulls Kumo into devDeps. `pnpm locale:extract` is likewise a Wave 6 concern. Refactor the page during Wave 6 when Kumo/Lingui are wired for every other admin page at once.
@@ -955,7 +955,7 @@ Added to §12:
 
 ```
 <repo-root>/                         # Standalone repo per D51 (not inside emdash monorepo)
-├── package.json                     # @emdash/lms-core; exports: "." (descriptor), "./sandbox", "./admin", "./astro"
+├── package.json                     # @emdashlms/plugin; exports: "." (descriptor), "./sandbox", "./admin", "./astro"
 ├── tsconfig.json
 ├── src/
 │   ├── index.ts                     # Descriptor factory (Vite build time)
@@ -1085,8 +1085,8 @@ Added to §12:
 ### 17.3 Initialization sequence
 
 **Vite build (Astro config load):**
-1. `astro.config.mjs` imports `lmsCore()` from `@emdash/lms-core`.
-2. Factory returns the descriptor with `storage`, `capabilities`, `adminPages`, `adminWidgets`, `portableTextBlocks`, `settingsSchema`, `entrypoint: "@emdash/lms-core/sandbox"`, `admin.entry: "@emdash/lms-core/admin"`.
+1. `astro.config.mjs` imports `lmsCore()` from `@emdashlms/plugin`.
+2. Factory returns the descriptor with `storage`, `capabilities`, `adminPages`, `adminWidgets`, `portableTextBlocks`, `settingsSchema`, `entrypoint: "@emdashlms/plugin/sandbox"`, `admin.entry: "@emdashlms/plugin/admin"`.
 3. Emdash integration registers the plugin for runtime loading.
 
 **Server boot (first request after deploy):**
@@ -1474,7 +1474,7 @@ Clone emdash and the plugin side-by-side:
 ~/dev/
 ├── emdash/                    # Clone of emdash for iterative development
 └── lms-core/                  # This plugin (its own repo)
-    ├── package.json           # @emdash/lms-core
+    ├── package.json           # @emdashlms/plugin
     ├── src/
     ├── tests/
     └── demos/simple/          # Astro site that uses the plugin + emdash
@@ -1482,7 +1482,7 @@ Clone emdash and the plugin side-by-side:
 
 ### 20.2 Wiring the demo to the plugin source
 
-**Default (T00 scaffold — recommended for most work):** use the published `emdash` from npm. The plugin's root `package.json` declares `"emdash": ">=0.5.0"` as a peer and devDependency; the demo's `package.json` depends on `"@emdash/lms-core": "workspace:*"` (pnpm links it automatically via the workspace declared in `pnpm-workspace.yaml`). No overrides needed. `pnpm install` just works.
+**Default (T00 scaffold — recommended for most work):** use the published `emdash` from npm. The plugin's root `package.json` declares `"emdash": ">=0.5.0"` as a peer and devDependency; the demo's `package.json` depends on `"@emdashlms/plugin": "workspace:*"` (pnpm links it automatically via the workspace declared in `pnpm-workspace.yaml`). No overrides needed. `pnpm install` just works.
 
 **Optional — dev against emdash source** (only needed if you're debugging into emdash core or testing unreleased changes): add a pnpm override to the **root** `package.json` (not the demo's — pnpm ignores workspace-member overrides):
 
@@ -1499,7 +1499,7 @@ Clone emdash and the plugin side-by-side:
 
 Path is `../emdash/packages/core` relative to the plugin repo root — assumes emdash is cloned at `~/dev/emdash/` as a sibling of `~/dev/lms-core/` per §20.1.
 
-No override is needed for `@emdash/lms-core` itself — the `workspace:*` protocol handles the link between the plugin root and `demos/simple/`.
+No override is needed for `@emdashlms/plugin` itself — the `workspace:*` protocol handles the link between the plugin root and `demos/simple/`.
 
 ### 20.3 Running the demo
 
@@ -1889,7 +1889,7 @@ Critical for execution: this section decomposes the work into **27 self-containe
 |---|---|---|---|
 | **T00** | Scaffold plugin repo | none | S |
 
-**T00 Deliverables:** `package.json` (name `@emdash/lms-core`, exports `.`/`./sandbox`/`./admin`/`./astro`, peer-deps emdash + astro + react, scripts for build/test/lint/format), `tsconfig.json` (ES2022, strict, `verbatimModuleSyntax: true`), `vitest.config.ts`, `playwright.config.ts`, `.prettierrc`, `.oxlintrc.json`, `pnpm-workspace.yaml` (lists `demos/*`), `README.md` (stub), `LICENSE` (MIT), empty `src/`, `tests/unit/`, `tests/integration/`, `tests/e2e/`, `demos/simple/` Astro skeleton with `astro.config.mjs` importing the plugin.
+**T00 Deliverables:** `package.json` (name `@emdashlms/plugin`, exports `.`/`./sandbox`/`./admin`/`./astro`, peer-deps emdash + astro + react, scripts for build/test/lint/format), `tsconfig.json` (ES2022, strict, `verbatimModuleSyntax: true`), `vitest.config.ts`, `playwright.config.ts`, `.prettierrc`, `.oxlintrc.json`, `pnpm-workspace.yaml` (lists `demos/*`), `README.md` (stub), `LICENSE` (MIT), empty `src/`, `tests/unit/`, `tests/integration/`, `tests/e2e/`, `demos/simple/` Astro skeleton with `astro.config.mjs` importing the plugin.
 **T00 Read:** §19, §20, §17.1.
 **T00 Emdash docs:** `skills/creating-plugins/SKILL.md`, `packages/plugins/audit-log/package.json` as reference.
 **T00 Acceptance:** §21 Phase 1 preconditions — `pnpm install`, `pnpm build`, `pnpm typecheck`, `pnpm test` all pass; demo boots; plugin sidebar entry appears (empty).
@@ -2042,7 +2042,7 @@ Write this as the first changeset entry in the plugin repo's `.changeset/` direc
 
 ```markdown
 ---
-"@emdash/lms-core": major
+"@emdashlms/plugin": major
 ---
 
 Introduces **Emdash Learn**, an open-source LMS plugin for emdash.
@@ -2068,7 +2068,7 @@ Introduces **Emdash Learn**, an open-source LMS plugin for emdash.
 - Reuses emdash's passkey/OAuth/magic-link auth; no plugin-side auth surface.
 - Site-side routes documented for theme authors: `catalog`, `my-learning`, `curriculum`, `lesson`, `progress:tick`/`complete`, `quiz:start`/`submit`, `certificates:mine`, `certificate:verify`.
 
-**Deferred to v1.1+:** payment integration (Stripe, x402), certificate PDF rendering, site-wide admin analytics UI, standalone theme package (`@emdash/lms-theme`), cohort CSV auto-invite.
+**Deferred to v1.1+:** payment integration (Stripe, x402), certificate PDF rendering, site-wide admin analytics UI, standalone theme package (`@emdashlms/theme`), cohort CSV auto-invite.
 
 **Requires:** `emdash >=0.5.0`, `astro ^6.0.0`, `react ^19.0.0`, Node 20+ or Cloudflare Workers (Dynamic Worker Loader disabled — this plugin runs in trusted/native mode).
 

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@emdash/lms-core` are documented in this file.
+All notable changes to `@emdashlms/plugin` are documented in this file.
 
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html), and
 entries use the user-facing clarity encouraged by

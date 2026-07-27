@@ -3,7 +3,7 @@
 **Status:** Historical / superseded
 **Author:** lms-core team  
 **Date:** 2026-04-21  
-**Related finding:** AUDIT C4, C5 in `@emdash/lms-core` v1 pre-release audit  
+**Related finding:** AUDIT C4, C5 in `@emdashlms/plugin` v1 pre-release audit
 **Target emdash version:** 0.6.0 or later
 
 > This RFC records an earlier LMS design and is not the current Learn
@@ -33,7 +33,7 @@ The surface is analogous to the existing `ctx.content`, `ctx.kv`, and `ctx.stora
 
 ### Current state (v1 workaround)
 
-`@emdash/lms-core` needs to provision three content collections (`courses`, `lessons`, `topics`) during install and destroy them during uninstall. Without a server-side schema API, neither can happen in the plugin hook context:
+`@emdashlms/plugin` needs to provision three content collections (`courses`, `lessons`, `topics`) during install and destroy them during uninstall. Without a server-side schema API, neither can happen in the plugin hook context:
 
 1. **`plugin:install` hook** — collection provisioning cannot run because it requires the `schema:manage` permission, which is only available to authenticated admin sessions. The install hook runs with no browser cookies. Today, provisioning is deferred to the setup wizard (`SetupWizardPage.tsx`) which runs in the admin browser session and calls `/_emdash/api/schema/*` via `CoreSchemaClient`. This means `pnpm add + register` alone does not produce a working installation; the admin must manually navigate to the wizard and click through it.
 

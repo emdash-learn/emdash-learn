@@ -65,7 +65,7 @@ export function createPlugin() {
 		storage: LEARN_PLUGIN_CONTRACT.storage,
 
 		admin: {
-			entry: "@emdash/lms-core/admin",
+			entry: "@emdashlms/plugin/admin",
 			pages: LEARN_PLUGIN_CONTRACT.adminPages,
 			portableTextBlocks: [
 				{

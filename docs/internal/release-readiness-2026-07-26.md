@@ -2,7 +2,7 @@
 
 Date: 2026-07-26
 
-Target: `@emdash/lms-core@0.1.0`
+Target: `@emdashlms/plugin@0.1.0`
 
 Compatibility: published EmDash `^0.31.1`, Astro `^7.1.3`, and Node 22.12+
 
@@ -119,14 +119,16 @@ account candidate.
 
 ## Publication gates requiring maintainer action
 
-- [ ] Confirm package name and npm publishing rights for
-      `@emdash/lms-core`.
+- [x] Create the independently owned `emdashlms` npm organization and confirm
+      owner publishing rights for `@emdashlms/plugin`.
+- [x] Push `release/0.1.0`, open pull request
+      [#3](https://github.com/emdash-learn/emdash-learn/pull/3) against `main`,
+      and pass CI, CodeQL, and dependency review.
 - [ ] At organization level, allow Actions to create pull requests or add the
       documented fine-grained `CHANGESETS_TOKEN` repository secret.
 - [ ] Configure the protected GitHub `npm` environment and first-publication
       `NPM_TOKEN`; after the first publish, configure npm trusted publishing and
       revoke the token.
-- [ ] Push `release/0.1.0` and open its pull request against `main`.
 - [ ] Obtain project maintainer review.
 - [ ] Merge through the repository's required checks.
 - [ ] Sign and push `v0.1.0`; let the release workflow publish npm and create
@@ -134,8 +136,8 @@ account candidate.
 - [ ] Merge `main` back into `develop`.
 - [ ] Verify install and demo build from the published tarball.
 
-The release branch is not pushed and no pull request or npm publication has
-been created.
+The release pull request is open and passing. No npm publication has been
+created.
 
 ## Deferred account-release gates
 
