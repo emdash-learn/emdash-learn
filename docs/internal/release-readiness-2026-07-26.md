@@ -81,7 +81,7 @@ account candidate.
 - [x] all five GitHub Actions workflows pass local Actionlint validation
 - [x] `pnpm format:check`
 - [x] no formatting diff after the format gate
-- [x] unit tests (93 passing)
+- [x] unit tests (94 passing)
 - [x] integration tests (93 passing)
 - [x] repository-policy tests (5 passing)
 - [x] production package build
