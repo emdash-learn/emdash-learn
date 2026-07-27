@@ -3,6 +3,10 @@
 Turn published EmDash content into self-guided courses with lessons, knowledge
 checks, browser-local progress, and privacy-conscious engagement reports.
 
+[Official website](https://emdashlearn.com/) ·
+[npm package](https://www.npmjs.com/package/@emdashlms/plugin) ·
+[GitHub Discussions](https://github.com/emdash-learn/emdash-learn/discussions)
+
 [![npm version](https://img.shields.io/npm/v/%40emdashlms%2Fplugin.svg)](https://www.npmjs.com/package/@emdashlms/plugin)
 [![CI](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/emdash-learn/emdash-learn/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/emdash-learn/emdash-learn/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/emdash-learn/emdash-learn/actions/workflows/codeql.yml)
