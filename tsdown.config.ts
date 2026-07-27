@@ -10,7 +10,9 @@ export default defineConfig({
 	format: "esm",
 	dts: true,
 	clean: true,
-	external: ["emdash", "astro", "react", "react-dom", "react/jsx-runtime"],
+	deps: {
+		neverBundle: ["emdash", "astro", "react", "react-dom", "react/jsx-runtime"],
+	},
 	define: {
 		// Replaced at build time so PLUGIN_VERSION always matches package.json.
 		__PLUGIN_VERSION__: JSON.stringify(version),

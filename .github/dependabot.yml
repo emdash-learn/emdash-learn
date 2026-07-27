@@ -17,6 +17,13 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@lingui/babel-plugin-lingui-macro"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
