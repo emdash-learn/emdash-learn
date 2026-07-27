@@ -1,7 +1,7 @@
 import type { PluginContext, StorageCollection } from "emdash";
 
 import { LESSONS_COLLECTION_SLUG } from "../constants.js";
-import { contentIndexId } from "../hooks/content.js";
+import { contentIndexId } from "../modules/published-lessons.js";
 import type { CourseContentIndexRow } from "../types/storage.js";
 
 const MAX_REBUILD_SOURCE_PAGES = 100;
