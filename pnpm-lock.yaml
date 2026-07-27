@@ -43,10 +43,10 @@ importers:
         version: 2.0.6
       astro:
         specifier: ^7.1.3
-        version: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+        version: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
       emdash:
         specifier: ^0.31.1
-        version: 0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
+        version: 0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -82,7 +82,7 @@ importers:
     dependencies:
       '@astrojs/node':
         specifier: ^11.0.2
-        version: 11.0.2(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))
+        version: 11.0.2(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))
       '@astrojs/react':
         specifier: ^6.0.1
         version: 6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0)
@@ -91,13 +91,13 @@ importers:
         version: link:../..
       astro:
         specifier: ^7.1.3
-        version: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+        version: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
       better-sqlite3:
         specifier: ^13.0.1
         version: 13.0.1
       emdash:
         specifier: ^0.31.1
-        version: 0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
+        version: 0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
       kysely:
         specifier: ^0.29.4
         version: 0.29.4
@@ -110,7 +110,7 @@ importers:
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.9
-        version: 0.9.9(prettier@3.9.6)(typescript@5.9.3)
+        version: 0.9.10(prettier@3.9.6)(typescript@5.9.3)
       '@lingui/babel-plugin-lingui-macro':
         specifier: ^5.9.5
         version: 5.9.5(typescript@5.9.3)
@@ -141,8 +141,8 @@ packages:
     resolution: {integrity: sha512-9ytjzGwxjm9Uz7I9avfbt5vlQt6uk9uRRESzJjqrznl6WKvI6dwYTo+vJ3U02Wrq/mR3iql/PzhvHhKdJIAjDQ==}
     engines: {node: '>=20'}
 
-  '@astrojs/check@0.9.9':
-    resolution: {integrity: sha512-A5UW8uIuErLWEoRQvzgXpO1gTjUFtK8r7nU2Z7GewAMxUb7bPvpk11qaKKgxqXlHJWlAvaaxy+Xg28A6bmQ1Tg==}
+  '@astrojs/check@0.9.10':
+    resolution: {integrity: sha512-zgx/UQMozdjOa3bOxjgeCFdtpE3c9rRX6xHwa+2QXvy8z8Akifu2AtubHyv/zzC2znO8dl8fFWL4K+Ba9kS8HQ==}
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0 || ^6.0.0
@@ -2641,8 +2641,8 @@ packages:
     peerDependencies:
       astro: '>=4.6.0'
 
-  astro@7.1.3:
-    resolution: {integrity: sha512-4dhPyAAXthf3xLEYnG8SeL7yr/nTPPABfY7e9YF0yuO+vK9Xp+8Q5j4xzsmL3GueukQv4oNwGNTBepLOiDGeJA==}
+  astro@7.1.4:
+    resolution: {integrity: sha512-e0gkBReJECAZuuTgpEB5JMUc6J4mM6boD6wuVE1pBf/fMywG47f8qm9XQoA6kZB1RWHiHmUlLuQ2jd9Q5+72HQ==}
     engines: {node: '>=22.12.0', npm: '>=9.6.5', pnpm: '>=7.1.0'}
     hasBin: true
     peerDependencies:
@@ -2796,10 +2796,6 @@ packages:
 
   cliui@7.0.4:
     resolution: {integrity: sha512-OcRE68cOsVMXp1Yvonl/fzkQOyjLSu/8bhPDfQt0e0/Eb283TKP20Fs2MqoPsr9SwA595rRCA+QMzYc9nBP+JQ==}
-
-  cliui@8.0.1:
-    resolution: {integrity: sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==}
-    engines: {node: '>=12'}
 
   cliui@9.0.1:
     resolution: {integrity: sha512-k7ndgKhwoQveBL+/1tqGJYNz097I7WOvwbmmU2AR5+magtbjPWQTS1C5vzGkBC8Ym8UWRzfKUzUUqFLypY4Q+w==}
@@ -3755,6 +3751,9 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  magic-string@1.1.0:
+    resolution: {integrity: sha512-kS3VHe0nEPST2saQV4Rbkchcd3UBRkVTQHo1D3h/ZTwFDhai/mfKkmtPAtD129EOI7K3HlHIsFOt0WrI2/oU9g==}
 
   magicast@0.5.3:
     resolution: {integrity: sha512-pVKE4UdSQ7DvHzivsCIFx2BJn1mHG6KsyrFcaxFx6tONdneEuThrDx0Cj3AMg58KyN4pzYT+LHOotxDQDjNvkw==}
@@ -5204,10 +5203,6 @@ packages:
     resolution: {integrity: sha512-y11nGElTIV+CT3Zv9t7VKl+Q3hTQoT9a1Qzezhhl6Rp21gJ/IVTW7Z3y9EWXhuUBC2Shnf+DX0antecpAwSP8w==}
     engines: {node: '>=10'}
 
-  yargs-parser@21.1.1:
-    resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
-    engines: {node: '>=12'}
-
   yargs-parser@22.0.0:
     resolution: {integrity: sha512-rwu/ClNdSMpkSrUb+d6BRsSkLUq1fmfsY6TOpYzTwvwkg1/NRG85KBy3kq++A8LKQwX6lsu+aWad+2khvuXrqw==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
@@ -5215,10 +5210,6 @@ packages:
   yargs@16.2.2:
     resolution: {integrity: sha512-Nt9ZJjXTv5R8MHbqby/wXQ6Gi0Bb3TcYZkR1bzuL4yB2OxWPkXknz513gEF0GoA6tn00UpbPvERW8rzCuWCA6w==}
     engines: {node: '>=10'}
-
-  yargs@17.7.3:
-    resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
-    engines: {node: '>=12'}
 
   yargs@18.1.0:
     resolution: {integrity: sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==}
@@ -5280,13 +5271,13 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.1
 
-  '@astrojs/check@0.9.9(prettier@3.9.6)(typescript@5.9.3)':
+  '@astrojs/check@0.9.10(prettier@3.9.6)(typescript@5.9.3)':
     dependencies:
       '@astrojs/language-server': 2.16.13(prettier@3.9.6)(typescript@5.9.3)
       chokidar: 4.0.3
       kleur: 4.1.5
       typescript: 5.9.3
-      yargs: 17.7.3
+      yargs: 18.1.0
     transitivePeerDependencies:
       - prettier
       - prettier-plugin-astro
@@ -5391,10 +5382,10 @@ snapshots:
       hast-util-from-html: 2.0.3
       satteri: 0.9.5
 
-  '@astrojs/node@11.0.2(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))':
+  '@astrojs/node@11.0.2(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))':
     dependencies:
       '@astrojs/internal-helpers': 0.10.1
-      astro: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+      astro: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
       send: 1.2.1
       server-destroy: 1.0.1
     transitivePeerDependencies:
@@ -6061,12 +6052,12 @@ snapshots:
       - typescript
       - zod
 
-  '@emdash-cms/auth@0.31.1(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(kysely@0.29.4)':
+  '@emdash-cms/auth@0.31.1(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(kysely@0.29.4)':
     dependencies:
       '@oslojs/crypto': 1.0.1
       '@oslojs/encoding': 1.1.0
       '@oslojs/webauthn': 1.0.0
-      astro: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+      astro: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
       ulidx: 2.4.1
       zod: 4.4.3
     optionalDependencies:
@@ -7729,13 +7720,13 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  astro-portabletext@0.11.4(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)):
+  astro-portabletext@0.11.4(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)):
     dependencies:
       '@portabletext/toolkit': 3.0.3
       '@portabletext/types': 2.0.15
-      astro: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+      astro: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
 
-  astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0):
+  astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0):
     dependencies:
       '@astrojs/compiler-rs': 0.3.1(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)
       '@astrojs/internal-helpers': 0.10.1
@@ -7765,7 +7756,7 @@ snapshots:
       http-cache-semantics: 4.2.0
       js-yaml: 4.3.0
       jsonc-parser: 3.3.1
-      magic-string: 0.30.21
+      magic-string: 1.1.0
       magicast: 0.5.3
       mrmime: 2.0.1
       neotraverse: 1.0.1
@@ -7970,12 +7961,6 @@ snapshots:
       '@colors/colors': 1.5.0
 
   cliui@7.0.4:
-    dependencies:
-      string-width: 4.2.3
-      strip-ansi: 6.0.1
-      wrap-ansi: 7.0.0
-
-  cliui@8.0.1:
     dependencies:
       string-width: 4.2.3
       strip-ansi: 6.0.1
@@ -8211,14 +8196,14 @@ snapshots:
 
   electron-to-chromium@1.5.396: {}
 
-  emdash@0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3):
+  emdash@0.31.1(@astrojs/react@6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0))(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3):
     dependencies:
       '@astrojs/react': 6.0.1(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.23.1)(yaml@2.9.0)
       '@atcute/client': 5.1.1(@atcute/lexicons@2.0.3)(typescript@5.9.3)
       '@atcute/lexicons': 2.0.3
       '@atcute/multibase': 1.2.5
       '@emdash-cms/admin': 0.31.1(@atcute/identity@2.0.2(@atcute/lexicons@2.0.3)(typescript@5.9.3))(@date-fns/tz@1.5.0)(@floating-ui/dom@1.8.0)(@lingui/babel-plugin-lingui-macro@5.9.5(typescript@5.9.3))(@tiptap/extensions@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(date-fns@4.4.0)(echarts@6.1.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)(zod@4.4.3)
-      '@emdash-cms/auth': 0.31.1(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(kysely@0.29.4)
+      '@emdash-cms/auth': 0.31.1(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))(kysely@0.29.4)
       '@emdash-cms/gutenberg-to-portable-text': 0.31.1
       '@emdash-cms/plugin-types': 0.3.0
       '@emdash-cms/registry-client': 0.3.4(typescript@5.9.3)
@@ -8241,8 +8226,8 @@ snapshots:
       '@tiptap/suggestion': 3.29.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)
       '@unpic/placeholder': 0.1.2
       arctic: 3.7.0
-      astro: 7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
-      astro-portabletext: 0.11.4(astro@7.1.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))
+      astro: 7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0)
+      astro-portabletext: 0.11.4(astro@7.1.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(rollup@4.60.1)(tsx@4.23.1)(yaml@2.9.0))
       better-sqlite3: 12.11.1
       blurhash: 2.0.5
       citty: 0.1.6
@@ -8922,6 +8907,10 @@ snapshots:
       yallist: 3.1.1
 
   magic-string@0.30.21:
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.5.5
+
+  magic-string@1.1.0:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
 
@@ -10379,8 +10368,6 @@ snapshots:
 
   yargs-parser@20.2.9: {}
 
-  yargs-parser@21.1.1: {}
-
   yargs-parser@22.0.0: {}
 
   yargs@16.2.2:
@@ -10392,16 +10379,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 20.2.9
-
-  yargs@17.7.3:
-    dependencies:
-      cliui: 8.0.1
-      escalade: 3.2.0
-      get-caller-file: 2.0.5
-      require-directory: 2.1.1
-      string-width: 4.2.3
-      y18n: 5.0.8
-      yargs-parser: 21.1.1
 
   yargs@18.1.0:
     dependencies:

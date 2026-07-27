@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- dba6172: Refresh release validation with Astro 7.1.4 and `@astrojs/check` 0.9.10.
+
 ## 0.1.1
 
 ### Patch Changes
