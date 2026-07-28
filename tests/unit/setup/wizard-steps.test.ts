@@ -5,7 +5,7 @@ import {
 	NOT_FOUND,
 	type RemoteCollectionWithFields,
 } from "../../../src/setup/core-schema-client.js";
-import { convergeSetup } from "../../../src/setup/orchestrator.js";
+import { convergeSetup, type ProjectionRepairResult } from "../../../src/setup/orchestrator.js";
 import { WIZARD_STEPS } from "../../../src/setup/steps.js";
 
 interface SchemaHarness {
@@ -267,6 +267,25 @@ describe("setup wizard schema contract", () => {
 				status: "error",
 				details: ["LESSON_TITLE_BLANK: Blank title."],
 			},
+		});
+		expect(persistState).not.toHaveBeenCalled();
+	});
+
+	it("refuses a repair result that is not a readable report", async () => {
+		const harness = createSchemaHarness();
+		const persistState = vi.fn(async () => undefined);
+
+		await expect(
+			convergeSetup({
+				schema: harness.schema,
+				// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- an adapter that breaks its contract must still fail as setup verification
+				repairProjection: async () => null as unknown as ProjectionRepairResult,
+				persistState,
+			}),
+		).rejects.toMatchObject({
+			name: "SetupVerificationError",
+			stepId: "projection",
+			probe: { status: "error", details: [] },
 		});
 		expect(persistState).not.toHaveBeenCalled();
 	});

@@ -39,16 +39,35 @@ export class SetupVerificationError extends Error {
 }
 
 /**
+ * Read whatever diagnostics a composed adapter actually reported. An adapter
+ * that breaks its declared contract must still fail as setup verification
+ * rather than as an unhandled type error.
+ */
+function reportedDiagnostics(projection: unknown): Array<{ code: string; message: string }> {
+	if (typeof projection !== "object" || projection === null) return [];
+	const diagnostics = Reflect.get(projection, "diagnostics");
+	if (!Array.isArray(diagnostics)) return [];
+	return diagnostics.filter(
+		(entry: unknown): entry is { code: string; message: string } =>
+			typeof entry === "object" &&
+			entry !== null &&
+			typeof Reflect.get(entry, "code") === "string" &&
+			typeof Reflect.get(entry, "message") === "string",
+	);
+}
+
+/**
  * Report why repair could not be accepted through the existing step-probe
  * field, so an operator sees the projection diagnostics instead of only a
  * server log line.
  */
-function projectionProbe(projection: ProjectionRepairResult): StepProbe {
-	const diagnostics = Array.isArray(projection.diagnostics) ? projection.diagnostics : [];
+function projectionProbe(projection: unknown): StepProbe {
 	return {
 		status: "error",
 		summary: "Published Lesson projection repair did not complete.",
-		details: diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`),
+		details: reportedDiagnostics(projection).map(
+			(diagnostic) => `${diagnostic.code}: ${diagnostic.message}`,
+		),
 	};
 }
 

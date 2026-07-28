@@ -515,6 +515,45 @@ describe("Published Lessons repair", () => {
 		]);
 	});
 
+	it("removes a malformed row holding a canonical Lesson's unique stepId before writing it", async () => {
+		const fixture = createRepairFixture(2);
+		fixture.add(contentItem("courses", "course-new", { title: "New course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-moved", {
+				title: "Moved lesson",
+				course: "course-new",
+				order: 1,
+			}),
+		);
+		// A row that no longer parses as canonical still occupies the declared
+		// unique `stepId`, so repair must remove it before writing the
+		// replacement instead of leaving the Lesson unprojected.
+		fixture.indexRows.set("legacy-pointer", {
+			courseId: "course-old",
+			stepType: "lesson",
+			stepId: "lesson-moved",
+			order: 1,
+			status: "draft",
+		});
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: true,
+			lessonsUpserted: 1,
+			staleRowsDeleted: 1,
+			errors: 0,
+			diagnostics: [],
+		});
+		await expect(listPublishedLessonsByCourse(fixture.ctx, "course-new")).resolves.toEqual([
+			{
+				id: "lesson-moved",
+				slug: "lesson-moved",
+				title: "Moved lesson",
+				order: 1,
+				publishedAt: "2026-01-03T00:00:00.000Z",
+			},
+		]);
+	});
+
 	it("converges on the same projection when a successful repair is repeated", async () => {
 		const fixture = createRepairFixture(2);
 		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));

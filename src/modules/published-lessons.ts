@@ -144,6 +144,17 @@ function isCourseContentIndexRow(value: unknown): value is CourseContentIndexRow
 	);
 }
 
+/**
+ * The declared unique index covers the stored `stepId` column whether or not
+ * the rest of the row still parses as canonical, so pointer conflicts must be
+ * detected from that field alone.
+ */
+function projectedStepId(value: unknown): string | undefined {
+	if (typeof value !== "object" || value === null) return undefined;
+	const stepId = Reflect.get(value, "stepId");
+	return typeof stepId === "string" && stepId.trim().length > 0 ? stepId : undefined;
+}
+
 function interpretPublishedLesson(
 	item: RuntimeContentItem,
 	expectedLessonId: string,
@@ -656,7 +667,7 @@ export async function repairPublishedLessons(
 	/* oxlint-disable no-await-in-loop -- projection writes are intentionally sequential */
 	for (const record of orderedExisting) {
 		if (scan.canonical.has(record.id)) continue;
-		const stepId = isCourseContentIndexRow(record.data) ? record.data.stepId : undefined;
+		const stepId = projectedStepId(record.data);
 		if (!stepId || !canonicalStepIds.has(stepId)) continue;
 		removalAttempted.add(record.id);
 		if (!(await removeStaleRow(record.id, stepId))) blockedStepIds.add(stepId);
