@@ -31,7 +31,13 @@ describe("setup routes", () => {
 		const result = {
 			state: verifiedState,
 			schemaWrites: 2,
-			projection: { errors: 0, upserted: 3 },
+			projection: {
+				complete: true,
+				lessonsUpserted: 3,
+				staleRowsDeleted: 1,
+				errors: 0,
+				diagnostics: [],
+			},
 		};
 		const converge = vi.fn(async () => result);
 		const routes = createSetupRoutes({ converge });

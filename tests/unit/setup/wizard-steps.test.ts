@@ -208,9 +208,11 @@ describe("setup wizard schema contract", () => {
 		const harness = createSchemaHarness();
 		const persistState = vi.fn(async () => undefined);
 		const repairProjection = vi.fn(async () => ({
+			complete: true,
 			lessonsUpserted: 0,
 			staleRowsDeleted: 0,
 			errors: 0,
+			diagnostics: [],
 		}));
 
 		const untrustedRequest = {
@@ -250,9 +252,61 @@ describe("setup wizard schema contract", () => {
 			convergeSetup({
 				schema: harness.schema,
 				repairProjection: async () => ({
+					complete: false,
 					lessonsUpserted: 0,
 					staleRowsDeleted: 0,
 					errors: 1,
+					diagnostics: [{ code: "LESSON_TITLE_BLANK", message: "Blank title." }],
+				}),
+				persistState,
+			}),
+		).rejects.toMatchObject({
+			name: "SetupVerificationError",
+			stepId: "projection",
+			probe: {
+				status: "error",
+				details: ["LESSON_TITLE_BLANK: Blank title."],
+			},
+		});
+		expect(persistState).not.toHaveBeenCalled();
+	});
+
+	it("refuses a repair that reconciled rows without declaring itself complete", async () => {
+		const harness = createSchemaHarness();
+		const persistState = vi.fn(async () => undefined);
+
+		await expect(
+			convergeSetup({
+				schema: harness.schema,
+				repairProjection: async () => ({
+					complete: false,
+					lessonsUpserted: 12,
+					staleRowsDeleted: 3,
+					errors: 0,
+					diagnostics: [],
+				}),
+				persistState,
+			}),
+		).rejects.toMatchObject({
+			name: "SetupVerificationError",
+			stepId: "projection",
+		});
+		expect(persistState).not.toHaveBeenCalled();
+	});
+
+	it("refuses a completion claim that contradicts the reported repair errors", async () => {
+		const harness = createSchemaHarness();
+		const persistState = vi.fn(async () => undefined);
+
+		await expect(
+			convergeSetup({
+				schema: harness.schema,
+				repairProjection: async () => ({
+					complete: true,
+					lessonsUpserted: 4,
+					staleRowsDeleted: 0,
+					errors: 3,
+					diagnostics: [],
 				}),
 				persistState,
 			}),

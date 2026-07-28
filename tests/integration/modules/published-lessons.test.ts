@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ContentItem, PluginContext } from "emdash";
+import type {
+	ContentItem,
+	ContentListOptions,
+	PluginContext,
+	QueryOptions,
+	StorageCollection,
+} from "emdash";
 
 import {
 	listPublishedLessonsByCourse,
+	repairPublishedLessons,
 	resolvePublishedLesson,
 	synchronizePublishedLesson,
 } from "../../../src/modules/published-lessons.js";
@@ -370,5 +377,466 @@ describe("Published Lessons", () => {
 			contentItem("courses", course.id, { title: "Safe course" }, { status: "draft" }),
 		);
 		await expect(resolvePublishedLesson(fixture.ctx, lesson.id)).resolves.toBeNull();
+	});
+});
+
+type IndexRow = Record<string, unknown>;
+
+function lessonRow(courseId: string, stepId: string, order: number): IndexRow {
+	return { courseId, stepType: "lesson", stepId, order, status: "published" };
+}
+
+/**
+ * Repair scans authoritative content and the whole projection, so its fixture
+ * paginates both and enforces the declared unique `stepId` index.
+ */
+function createRepairFixture(pageSize = 1) {
+	const collections = new Map<string, Map<string, ContentItem>>([
+		["courses", new Map()],
+		["lessons", new Map()],
+	]);
+	const stored = createMemoryStorageCollection<IndexRow>();
+	const indexRows = stored.documents;
+	const warn = vi.fn();
+	const info = vi.fn();
+
+	// The declared `stepId` unique index and small storage pages are what make
+	// repair remove a moved pointer before writing its replacement, so the
+	// shared in-memory collection is wrapped rather than replaced.
+	const index: StorageCollection<IndexRow> = {
+		...stored,
+		async put(id, data) {
+			const conflicting = [...indexRows.entries()].find(
+				([existingId, existing]) =>
+					existingId !== id &&
+					typeof data["stepId"] === "string" &&
+					existing["stepId"] === data["stepId"],
+			);
+			if (conflicting) throw new Error(`Unique stepId conflict with ${conflicting[0]}.`);
+			return stored.put(id, data);
+		},
+		async query(options: QueryOptions = {}) {
+			return stored.query({ ...options, limit: Math.min(options.limit ?? pageSize, pageSize) });
+		},
+	};
+
+	// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- complete in-memory EmDash context fake
+	const ctx = {
+		storage: { course_content_index: index },
+		content: {
+			async get(collection: string, id: string) {
+				return collections.get(collection)?.get(id) ?? null;
+			},
+			async list(collection: string, options: ContentListOptions = {}) {
+				const matching = [...(collections.get(collection)?.values() ?? [])].filter(
+					(item) => options.where?.status === undefined || item.status === options.where.status,
+				);
+				// oxlint-disable-next-line no-array-sort -- sorting a local fixture copy
+				matching.sort((left, right) => left.id.localeCompare(right.id));
+				const offset = options.cursor ? Number(options.cursor) : 0;
+				const limit = Math.min(options.limit ?? matching.length, pageSize);
+				const items = matching.slice(offset, offset + limit);
+				const nextOffset = offset + items.length;
+				const hasMore = nextOffset < matching.length;
+				return { items, hasMore, ...(hasMore ? { cursor: String(nextOffset) } : {}) };
+			},
+		},
+		log: { debug: vi.fn(), info, warn, error: vi.fn() },
+	} as unknown as PluginContext;
+
+	return {
+		ctx,
+		index,
+		indexRows,
+		warn,
+		info,
+		add(item: ContentItem) {
+			collections.get(item.type)?.set(item.id, item);
+			return item;
+		},
+	};
+}
+
+describe("Published Lessons repair", () => {
+	it("reconciles missing, moved, stale, and legacy rows from a complete multi-page scan", async () => {
+		const fixture = createRepairFixture(1);
+		for (const id of ["course-old", "course-new", "course-other"]) {
+			fixture.add(contentItem("courses", id, { title: id }));
+		}
+		fixture.add(
+			contentItem("lessons", "lesson-moved", {
+				title: "Moved lesson",
+				course: "course-new",
+				order: 2,
+			}),
+		);
+		fixture.add(
+			contentItem("lessons", "lesson-other", {
+				title: "Other lesson",
+				course: "course-other",
+				order: 1,
+			}),
+		);
+		fixture.add(
+			contentItem(
+				"lessons",
+				"lesson-draft",
+				{ title: "Draft lesson", course: "course-old", order: 3 },
+				{ status: "draft", publishedAt: null },
+			),
+		);
+		fixture.indexRows.set("01-old-assignment", lessonRow("course-old", "lesson-moved", 2));
+		fixture.indexRows.set("02-deleted", lessonRow("course-old", "lesson-deleted", 4));
+		fixture.indexRows.set("03-draft", lessonRow("course-old", "lesson-draft", 3));
+		fixture.indexRows.set("04-legacy", {
+			courseId: "course-old",
+			stepType: "topic",
+			stepId: "topic-legacy",
+			order: 5,
+			status: "published",
+		});
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: true,
+			lessonsUpserted: 2,
+			staleRowsDeleted: 4,
+			errors: 0,
+			diagnostics: [],
+		});
+		await expect(listPublishedLessonsByCourse(fixture.ctx, "course-old")).resolves.toEqual([]);
+		await expect(listPublishedLessonsByCourse(fixture.ctx, "course-new")).resolves.toEqual([
+			{
+				id: "lesson-moved",
+				slug: "lesson-moved",
+				title: "Moved lesson",
+				order: 2,
+				publishedAt: "2026-01-03T00:00:00.000Z",
+			},
+		]);
+	});
+
+	it("converges on the same projection when a successful repair is repeated", async () => {
+		const fixture = createRepairFixture(2);
+		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-a", { title: "Lesson A", course: "course-safe", order: 1 }),
+		);
+		fixture.add(
+			contentItem("lessons", "lesson-b", { title: "Lesson B", course: "course-safe", order: 2 }),
+		);
+		fixture.indexRows.set("stale", lessonRow("course-gone", "lesson-gone", 1));
+
+		const first = await repairPublishedLessons(fixture.ctx);
+		const afterFirst = new Map(fixture.indexRows);
+		const second = await repairPublishedLessons(fixture.ctx);
+
+		expect({ first, second }).toEqual({
+			first: {
+				complete: true,
+				lessonsUpserted: 2,
+				staleRowsDeleted: 1,
+				errors: 0,
+				diagnostics: [],
+			},
+			second: {
+				complete: true,
+				lessonsUpserted: 2,
+				staleRowsDeleted: 0,
+				errors: 0,
+				diagnostics: [],
+			},
+		});
+		expect([...fixture.indexRows.entries()]).toEqual([...afterFirst.entries()]);
+	});
+
+	it("reports malformed published Lessons instead of manufacturing projection defaults", async () => {
+		const fixture = createRepairFixture(2);
+		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-valid", {
+				title: "Valid lesson",
+				course: "course-safe",
+				order: 1,
+			}),
+		);
+		fixture.add(
+			contentItem("lessons", "lesson-blank-title", {
+				title: "  ",
+				course: "course-safe",
+				order: 2,
+			}),
+		);
+		fixture.add(contentItem("lessons", "lesson-orphan", { title: "Missing Course", order: 3 }));
+		fixture.indexRows.set("blank-title", lessonRow("course-safe", "lesson-blank-title", 2));
+
+		const report = await repairPublishedLessons(fixture.ctx);
+
+		expect(report).toEqual({
+			complete: false,
+			lessonsUpserted: 1,
+			staleRowsDeleted: 1,
+			errors: 2,
+			diagnostics: [
+				{
+					code: "LESSON_TITLE_BLANK",
+					lessonId: "lesson-blank-title",
+					message: "Published Lesson title must not be blank.",
+				},
+				{
+					code: "LESSON_COURSE_ID_INVALID",
+					lessonId: "lesson-orphan",
+					message: "Published Lesson Course reference must not be blank.",
+				},
+			],
+		});
+		await expect(listPublishedLessonsByCourse(fixture.ctx, "course-safe")).resolves.toEqual([
+			{
+				id: "lesson-valid",
+				slug: "lesson-valid",
+				title: "Valid lesson",
+				order: 1,
+				publishedAt: "2026-01-03T00:00:00.000Z",
+			},
+		]);
+	});
+
+	it("leaves the existing projection untouched when authoritative pagination is incomplete", async () => {
+		const fixture = createRepairFixture();
+		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-existing", {
+				title: "Existing lesson",
+				course: "course-safe",
+				order: 1,
+			}),
+		);
+		fixture.indexRows.set("existing-pointer", lessonRow("course-safe", "lesson-existing", 1));
+		const get = fixture.ctx.content!.get.bind(fixture.ctx.content);
+		fixture.ctx.content = {
+			get,
+			async list() {
+				return {
+					items: [
+						contentItem("lessons", "lesson-partial", {
+							title: "Partial page lesson",
+							course: "course-safe",
+							order: 2,
+						}),
+					],
+					hasMore: true,
+				};
+			},
+		};
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: false,
+			lessonsUpserted: 0,
+			staleRowsDeleted: 0,
+			errors: 1,
+			diagnostics: [
+				{
+					code: "LESSON_SCAN_INCOMPLETE",
+					message: "Published Lesson pagination could not continue deterministically.",
+				},
+			],
+		});
+		expect([...fixture.indexRows.keys()]).toEqual(["existing-pointer"]);
+	});
+
+	it("stops the authoritative scan at the explicit page limit before writing", async () => {
+		const fixture = createRepairFixture();
+		fixture.indexRows.set("existing-pointer", lessonRow("course-large", "lesson-existing", 1));
+		let pagesRead = 0;
+		fixture.ctx.content = {
+			async get() {
+				return null;
+			},
+			async list() {
+				pagesRead += 1;
+				return {
+					items: [
+						contentItem("lessons", `lesson-${pagesRead}`, {
+							title: `Lesson ${pagesRead}`,
+							course: "course-large",
+							order: pagesRead,
+						}),
+					],
+					hasMore: true,
+					cursor: `page-${pagesRead + 1}`,
+				};
+			},
+		};
+
+		const report = await repairPublishedLessons(fixture.ctx);
+
+		expect({ report, pagesRead }).toEqual({
+			report: {
+				complete: false,
+				lessonsUpserted: 0,
+				staleRowsDeleted: 0,
+				errors: 1,
+				diagnostics: [
+					{
+						code: "LESSON_SCAN_INCOMPLETE",
+						message: "Published Lesson scans are limited to 100 pages.",
+					},
+				],
+			},
+			pagesRead: 100,
+		});
+		expect([...fixture.indexRows.keys()]).toEqual(["existing-pointer"]);
+	});
+
+	it("does not reconcile against an incomplete scan of the existing projection", async () => {
+		const fixture = createRepairFixture();
+		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-a", { title: "Lesson A", course: "course-safe", order: 1 }),
+		);
+		fixture.indexRows.set("pointer-a", lessonRow("course-safe", "lesson-a", 1));
+		fixture.indexRows.set("pointer-stale", lessonRow("course-safe", "lesson-stale", 2));
+		fixture.index.query = async () => ({
+			items: [{ id: "pointer-a", data: fixture.indexRows.get("pointer-a")! }],
+			hasMore: true,
+		});
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: false,
+			lessonsUpserted: 0,
+			staleRowsDeleted: 0,
+			errors: 1,
+			diagnostics: [
+				{
+					code: "PROJECTION_SCAN_INCOMPLETE",
+					message: "Published Lesson projection pagination could not continue deterministically.",
+				},
+			],
+		});
+		expect([...fixture.indexRows.keys()]).toEqual(["pointer-a", "pointer-stale"]);
+	});
+
+	it("reports a failed authoritative read as an unreconciled scan failure", async () => {
+		const fixture = createRepairFixture();
+		fixture.indexRows.set("existing-pointer", lessonRow("course-safe", "lesson-existing", 1));
+		fixture.ctx.content = {
+			async get() {
+				return null;
+			},
+			async list() {
+				throw new Error("Content service unavailable.");
+			},
+		};
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: false,
+			lessonsUpserted: 0,
+			staleRowsDeleted: 0,
+			errors: 1,
+			diagnostics: [
+				{
+					code: "LESSON_SCAN_FAILED",
+					message: "Published Lessons could not be read: Content service unavailable.",
+				},
+			],
+		});
+		expect([...fixture.indexRows.keys()]).toEqual(["existing-pointer"]);
+	});
+
+	it("reports projection write failures without claiming a complete repair", async () => {
+		const fixture = createRepairFixture(2);
+		fixture.add(contentItem("courses", "course-safe", { title: "Safe course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-a", { title: "Lesson A", course: "course-safe", order: 1 }),
+		);
+		fixture.add(
+			contentItem("lessons", "lesson-b", { title: "Lesson B", course: "course-safe", order: 2 }),
+		);
+		fixture.indexRows.set("stale", lessonRow("course-gone", "lesson-gone", 1));
+		const put = fixture.index.put.bind(fixture.index);
+		fixture.index.put = async (id, data) => {
+			if (id.endsWith("lesson-a")) throw new Error("Storage rejected the write.");
+			return put(id, data);
+		};
+		fixture.index.delete = async () => {
+			throw new Error("Storage rejected the removal.");
+		};
+
+		const report = await repairPublishedLessons(fixture.ctx);
+
+		expect(report).toEqual({
+			complete: false,
+			lessonsUpserted: 1,
+			staleRowsDeleted: 0,
+			errors: 2,
+			diagnostics: [
+				{
+					code: "PROJECTION_UPSERT_FAILED",
+					lessonId: "lesson-a",
+					rowId: "idx__course-safe__lesson__lesson-a",
+					message: "Storage rejected the write.",
+				},
+				{
+					code: "PROJECTION_REMOVE_FAILED",
+					rowId: "stale",
+					message: "Storage rejected the removal.",
+				},
+			],
+		});
+		expect(fixture.indexRows.has("stale")).toBe(true);
+	});
+
+	it("does not replace a moved Lesson pointer that could not be removed", async () => {
+		const fixture = createRepairFixture(2);
+		fixture.add(contentItem("courses", "course-new", { title: "New course" }));
+		fixture.add(
+			contentItem("lessons", "lesson-moved", {
+				title: "Moved lesson",
+				course: "course-new",
+				order: 1,
+			}),
+		);
+		fixture.indexRows.set("old-pointer", lessonRow("course-old", "lesson-moved", 1));
+		fixture.index.delete = async () => {
+			throw new Error("Storage rejected the removal.");
+		};
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: false,
+			lessonsUpserted: 0,
+			staleRowsDeleted: 0,
+			errors: 1,
+			diagnostics: [
+				{
+					code: "PROJECTION_REMOVE_FAILED",
+					lessonId: "lesson-moved",
+					rowId: "old-pointer",
+					message: "Storage rejected the removal.",
+				},
+			],
+		});
+		expect([...fixture.indexRows.keys()]).toEqual(["old-pointer"]);
+	});
+
+	it("reports unavailable content and projection access without partial writes", async () => {
+		const fixture = createRepairFixture();
+		fixture.ctx.content = undefined;
+		fixture.ctx.storage = {};
+
+		await expect(repairPublishedLessons(fixture.ctx)).resolves.toEqual({
+			complete: false,
+			lessonsUpserted: 0,
+			staleRowsDeleted: 0,
+			errors: 2,
+			diagnostics: [
+				{
+					code: "CONTENT_UNAVAILABLE",
+					message: "Authoritative content access is unavailable.",
+				},
+				{
+					code: "PROJECTION_UNAVAILABLE",
+					message: "Published Lesson projection storage is unavailable.",
+				},
+			],
+		});
 	});
 });

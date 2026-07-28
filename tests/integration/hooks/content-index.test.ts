@@ -7,7 +7,6 @@ import {
 	contentAfterSave,
 	contentAfterUnpublish,
 } from "../../../src/hooks/content.js";
-import { backfillContentIndex } from "../../../src/reconcilers/backfill-content-index.js";
 import type { CourseContentIndexRow } from "../../../src/types/storage.js";
 
 function createIndexCollection(
@@ -65,8 +64,6 @@ function createContext(
 ) {
 	const rows = new Map<string, CourseContentIndexRow>();
 	const contentById = new Map(contentItems.map((item) => [item.id, item]));
-	const warn = vi.fn();
-	const info = vi.fn();
 	// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- intentionally minimal PluginContext integration fixture
 	const ctx = {
 		storage: { course_content_index: createIndexCollection(rows) },
@@ -81,9 +78,9 @@ function createContext(
 				};
 			},
 		},
-		log: { debug: vi.fn(), info, warn, error: vi.fn() },
+		log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 	} as unknown as PluginContext;
-	return { ctx, rows, contentById, warn, info };
+	return { ctx, rows, contentById };
 }
 
 const lesson = (
@@ -180,26 +177,5 @@ describe("published lesson projection", () => {
 			fixture.ctx,
 		);
 		expect(fixture.rows.size).toBe(0);
-	});
-
-	it("backfills published lessons and reports malformed orphan rows", async () => {
-		const fixture = createContext([
-			lesson("lesson-good", "course-a", 1),
-			lesson("lesson-draft", "course-a", 2, "draft"),
-			{ id: "lesson-orphan", status: "published", data: { title: "Orphan", order: 3 } },
-		]);
-
-		await expect(backfillContentIndex(fixture.ctx)).resolves.toEqual({
-			lessonsUpserted: 1,
-			staleRowsDeleted: 0,
-			errors: 1,
-		});
-		expect([...fixture.rows.values()].map((row) => row.stepId)).toEqual(["lesson-good"]);
-		expect(fixture.warn).toHaveBeenCalledOnce();
-		expect(fixture.info).toHaveBeenCalledWith("Learn content index rebuilt.", {
-			lessonsUpserted: 1,
-			staleRowsDeleted: 0,
-			errors: 1,
-		});
 	});
 });
