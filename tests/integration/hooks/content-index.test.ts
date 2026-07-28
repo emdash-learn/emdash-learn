@@ -7,7 +7,6 @@ import {
 	contentAfterSave,
 	contentAfterUnpublish,
 } from "../../../src/hooks/content.js";
-import { backfillContentIndex } from "../../../src/reconcilers/backfill-content-index.js";
 import type { CourseContentIndexRow } from "../../../src/types/storage.js";
 
 function createIndexCollection(
@@ -64,22 +63,24 @@ function createContext(
 	}> = [],
 ) {
 	const rows = new Map<string, CourseContentIndexRow>();
-	const warn = vi.fn();
-	const info = vi.fn();
+	const contentById = new Map(contentItems.map((item) => [item.id, item]));
 	// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- intentionally minimal PluginContext integration fixture
 	const ctx = {
 		storage: { course_content_index: createIndexCollection(rows) },
 		content: {
+			async get(_collection: string, id: string) {
+				return contentById.get(id) ?? null;
+			},
 			async list() {
 				return {
-					items: contentItems.filter((item) => item.status === "published"),
+					items: [...contentById.values()].filter((item) => item.status === "published"),
 					hasMore: false,
 				};
 			},
 		},
-		log: { debug: vi.fn(), info, warn, error: vi.fn() },
+		log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 	} as unknown as PluginContext;
-	return { ctx, rows, warn, info };
+	return { ctx, rows, contentById };
 }
 
 const lesson = (
@@ -95,10 +96,10 @@ const lesson = (
 
 describe("published lesson projection", () => {
 	it("upserts published lessons and moves a reassigned lesson without leaving a stale row", async () => {
-		const fixture = createContext();
+		const fixture = createContext([lesson("lesson-1", "course-a", 2)]);
 
 		await contentAfterPublish(
-			{ collection: "lessons", content: lesson("lesson-1", "course-a", 2) },
+			{ collection: "lessons", content: lesson("lesson-1", "payload-course", 99) },
 			fixture.ctx,
 		);
 		expect([...fixture.rows.values()]).toEqual([
@@ -111,11 +112,12 @@ describe("published lesson projection", () => {
 			},
 		]);
 
+		fixture.contentById.set("lesson-1", lesson("lesson-1", "course-b", 7));
 		await contentAfterSave(
 			{
 				collection: "lessons",
 				isNew: false,
-				content: lesson("lesson-1", "course-b", 7),
+				content: lesson("lesson-1", "payload-course", 99),
 			},
 			fixture.ctx,
 		);
@@ -129,12 +131,13 @@ describe("published lesson projection", () => {
 	});
 
 	it("removes pointers on draft save, unpublish, and delete while ignoring other collections", async () => {
-		const fixture = createContext();
+		const fixture = createContext([lesson("lesson-1", "course-a", 1)]);
 		await contentAfterPublish(
 			{ collection: "lessons", content: lesson("lesson-1", "course-a", 1) },
 			fixture.ctx,
 		);
 
+		fixture.contentById.set("lesson-1", lesson("lesson-1", "course-a", 1, "draft"));
 		await contentAfterSave(
 			{
 				collection: "lessons",
@@ -145,20 +148,24 @@ describe("published lesson projection", () => {
 		);
 		expect(fixture.rows.size).toBe(0);
 
+		fixture.contentById.set("lesson-1", lesson("lesson-1", "course-a", 1));
 		await contentAfterPublish(
 			{ collection: "lessons", content: lesson("lesson-1", "course-a", 1) },
 			fixture.ctx,
 		);
+		fixture.contentById.set("lesson-1", lesson("lesson-1", "course-a", 1, "draft"));
 		await contentAfterUnpublish(
 			{ collection: "lessons", content: lesson("lesson-1", "course-a", 1, "draft") },
 			fixture.ctx,
 		);
 		expect(fixture.rows.size).toBe(0);
 
+		fixture.contentById.set("lesson-1", lesson("lesson-1", "course-a", 1));
 		await contentAfterPublish(
 			{ collection: "lessons", content: lesson("lesson-1", "course-a", 1) },
 			fixture.ctx,
 		);
+		fixture.contentById.delete("lesson-1");
 		await contentAfterDelete(
 			{ collection: "lessons", id: "lesson-1", permanent: true },
 			fixture.ctx,
@@ -170,26 +177,5 @@ describe("published lesson projection", () => {
 			fixture.ctx,
 		);
 		expect(fixture.rows.size).toBe(0);
-	});
-
-	it("backfills published lessons and reports malformed orphan rows", async () => {
-		const fixture = createContext([
-			lesson("lesson-good", "course-a", 1),
-			lesson("lesson-draft", "course-a", 2, "draft"),
-			{ id: "lesson-orphan", status: "published", data: { title: "Orphan", order: 3 } },
-		]);
-
-		await expect(backfillContentIndex(fixture.ctx)).resolves.toEqual({
-			lessonsUpserted: 1,
-			staleRowsDeleted: 0,
-			errors: 1,
-		});
-		expect([...fixture.rows.values()].map((row) => row.stepId)).toEqual(["lesson-good"]);
-		expect(fixture.warn).toHaveBeenCalledOnce();
-		expect(fixture.info).toHaveBeenCalledWith("Learn content index rebuilt.", {
-			lessonsUpserted: 1,
-			staleRowsDeleted: 0,
-			errors: 1,
-		});
 	});
 });

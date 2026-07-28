@@ -28,3 +28,17 @@ Until #1 lands in emdash, admin UI testing (§A.1–A.6) is blocked. §B (studen
 - Plugin definition: `src/index.ts` (descriptor) + `src/sandbox-entry.ts` (runtime) + `src/admin.tsx` (React pages registry) + `src/astro/` (site-side blocks). See `src/index.ts` comment block for the split.
 - Admin pages are registered in `src/admin.tsx` as a `Record<string, ComponentType>`. Components self-parse params from `window.location.pathname` (e.g. `parseCourseIdFromPath` in `CoursePage.tsx:89`).
 - Route names on the plugin's RPC surface use `namespace:action` form (e.g. `instructor:course-overview`, `admin:analytics-overview`). Exposed via the `routes` block in `sandbox-entry.ts`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `emdash-learn/emdash-learn`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The repo uses the five default canonical triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo with `CONTEXT.md` at the root and ADRs under `docs/adr/`. See `docs/agents/domain.md`.

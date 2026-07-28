@@ -11,8 +11,8 @@ import {
 } from "./hooks/content.js";
 import { createReportingMaintenanceHooks } from "./hooks/reporting-maintenance.js";
 import { BOOTSTRAP_STATE_KEY } from "./kv-keys.js";
+import { repairPublishedLessons } from "./modules/published-lessons.js";
 import { LEARN_PLUGIN_CONTRACT } from "./plugin-contract.js";
-import { backfillContentIndex } from "./reconcilers/backfill-content-index.js";
 import { createAssessmentRoutes } from "./routes/assessment.js";
 import { createEngagementReportingRoutes } from "./routes/engagement-reporting.js";
 import { publishedCourseRoutes } from "./routes/published-courses.js";
@@ -44,7 +44,7 @@ export function createPlugin() {
 		async converge(ctx) {
 			const result = await convergeSetup({
 				schema: createServerSchemaClient(ctx),
-				repairProjection: () => backfillContentIndex(ctx),
+				repairProjection: () => repairPublishedLessons(ctx),
 				persistState: (state) => ctx.kv.set(BOOTSTRAP_STATE_KEY, state),
 			});
 			await reportingMaintenance.onLifecycle({}, ctx);

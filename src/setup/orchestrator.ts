@@ -3,8 +3,15 @@ import type { BootstrapState } from "../types/storage.js";
 import type { CoreSchemaClient } from "./core-schema-client.js";
 import { WIZARD_STEPS, type StepProbe } from "./steps.js";
 
+/**
+ * Setup only ever accepts an explicitly complete repair. Counts remain part of
+ * the reported result so operators keep the reconciliation summary they had
+ * before the Published Lessons module owned this decision.
+ */
 export interface ProjectionRepairResult {
+	complete: boolean;
 	errors: number;
+	diagnostics?: ReadonlyArray<{ code: string; message: string }>;
 }
 
 export interface SetupOrchestratorOptions {
@@ -29,6 +36,39 @@ export class SetupVerificationError extends Error {
 		super(message);
 		this.name = "SetupVerificationError";
 	}
+}
+
+/**
+ * Read whatever diagnostics a composed adapter actually reported. An adapter
+ * that breaks its declared contract must still fail as setup verification
+ * rather than as an unhandled type error.
+ */
+function reportedDiagnostics(projection: unknown): Array<{ code: string; message: string }> {
+	if (typeof projection !== "object" || projection === null) return [];
+	const diagnostics = Reflect.get(projection, "diagnostics");
+	if (!Array.isArray(diagnostics)) return [];
+	return diagnostics.filter(
+		(entry: unknown): entry is { code: string; message: string } =>
+			typeof entry === "object" &&
+			entry !== null &&
+			typeof Reflect.get(entry, "code") === "string" &&
+			typeof Reflect.get(entry, "message") === "string",
+	);
+}
+
+/**
+ * Report why repair could not be accepted through the existing step-probe
+ * field, so an operator sees the projection diagnostics instead of only a
+ * server log line.
+ */
+function projectionProbe(projection: unknown): StepProbe {
+	return {
+		status: "error",
+		summary: "Published Lesson projection repair did not complete.",
+		details: reportedDiagnostics(projection).map(
+			(diagnostic) => `${diagnostic.code}: ${diagnostic.message}`,
+		),
+	};
 }
 
 function assertVerifiedStep(stepId: string, probe: StepProbe): void {
@@ -66,16 +106,20 @@ export async function convergeSetup(
 		completedSteps.push(step.id);
 	}
 
+	// The completion claim arrives from a composed adapter, so setup verifies it
+	// against the reported errors instead of trusting either alone.
 	const projection = await options.repairProjection();
+	const claimsComplete: unknown =
+		typeof projection === "object" && projection !== null ? projection.complete : undefined;
 	if (
-		typeof projection !== "object" ||
-		projection === null ||
+		claimsComplete !== true ||
 		!Number.isSafeInteger(projection.errors) ||
 		projection.errors !== 0
 	) {
 		throw new SetupVerificationError(
-			"Lesson projection repair did not complete without errors.",
+			"Published Lesson projection repair did not complete.",
 			"projection",
+			projectionProbe(projection),
 		);
 	}
 

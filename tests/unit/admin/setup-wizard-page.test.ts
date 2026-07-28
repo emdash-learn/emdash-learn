@@ -23,7 +23,7 @@ describe("SetupView", () => {
 				error: null,
 				result: {
 					schemaWrites: 0,
-					projection: { errors: 0, lessonsUpserted: 3 },
+					projection: { complete: true, errors: 0, lessonsUpserted: 3 },
 				},
 				onRun: vi.fn(),
 				onRefresh: vi.fn(),
