@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+### Patch Changes
+
+- 01f8be6: Serve only canonical published Lessons and synchronize their projection from authoritative content.
+- 01f8be6: Repair the Published Lesson Projection through one module operation that scans every page of authoritative published Lessons before reconciling, reports counts, diagnostics, and an explicit complete indicator, and leaves the existing projection untouched when that scan cannot complete. Setup Run now delegates to that operation and only succeeds when the repair reports itself complete.
+
 ## 0.1.2
 
 ### Patch Changes
